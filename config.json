@@ -1,0 +1,41 @@
+{
+  "routes": [
+    {
+      "path": "/",
+      "src": "src/pages/Index.tsx"
+    },
+    {
+      "path": "/login",
+      "src": "src/pages/Login.tsx"
+    },
+    {
+      "path": "/activate",
+      "src": "src/pages/Activate.tsx"
+    },
+    {
+      "path": "/schedule",
+      "src": "src/pages/Schedule.tsx"
+    },
+    {
+      "path": "/rosters",
+      "src": "src/pages/Rosters.tsx"
+    }
+  ],
+  "components": [
+    {
+      "name": "GeoFenceMapPicker",
+      "src": "src/components/GeoFenceMapPicker.tsx",
+      "route": "/preview/geo-fence-map-picker"
+    },
+    {
+      "name": "Layout",
+      "src": "src/components/Layout.tsx",
+      "route": "/preview/layout"
+    },
+    {
+      "name": "WorkDaysCalendar",
+      "src": "src/components/WorkDaysCalendar.tsx",
+      "route": "/preview/work-days-calendar"
+    }
+  ]
+}

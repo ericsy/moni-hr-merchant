@@ -1,0 +1,184 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@font-face {
+  font-family: "Poppins-Regular_6";
+  src: local("Poppins Regular"), local("Poppins");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  --font-sans: var(--fontSans);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --shadow-x: var(--shadow-x);
+  --shadow-y: var(--shadow-y);
+  --shadow-blur: var(--shadow-blur);
+  --shadow-spread: var(--shadow-spread);
+  --shadow-color: var(--shadow-color);
+}
+
+:root {
+  --fontSans: "Poppins-Regular_6", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --radius: 0.5rem;
+  --background: rgba(245, 247, 250, 1);
+  --foreground: rgba(15, 23, 42, 1);
+  --card: rgba(255, 255, 255, 1);
+  --card-foreground: rgba(15, 23, 42, 1);
+  --popover: rgba(255, 255, 255, 1);
+  --popover-foreground: rgba(15, 23, 42, 1);
+  --primary: rgba(22, 119, 255, 1);
+  --primary-foreground: rgba(255, 255, 255, 1);
+  --secondary: rgba(230, 244, 255, 1);
+  --secondary-foreground: rgba(22, 119, 255, 1);
+  --muted: rgba(248, 250, 252, 1);
+  --muted-foreground: rgba(100, 116, 139, 1);
+  --accent: rgba(240, 247, 255, 1);
+  --accent-foreground: rgba(22, 119, 255, 1);
+  --destructive: rgba(239, 68, 68, 1);
+  --destructive-foreground: rgba(255, 255, 255, 1);
+  --border: rgba(226, 232, 240, 1);
+  --input: rgba(226, 232, 240, 1);
+  --ring: rgba(147, 197, 253, 1);
+  --chart-1: rgba(22, 119, 255, 1);
+  --chart-2: rgba(82, 196, 26, 1);
+  --chart-3: rgba(250, 173, 20, 1);
+  --chart-4: rgba(245, 34, 45, 1);
+  --chart-5: rgba(114, 46, 209, 1);
+  --sidebar: rgba(255, 255, 255, 1);
+  --sidebar-foreground: rgba(15, 23, 42, 1);
+  --sidebar-primary: rgba(22, 119, 255, 1);
+  --sidebar-primary-foreground: rgba(255, 255, 255, 1);
+  --sidebar-accent: rgba(240, 247, 255, 1);
+  --sidebar-accent-foreground: rgba(22, 119, 255, 1);
+  --sidebar-border: rgba(226, 232, 240, 1);
+  --sidebar-ring: rgba(147, 197, 253, 1);
+  --shadow-x: 0px;
+  --shadow-y: 1px;
+  --shadow-blur: 8px;
+  --shadow-spread: 0px;
+  --shadow-color: rgba(0, 0, 0, 0.08);
+
+  /* ─── WorkDaysCalendar semantic tokens ─── */
+  /* Working day: blue */
+  --workday-active-bg: rgba(22, 119, 255, 0.1);
+  --workday-active-text: rgba(22, 119, 255, 1);
+  --workday-active-sub: rgba(22, 119, 255, 0.7);
+  --workday-active-hours-bg: rgba(22, 119, 255, 1);
+  --workday-active-hours-text: rgba(255, 255, 255, 1);
+
+  /* Weekend / day off: soft red */
+  --workday-weekend-bg: rgba(239, 68, 68, 0.08);
+  --workday-weekend-text: rgba(220, 38, 38, 1);
+  --workday-weekend-sub: rgba(220, 38, 38, 0.65);
+  --workday-weekend-hours-bg: rgba(220, 38, 38, 1);
+  --workday-weekend-hours-text: rgba(255, 255, 255, 1);
+  --workday-weekend-header: rgba(239, 68, 68, 0.06);
+
+  /* Public holiday: orange-amber */
+  --workday-holiday-bg: rgba(245, 158, 11, 0.1);
+  --workday-holiday-text: rgba(180, 83, 9, 1);
+  --workday-holiday-sub: rgba(180, 83, 9, 0.65);
+  --workday-holiday-hours-bg: rgba(245, 158, 11, 1);
+  --workday-holiday-hours-text: rgba(255, 255, 255, 1);
+
+  /* Default / not-set cell */
+  --workday-cell-bg: rgba(248, 250, 252, 1);
+  --workday-cell-text: rgba(100, 116, 139, 1);
+  --workday-cell-sub: rgba(148, 163, 184, 1);
+  --workday-hours-bg: rgba(226, 232, 240, 1);
+  --workday-hours-text: rgba(100, 116, 139, 1);
+
+  /* Dimmed out-of-month cells */
+  --workday-dimmed-bg: rgba(248, 250, 252, 0.5);
+  --workday-dimmed-text: rgba(203, 213, 225, 1);
+
+  /* Schedule colors */
+  --shift-morning: rgba(22, 119, 255, 0.12);
+  --shift-morning-border: rgba(22, 119, 255, 1);
+  --shift-afternoon: rgba(82, 196, 26, 0.12);
+  --shift-afternoon-border: rgba(82, 196, 26, 1);
+  --shift-evening: rgba(114, 46, 209, 0.12);
+  --shift-evening-border: rgba(114, 46, 209, 1);
+  --shift-night: rgba(15, 23, 42, 0.08);
+  --shift-night-border: rgba(100, 116, 139, 1);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--fontSans);
+  }
+}
+
+@layer utilities {
+  .shadow-custom {
+    box-shadow: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) var(--shadow-color);
+  }
+  .shadow-card {
+    box-shadow: 0 1px 8px 0 var(--shadow-color);
+  }
+}
+
+/* Ant Design overrides */
+.ant-layout {
+  background: var(--background) !important;
+}
+.ant-layout-header {
+  padding: 0 24px !important;
+  line-height: 64px !important;
+}
+.ant-menu-item-selected {
+  background-color: var(--sidebar-accent) !important;
+  color: var(--sidebar-primary) !important;
+}
+.ant-menu-item-selected .ant-menu-item-icon,
+.ant-menu-item-selected .ant-menu-title-content {
+  color: var(--sidebar-primary) !important;
+}
+.schedule-cell {
+  transition: background 0.15s;
+}
+.schedule-cell:hover {
+  background: var(--accent) !important;
+}
