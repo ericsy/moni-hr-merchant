@@ -885,12 +885,12 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         </div>
 
         {/* ── Right Panel: Schedule Grid ───────────────────────────────────── */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto relative">
 
           {/* Template name header */}
           <div
-            className="px-4 py-2 flex items-center justify-between flex-shrink-0 sticky top-0 z-10"
-            style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}
+            className="px-4 py-2 flex items-center justify-between flex-shrink-0 sticky top-0 left-0 z-10"
+            style={{ background: "var(--card)", borderBottom: "1px solid var(--border)", zIndex: 40, width: "100%" }}
           >
             {nameEditing ? (
               <div className="flex items-center gap-2">
@@ -937,11 +937,17 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
           <div style={{ minWidth: Math.max(700, totalDaysList.length * 160 + 120) }}>
 
             {/* Day header row */}
-            <div className="flex sticky top-10 z-10" style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
+            <div className="flex sticky top-10 z-20" style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
               {/* Area column header */}
               <div
-                className="flex-shrink-0 flex items-center px-4"
-                style={{ width: 120, borderRight: "1px solid var(--border)", minHeight: 44 }}
+                className="sticky left-0 flex-shrink-0 flex items-center px-4"
+                style={{
+                  width: 120,
+                  borderRight: "1px solid var(--border)",
+                  minHeight: 44,
+                  background: "var(--card)",
+                  zIndex: 30,
+                }}
               >
                 <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
                   {locale === "zh" ? "区域" : "Area"}
@@ -994,8 +1000,14 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               <div key={area.id} className="flex" style={{ borderBottom: "1px solid var(--border)" }}>
                 {/* Area name cell */}
                 <div
-                  className="flex-shrink-0 flex items-start justify-between px-3 py-3 group"
-                  style={{ width: 120, borderRight: "1px solid var(--border)", minHeight: 88, background: "var(--muted)" }}
+                  className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
+                  style={{
+                    width: 120,
+                    borderRight: "1px solid var(--border)",
+                    minHeight: 88,
+                    background: "var(--muted)",
+                    zIndex: 10,
+                  }}
                 >
                   <div className="flex items-center gap-1">
                     <GripVertical size={12} style={{ color: "var(--muted-foreground)" }} />

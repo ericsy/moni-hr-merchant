@@ -1609,7 +1609,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         </div>
 
         {/* ── Right: Grid ───────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto relative">
           <div style={{ minWidth: TOTAL_GRID_W }}>
 
             {/* ── Sticky header row ───────────────────────────────────────── */}
@@ -1619,8 +1619,14 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
             >
               {/* Left label column */}
               <div
-                className="flex-shrink-0 flex items-center px-4"
-                style={{ width: LEFT_COL_W, borderRight: "1px solid var(--border)", minHeight: 44 }}
+                className="sticky left-0 flex-shrink-0 flex items-center px-4"
+                style={{
+                  width: LEFT_COL_W,
+                  borderRight: "1px solid var(--border)",
+                  minHeight: 44,
+                  background: "var(--card)",
+                  zIndex: 30,
+                }}
               >
                 <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
                   {isZh ? "区域" : "Area"}
@@ -1662,8 +1668,14 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
                 {/* Area name cell — matches RosterTemplate area label cell */}
                 <div
-                  className="flex-shrink-0 flex items-start justify-between px-3 py-3 group"
-                  style={{ width: LEFT_COL_W, borderRight: "1px solid var(--border)", minHeight: 88, background: "var(--muted)" }}
+                  className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
+                  style={{
+                    width: LEFT_COL_W,
+                    borderRight: "1px solid var(--border)",
+                    minHeight: 88,
+                    background: "var(--muted)",
+                    zIndex: 10,
+                  }}
                 >
                   <div className="flex items-center gap-1">
                     <GripVertical size={12} style={{ color: "var(--muted-foreground)" }} />
