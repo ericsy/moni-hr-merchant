@@ -12,7 +12,7 @@ const StoreContext = createContext<StoreContextType>({
 });
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const { stores } = useData();
+  const { stores, reloadForStore } = useData();
   const [selectedStoreId, setSelectedStoreId] = useState<string>("all");
 
   // When stores change and the selected store no longer exists, reset to "all"
@@ -21,10 +21,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const exists = stores.find((s) => s.id === selectedStoreId);
       if (!exists) {
         console.log("[StoreContext] selected store no longer exists, resetting to all");
-        setSelectedStoreId("all");
+        queueMicrotask(() => setSelectedStoreId("all"));
       }
     }
   }, [stores, selectedStoreId]);
+
+  useEffect(() => {
+    reloadForStore(selectedStoreId).catch((error) => {
+      console.log("[StoreContext] failed to reload store context:", error);
+    });
+  }, [reloadForStore, selectedStoreId]);
 
   console.log("[StoreContext] selectedStoreId:", selectedStoreId);
 

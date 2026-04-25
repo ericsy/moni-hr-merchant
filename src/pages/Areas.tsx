@@ -53,7 +53,7 @@ const resequenceAreaScope = (areas: Area[], scopeKey: string) => {
 export default function Areas() {
   const { locale } = useLocale();
   const { selectedStoreId } = useStore();
-  const { areas, setAreas, stores, employees, rosterTemplates, scheduleShifts } = useData();
+  const { areas, saveArea, deleteArea, stores, employees, rosterTemplates, scheduleShifts } = useData();
 
   const copy = locale === "zh"
     ? {
@@ -212,7 +212,7 @@ export default function Areas() {
     setEditingArea(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const name = form.name.trim();
     const normalizedAreaType = form.areaType;
     const storeIdToSave = normalizedAreaType === "general" ? "" : form.storeId;
@@ -237,68 +237,43 @@ export default function Areas() {
       return;
     }
 
-    if (editingArea) {
-      const previousScopeKey = getAreaScopeKey(editingArea);
-
-      if (previousScopeKey === nextScopeKey) {
-        setAreas((prev) =>
-          prev.map((area) =>
-            area.id === editingArea.id
-              ? { ...area, name, storeId: storeIdToSave, areaType: normalizedAreaType, color: form.color }
-              : area
-          )
-        );
-      } else {
-        setAreas((prev) => {
-          const removed = prev.filter((area) => area.id !== editingArea.id);
-          const nextOrder = removed
-            .filter((area) => getAreaScopeKey(area) === nextScopeKey)
-            .reduce((max, area) => Math.max(max, area.order), -1) + 1;
-
-          return [
-            ...resequenceAreaScope(removed, previousScopeKey),
-            {
-              ...editingArea,
-              name,
-              storeId: storeIdToSave,
-              areaType: normalizedAreaType,
-              color: form.color,
-              order: nextOrder,
-            },
-          ];
-        });
-      }
-    } else {
-      const nextOrder = areas
+    const nextOrder = editingArea && getAreaScopeKey(editingArea) === nextScopeKey
+      ? editingArea.order
+      : areas
         .filter((area) => getAreaScopeKey(area) === nextScopeKey)
         .reduce((max, area) => Math.max(max, area.order), -1) + 1;
 
-      setAreas((prev) => [
-        ...prev,
-        {
-          id: `area-${Date.now()}`,
-          name,
-          storeId: storeIdToSave,
-          areaType: normalizedAreaType,
-          color: form.color,
-          order: nextOrder,
-        },
-      ]);
-    }
+    const areaToSave: Area = {
+      ...(editingArea || { id: `area-${Date.now()}` }),
+      name,
+      storeId: storeIdToSave,
+      areaType: normalizedAreaType,
+      color: form.color,
+      order: nextOrder,
+    };
 
-    closeModal();
-    toast.success(locale === "zh" ? "区域已保存" : "Area saved");
+    try {
+      await saveArea(areaToSave, editingArea?.id);
+      closeModal();
+      toast.success(locale === "zh" ? "区域已保存" : "Area saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Area save failed");
+    }
   };
 
-  const handleDelete = (area: Area) => {
+  const handleDelete = async (area: Area) => {
     const refs = referenceMap[area.id] || { employees: 0, templates: 0, shifts: 0 };
     if (refs.employees > 0 || refs.templates > 0 || refs.shifts > 0) {
       toast.error(copy.cannotDelete);
       return;
     }
 
-    setAreas((prev) => resequenceAreaScope(prev.filter((item) => item.id !== area.id), getAreaScopeKey(area)));
-    toast.success(locale === "zh" ? "区域已删除" : "Area deleted");
+    try {
+      await deleteArea(area.id);
+      toast.success(locale === "zh" ? "区域已删除" : "Area deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Area delete failed");
+    }
   };
 
   return (

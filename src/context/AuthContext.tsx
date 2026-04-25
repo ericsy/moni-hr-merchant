@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { clearStoredAccessToken, getStoredAccessToken, setStoredAccessToken } from "../lib/apiClient";
+import { merchantApi } from "../lib/merchantApi";
 
 export type AuthStatus = "unauthenticated" | "needs_activation" | "authenticated";
 
@@ -17,18 +19,18 @@ interface AuthContextType {
 
 const AUTH_STORAGE_KEY = "moni_hr_auth_session";
 
-function readStoredSession(): { status: AuthStatus; user: AuthUser | null } {
+function readStoredSession(): { status: AuthStatus; user: AuthUser | null; activationToken: string } {
   if (typeof window === "undefined") {
-    return { status: "unauthenticated", user: null };
+    return { status: "unauthenticated", user: null, activationToken: "" };
   }
 
   try {
     const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
     if (!raw) {
-      return { status: "unauthenticated", user: null };
+      return { status: "unauthenticated", user: null, activationToken: "" };
     }
 
-    const parsed = JSON.parse(raw) as { status?: AuthStatus; user?: AuthUser | null };
+    const parsed = JSON.parse(raw) as { status?: AuthStatus; user?: AuthUser | null; activationToken?: string };
     const validStatus =
       parsed.status === "authenticated" || parsed.status === "needs_activation"
         ? parsed.status
@@ -39,13 +41,17 @@ function readStoredSession(): { status: AuthStatus; user: AuthUser | null } {
         : null;
 
     if (validStatus === "unauthenticated" || !validUser) {
-      return { status: "unauthenticated", user: null };
+      return { status: "unauthenticated", user: null, activationToken: "" };
     }
 
-    return { status: validStatus, user: validUser };
+    if (validStatus === "authenticated" && !getStoredAccessToken()) {
+      return { status: "unauthenticated", user: null, activationToken: "" };
+    }
+
+    return { status: validStatus, user: validUser, activationToken: parsed.activationToken || "" };
   } catch (error) {
     console.log("[AuthProvider] failed to read auth session:", error);
-    return { status: "unauthenticated", user: null };
+    return { status: "unauthenticated", user: null, activationToken: "" };
   }
 }
 
@@ -57,17 +63,11 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
 });
 
-// Mock users for demo
-const MOCK_USERS = [
-  { email: "admin@moni-hr.com", password: "admin123", name: "Admin", activated: true },
-  { email: "new@moni-hr.com", password: "", name: "New User", activated: false },
-];
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [status, setStatus] = useState<AuthStatus>(() => readStoredSession().status);
-  const [user, setUser] = useState<AuthUser | null>(() => readStoredSession().user);
-  // Track activated accounts in memory
-  const [activatedAccounts, setActivatedAccounts] = useState<Record<string, string>>({});
+  const [storedSession] = useState(() => readStoredSession());
+  const [status, setStatus] = useState<AuthStatus>(storedSession.status);
+  const [user, setUser] = useState<AuthUser | null>(storedSession.user);
+  const [activationToken, setActivationToken] = useState(storedSession.activationToken);
 
   console.log("[AuthProvider] status:", status, "user:", user);
 
@@ -85,38 +85,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         JSON.stringify({
           status,
           user,
+          activationToken,
         })
       );
     } catch (error) {
       console.log("[AuthProvider] failed to persist auth session:", error);
     }
-  }, [status, user]);
+  }, [status, user, activationToken]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !getStoredAccessToken()) return;
+
+    let cancelled = false;
+    merchantApi.authMe()
+      .then((principal) => {
+        if (cancelled || !principal?.adminName) return;
+        setUser((prev) => prev ? { ...prev, name: principal.adminName || prev.name } : prev);
+      })
+      .catch((error) => {
+        console.log("[AuthProvider] failed to verify session:", error);
+        if (cancelled) return;
+        clearStoredAccessToken();
+        setStatus("unauthenticated");
+        setUser(null);
+        setActivationToken("");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; message?: string }> => {
     console.log("[AuthProvider] login attempt:", email);
-    await new Promise((r) => setTimeout(r, 800));
+    try {
+      const result = await merchantApi.login(email, password);
+      const nextUser = {
+        email: result?.user?.email || email,
+        name: result?.user?.name || email,
+      };
 
-    const found = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (!found) {
-      return { success: false, message: "邮箱不存在，请检查后重试" };
-    }
+      if (result?.status === "needs_activation") {
+        clearStoredAccessToken();
+        setUser(nextUser);
+        setActivationToken(result.accessToken || "");
+        setStatus("needs_activation");
+        return { success: true };
+      }
 
-    // Check if this account needs activation
-    if (!found.activated && !activatedAccounts[email.toLowerCase()]) {
-      setUser({ email: found.email, name: found.name });
-      setStatus("needs_activation");
+      if (!result?.accessToken) {
+        return { success: false, message: "登录响应缺少访问令牌" };
+      }
+
+      setStoredAccessToken(result.accessToken);
+      setUser(nextUser);
+      setActivationToken("");
+      setStatus("authenticated");
       return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "登录失败，请检查邮箱和密码";
+      return { success: false, message };
     }
-
-    // Check password
-    const expectedPassword = activatedAccounts[email.toLowerCase()] ?? found.password;
-    if (password !== expectedPassword) {
-      return { success: false, message: "密码错误，请重新输入" };
-    }
-
-    setUser({ email: found.email, name: found.name });
-    setStatus("authenticated");
-    return { success: true };
   };
 
   const activate = async (
@@ -134,15 +163,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, message: "两次输入的密码不一致" };
     }
 
-    setActivatedAccounts((prev) => ({ ...prev, [email.toLowerCase()]: password }));
-    setStatus("authenticated");
-    return { success: true };
+    try {
+      const urlToken = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("token") || "";
+      const token = activationToken || urlToken;
+      if (!token) {
+        return { success: false, message: "缺少激活令牌，请使用激活链接重新进入" };
+      }
+      await merchantApi.activate(token, password);
+      return await login(email, password);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "激活失败，请重试";
+      return { success: false, message };
+    }
   };
 
   const logout = () => {
     console.log("[AuthProvider] logout");
+    merchantApi.logout().catch((error) => {
+      console.log("[AuthProvider] remote logout failed:", error);
+    });
+    clearStoredAccessToken();
     setStatus("unauthenticated");
     setUser(null);
+    setActivationToken("");
   };
 
   return (

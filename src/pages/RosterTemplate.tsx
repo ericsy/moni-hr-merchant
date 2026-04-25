@@ -284,7 +284,16 @@ interface RosterTemplatePageProps {
 }
 
 export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplatePageProps) {
-  const { employees, setEmployees, stores, areas, scheduleShifts, rosterTemplates: allTemplates, setRosterTemplates: setTemplates } = useData();
+  const {
+    employees,
+    saveEmployee,
+    stores,
+    areas,
+    scheduleShifts,
+    rosterTemplates: allTemplates,
+    setRosterTemplates: setTemplates,
+    saveRosterTemplate,
+  } = useData();
   const { locale, t } = useLocale();
   const { selectedStoreId } = useStore();
 
@@ -510,11 +519,15 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     setAddEmployeeOpen(true);
   };
 
-  const handleAddEmployee = (employee: Employee) => {
-    setEmployees((prev) => [...prev, employee]);
-    setSearchText("");
-    setAddEmployeeOpen(false);
-    toast.success(locale === "zh" ? "员工已添加" : "Employee added");
+  const handleAddEmployee = async (employee: Employee) => {
+    try {
+      await saveEmployee(employee);
+      setSearchText("");
+      setAddEmployeeOpen(false);
+      toast.success(locale === "zh" ? "员工已添加" : "Employee added");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Employee save failed");
+    }
   };
 
   // ── Cell CRUD ─────────────────────────────────────────────────────────────
@@ -685,6 +698,18 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     toast.success(locale === "zh" ? "新模版已创建" : "New template created");
   };
 
+  const handleSaveTemplate = async () => {
+    if (!activeTemplate) return;
+    try {
+      const saved = await saveRosterTemplate(activeTemplate);
+      setActiveTemplateId(saved.id);
+      onSave();
+      toast.success(locale === "zh" ? "模版已保存" : "Template saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Template save failed");
+    }
+  };
+
   // ── Duration buttons ───────────────────────────────────────────────────────
 
   const durationOptions = [
@@ -800,7 +825,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
           <Button
             type="primary"
             icon={<Save size={14} />}
-            onClick={() => { onSave(); toast.success(locale === "zh" ? "模版已保存" : "Template saved"); }}
+            onClick={handleSaveTemplate}
             style={{ display: "flex", alignItems: "center", gap: 4 }}
           >
             {locale === "zh" ? "保存模版" : "Save Template"}
@@ -1123,6 +1148,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         onSave={handleAddEmployee}
         onCancel={() => setAddEmployeeOpen(false)}
         t={t}
+        locale={locale}
       />
 
       <Modal

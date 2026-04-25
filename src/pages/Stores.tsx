@@ -70,7 +70,7 @@ function StoreModal({
   open?: boolean;
   store?: Store | null;
   employees?: { storeIds: string[] }[];
-  onSave?: (store: Store) => void;
+  onSave?: (store: Store) => void | Promise<void>;
   onCancel?: () => void;
   t: ReturnType<typeof useLocale>["t"];
   locale?: string;
@@ -112,7 +112,7 @@ function StoreModal({
             }
           : {}),
       };
-      onSave(saved);
+      await onSave(saved);
       console.log("[StoreModal] saved store:", saved);
     } catch (err) {
       console.log("[StoreModal] validation error:", err);
@@ -244,6 +244,24 @@ function StoreModal({
   );
 }
 
+function StoreInfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-2 py-2" style={{ borderBottom: `1px solid var(--border)` }}>
+      <span className="mt-0.5 flex-shrink-0" style={{ color: "var(--muted-foreground)" }}>{icon}</span>
+      <span className="text-xs flex-shrink-0 w-36" style={{ color: "var(--muted-foreground)" }}>{label}</span>
+      <span className="text-xs font-medium flex-1" style={{ color: "var(--foreground)" }}>{value || "-"}</span>
+    </div>
+  );
+}
+
 // ─── Detail Panel ───
 function StoreDetailPanel({
   store,
@@ -264,48 +282,30 @@ function StoreDetailPanel({
     store.longitude !== undefined &&
     store.geofenceRadius !== undefined;
 
-  function InfoRow({
-    icon,
-    label,
-    value,
-  }: {
-    icon: React.ReactNode;
-    label: string;
-    value: string | React.ReactNode;
-  }) {
-    return (
-      <div className="flex items-start gap-2 py-2" style={{ borderBottom: `1px solid var(--border)` }}>
-        <span className="mt-0.5 flex-shrink-0" style={{ color: "var(--muted-foreground)" }}>{icon}</span>
-        <span className="text-xs flex-shrink-0 w-36" style={{ color: "var(--muted-foreground)" }}>{label}</span>
-        <span className="text-xs font-medium flex-1" style={{ color: "var(--foreground)" }}>{value || "-"}</span>
-      </div>
-    );
-  }
-
   const tabItems = [
     {
       key: "info",
       label: st.tabBasic,
       children: (
         <div className="flex flex-col">
-          <InfoRow icon={<Hash size={13} />} label={st.storeCode} value={store.code} />
-          <InfoRow
+          <StoreInfoRow icon={<Hash size={13} />} label={st.storeCode} value={store.code} />
+          <StoreInfoRow
             icon={<Globe size={13} />}
             label={st.country}
             value={`${COUNTRY_FLAGS[store.country] ?? ""} ${st.countries[store.country as "nz" | "au"] ?? store.country}`}
           />
-          <InfoRow icon={<MapPin size={13} />} label={st.city} value={store.city} />
-          <InfoRow icon={<Building2 size={13} />} label={st.address} value={store.address} />
-          <InfoRow icon={<Phone size={13} />} label={st.phone} value={store.phone} />
-          <InfoRow icon={<Mail size={13} />} label={st.email} value={store.email} />
-          <InfoRow icon={<UserCircle size={13} />} label={st.manager} value={store.manager} />
-          <InfoRow
+          <StoreInfoRow icon={<MapPin size={13} />} label={st.city} value={store.city} />
+          <StoreInfoRow icon={<Building2 size={13} />} label={st.address} value={store.address} />
+          <StoreInfoRow icon={<Phone size={13} />} label={st.phone} value={store.phone} />
+          <StoreInfoRow icon={<Mail size={13} />} label={st.email} value={store.email} />
+          <StoreInfoRow icon={<UserCircle size={13} />} label={st.manager} value={store.manager} />
+          <StoreInfoRow
             icon={<Clock size={13} />}
             label={`${st.openTime} / ${st.closeTime}`}
             value={`${store.openTime} – ${store.closeTime}`}
           />
-          <InfoRow icon={<Globe size={13} />} label={st.timezone} value={store.timezone} />
-          <InfoRow
+          <StoreInfoRow icon={<Globe size={13} />} label={st.timezone} value={store.timezone} />
+          <StoreInfoRow
             icon={<Users size={13} />}
             label={st.employeeCount}
             value={`${employeeCount}`}
@@ -326,9 +326,9 @@ function StoreDetailPanel({
                   {st.geofenceSet}
                 </span>
               </div>
-              <InfoRow icon={<MapPin size={13} />} label={st.geofenceLat} value={`${store.latitude}`} />
-              <InfoRow icon={<MapPin size={13} />} label={st.geofenceLng} value={`${store.longitude}`} />
-              <InfoRow icon={<Radio size={13} />} label={st.geofenceRadius} value={`${store.geofenceRadius} m`} />
+              <StoreInfoRow icon={<MapPin size={13} />} label={st.geofenceLat} value={`${store.latitude}`} />
+              <StoreInfoRow icon={<MapPin size={13} />} label={st.geofenceLng} value={`${store.longitude}`} />
+              <StoreInfoRow icon={<Radio size={13} />} label={st.geofenceRadius} value={`${store.geofenceRadius} m`} />
             </>
           ) : (
             <div className="flex items-center gap-2 py-4" style={{ color: "var(--muted-foreground)" }}>
@@ -410,7 +410,7 @@ function StoreDetailPanel({
 // ─── Main Stores Page ───
 export default function Stores() {
   const { t, locale } = useLocale();
-  const { stores, setStores, employees } = useData();
+  const { stores, saveStore, deleteStore, employees } = useData();
   const st = t.store;
 
   const [search, setSearch] = useState("");
@@ -450,22 +450,26 @@ export default function Stores() {
     setModalOpen(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedStore) return;
-    setStores((prev) => prev.filter((s) => s.id !== selectedStore.id));
-    setSelectedId(filtered.find((s) => s.id !== selectedStore.id)?.id ?? "");
-    toast.success(st.deleteSuccess);
+    try {
+      await deleteStore(selectedStore.id);
+      setSelectedId(filtered.find((s) => s.id !== selectedStore.id)?.id ?? "");
+      toast.success(st.deleteSuccess);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Delete failed");
+    }
   };
 
-  const handleSave = (store: Store) => {
-    if (editingStore) {
-      setStores((prev) => prev.map((s) => (s.id === store.id ? store : s)));
-    } else {
-      setStores((prev) => [...prev, store]);
-      setSelectedId(store.id);
+  const handleSave = async (store: Store) => {
+    try {
+      const saved = await saveStore(store, editingStore?.id);
+      setSelectedId(saved.id);
+      setModalOpen(false);
+      toast.success(st.saveSuccess);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Save failed");
     }
-    setModalOpen(false);
-    toast.success(st.saveSuccess);
   };
 
   return (

@@ -1,0 +1,113 @@
+const ACCESS_TOKEN_STORAGE_KEY = "moni_hr_access_token";
+
+type QueryValue = string | number | boolean | null | undefined;
+
+interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers"> {
+  body?: unknown;
+  headers?: HeadersInit;
+  query?: Record<string, QueryValue>;
+  storeId?: string;
+  auth?: boolean;
+}
+
+interface ApiResult<T> {
+  code?: number;
+  message?: string;
+  data?: T;
+}
+
+export class ApiError extends Error {
+  status?: number;
+  code?: number;
+
+  constructor(message: string, status?: number, code?: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export function getStoredAccessToken() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || "";
+}
+
+export function setStoredAccessToken(token: string) {
+  if (typeof window === "undefined") return;
+  if (token) {
+    window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
+  } else {
+    window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  }
+}
+
+export function clearStoredAccessToken() {
+  setStoredAccessToken("");
+}
+
+function getApiBaseUrl() {
+  const raw = import.meta.env.VITE_API_BASE_URL || "";
+  return String(raw).replace(/\/$/, "");
+}
+
+function buildUrl(path: string, query?: Record<string, QueryValue>) {
+  const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+  const params = new URLSearchParams();
+
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    params.set(key, String(value));
+  });
+
+  const qs = params.toString();
+  return qs ? `${url}?${qs}` : url;
+}
+
+function isApiResult<T>(payload: unknown): payload is ApiResult<T> {
+  return !!payload && typeof payload === "object" && ("code" in payload || "data" in payload || "message" in payload);
+}
+
+export async function apiRequest<T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { body, query, storeId, auth = true, headers, ...requestOptions } = options;
+  const requestHeaders = new Headers(headers);
+
+  if (body !== undefined && !requestHeaders.has("Content-Type")) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
+
+  if (auth) {
+    const token = getStoredAccessToken();
+    if (token) {
+      requestHeaders.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
+  if (storeId && storeId !== "all") {
+    requestHeaders.set("X-Store-Id", storeId);
+  }
+
+  const response = await fetch(buildUrl(path, query), {
+    ...requestOptions,
+    headers: requestHeaders,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const message = isApiResult(payload) ? payload.message : response.statusText;
+    throw new ApiError(message || "Request failed", response.status);
+  }
+
+  if (isApiResult<T>(payload)) {
+    const code = payload.code;
+    if (code !== undefined && ![0, 200, 201].includes(code)) {
+      throw new ApiError(payload.message || "Request failed", response.status, code);
+    }
+    return payload.data as T;
+  }
+
+  return payload as T;
+}

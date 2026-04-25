@@ -215,23 +215,27 @@ export function EmployeeModal({
   onSave = () => {},
   onCancel = () => {},
   t,
+  locale = "zh",
 }: {
   open?: boolean;
   employee?: Employee | null;
   stores?: { id: string; name: string }[];
   areas?: Area[];
   defaultStoreIds?: string[];
-  onSave?: (emp: Employee) => void;
+  onSave?: (emp: Employee) => void | Promise<void>;
   onCancel?: () => void;
   t: ReturnType<typeof useLocale>["t"];
+  locale?: string;
 }) {
   const [form] = Form.useForm();
   const isEdit = !!employee;
 
-  const handleOk = () => {
-    form.validateFields().then((values) => {
+  const handleOk = async () => {
+    try {
+      const values = await form.validateFields();
       const saved: Employee = {
         id: employee?.id ?? `e${Date.now()}`,
+        password: values.password || undefined,
         firstName: values.firstName ?? "",
         lastName: values.lastName ?? "",
         employeeId: values.employeeId ?? "",
@@ -266,8 +270,10 @@ export function EmployeeModal({
         annualSalary: values.annualSalary ?? "",
         defaultHourlyRate: values.defaultHourlyRate ?? "",
       };
-      onSave(saved);
-    });
+      await onSave(saved);
+    } catch (err) {
+      console.log("[EmployeeModal] save failed:", err);
+    }
   };
 
   const initialValues = employee
@@ -312,7 +318,7 @@ export function EmployeeModal({
             </Form.Item>
           </div>
           <div className="flex gap-4">
-            <Form.Item name="employeeId" label={et.employeeId as string} style={{ flex: 1 }}>
+            <Form.Item name="employeeId" label={et.employeeId as string} rules={[{ required: true, message: t.required }]} style={{ flex: 1 }}>
               <Input />
             </Form.Item>
             <Form.Item name="role" label={et.role as string} style={{ flex: 1 }}>
@@ -327,10 +333,19 @@ export function EmployeeModal({
             <Form.Item name="phone" label={et.phone as string} style={{ flex: 1 }}>
               <Input prefix={<Phone size={13} />} />
             </Form.Item>
-            <Form.Item name="email" label={et.email as string} rules={[{ type: "email", message: "Invalid email" }]} style={{ flex: 1 }}>
+            <Form.Item name="email" label={et.email as string} rules={[{ required: true, message: t.required }, { type: "email", message: "Invalid email" }]} style={{ flex: 1 }}>
               <Input prefix={<Mail size={13} />} />
             </Form.Item>
           </div>
+          {!isEdit && (
+            <Form.Item
+              name="password"
+              label={locale === "zh" ? "初始密码" : "Initial Password"}
+              rules={[{ required: true, message: t.required }, { min: 8, message: locale === "zh" ? "密码至少需要 8 位字符" : "At least 8 characters" }]}
+            >
+              <Input.Password />
+            </Form.Item>
+          )}
           <div className="flex gap-4">
             <Form.Item name="startDate" label={et.startDate as string} style={{ flex: 1 }}>
               <DatePicker style={{ width: "100%" }} />
@@ -734,8 +749,8 @@ function DetailPanel({
 
 // ─── Main Employees Page ───
 export default function Employees() {
-  const { employees, setEmployees, stores, areas } = useData();
-  const { t } = useLocale();
+  const { employees, saveEmployee, deleteEmployee, stores, areas } = useData();
+  const { t, locale } = useLocale();
   const { selectedStoreId } = useStore();
   const et = t.employee as Record<string, unknown>;
 
@@ -774,22 +789,26 @@ export default function Employees() {
     setModalOpen(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedEmployee) return;
-    setEmployees((prev) => prev.filter((e) => e.id !== selectedEmployee.id));
-    setSelectedId(filtered.find((e) => e.id !== selectedEmployee.id)?.id ?? "");
-    toast.success(et.deleteSuccess as string);
+    try {
+      await deleteEmployee(selectedEmployee.id);
+      setSelectedId(filtered.find((e) => e.id !== selectedEmployee.id)?.id ?? "");
+      toast.success(et.deleteSuccess as string);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Delete failed");
+    }
   };
 
-  const handleSave = (emp: Employee) => {
-    if (editingEmployee) {
-      setEmployees((prev) => prev.map((e) => (e.id === emp.id ? emp : e)));
-    } else {
-      setEmployees((prev) => [...prev, emp]);
-      setSelectedId(emp.id);
+  const handleSave = async (emp: Employee) => {
+    try {
+      const saved = await saveEmployee(emp, editingEmployee?.id);
+      setSelectedId(saved.id);
+      setModalOpen(false);
+      toast.success(et.saveSuccess as string);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Save failed");
     }
-    setModalOpen(false);
-    toast.success(et.saveSuccess as string);
   };
 
   return (
@@ -934,9 +953,11 @@ export default function Employees() {
         employee={editingEmployee}
         stores={stores}
         areas={areas}
+        defaultStoreIds={selectedStoreId !== "all" ? [selectedStoreId] : []}
         onSave={handleSave}
         onCancel={() => setModalOpen(false)}
         t={t}
+        locale={locale}
       />
     </div>
   );

@@ -56,18 +56,18 @@ function AuthGate() {
 
 const App = () => (
   <LocaleProvider>
-    <DataProvider>
-      <StoreProvider>
-        <AuthProvider>
+    <AuthProvider>
+      <DataProvider>
+        <StoreProvider>
           <BrowserRouter>
             <ErrorBoundary>
               <AuthGate />
             </ErrorBoundary>
           </BrowserRouter>
           <Toaster position="top-right" richColors />
-        </AuthProvider>
-      </StoreProvider>
-    </DataProvider>
+        </StoreProvider>
+      </DataProvider>
+    </AuthProvider>
   </LocaleProvider>
 );
 

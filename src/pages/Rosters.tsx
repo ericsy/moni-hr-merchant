@@ -675,7 +675,16 @@ interface RostersProps {
 export default function Rosters({ onSave = () => {} }: RostersProps) {
   const { locale } = useLocale();
   const isZh = locale === "zh";
-  const { employees, scheduleShifts, setScheduleShifts, stores, areas, rosterTemplates: rawRosterTemplates } = useData();
+  const {
+    employees,
+    scheduleShifts,
+    setScheduleShifts,
+    saveScheduleDraft,
+    publishSchedule,
+    stores,
+    areas,
+    rosterTemplates: rawRosterTemplates,
+  } = useData();
   const { selectedStoreId } = useStore();
 
   // ── Week navigation ─────────────────────────────────────────────────────────
@@ -697,6 +706,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const [templateConflictModalOpen, setTemplateConflictModalOpen] = useState(false);
   const [pendingTemplatePlan, setPendingTemplatePlan] = useState<TemplateApplyPlan | null>(null);
   const [templateConflictStrategy, setTemplateConflictStrategy] = useState<TemplateConflictStrategy>("merge_old");
+  const templateApplySeedRef = useRef(0);
 
   // ── Shift modal ─────────────────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false);
@@ -971,7 +981,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     const occupiedSlotSet = new Set(plan.occupiedSlotKeys);
     const coveredAreaSet = new Set(plan.coveredAreaIds);
     const coveredDateSet = new Set(plan.coveredDates);
-    const applySeed = Date.now();
+    templateApplySeedRef.current += 1;
+    const applySeed = templateApplySeedRef.current;
     const removedIds = new Set<string>();
     let skipped = 0;
     let workingShifts: WorkingShift[] = scheduleShifts.map((shift) => ({ ...shift }));
@@ -1314,20 +1325,33 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   };
 
   // ── Publish ─────────────────────────────────────────────────────────────────
-  const handlePublish = () => {
+  const handlePublish = async () => {
     const ids = scheduleShifts
       .filter((s) => {
         const d = dayjs(s.date);
         return s.status === "draft" && d >= weekStart && d <= weekStart.add(6, "day");
       })
       .map((s) => s.id);
-    setScheduleShifts((prev) =>
-      prev.map((s) => (ids.includes(s.id) ? { ...s, status: "published" as const } : s))
-    );
-    toast.success(
-      locale === "zh" ? `已发布 ${ids.length} 个班次` : `Published ${ids.length} shifts`
-    );
-    console.log("[Rosters] published", ids.length, "shifts");
+    try {
+      await saveScheduleDraft(scheduleShifts, selectedStoreId);
+      await publishSchedule(selectedStoreId);
+      toast.success(
+        locale === "zh" ? `已发布 ${ids.length} 个班次` : `Published ${ids.length} shifts`
+      );
+      console.log("[Rosters] published", ids.length, "shifts");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Publish failed");
+    }
+  };
+
+  const handleSaveRoster = async () => {
+    try {
+      await saveScheduleDraft(scheduleShifts, selectedStoreId);
+      onSave();
+      toast.success(isZh ? "排班已保存" : "Roster saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Roster save failed");
+    }
   };
 
   const dayLabels = locale === "zh" ? WEEK_DAY_LABELS_ZH : WEEK_DAY_LABELS_EN;
@@ -1420,10 +1444,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           <Button
             type="primary"
             icon={<Save size={12} style={{ display: "inline" }} />}
-            onClick={() => {
-              onSave();
-              toast.success(isZh ? "排班已保存" : "Roster saved");
-            }}
+            onClick={handleSaveRoster}
             style={{ display: "flex", alignItems: "center", gap: 5 }}
           >
             {isZh ? "保存" : "Save"}

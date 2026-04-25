@@ -1,0 +1,517 @@
+import { apiRequest } from "./apiClient";
+import type {
+  Area,
+  Employee,
+  RosterTemplate,
+  RosterTemplateCell,
+  ScheduleShift,
+  Store,
+  WorkDayPattern,
+} from "../context/DataContext";
+
+export interface MerchantLoginResult {
+  accessToken?: string | null;
+  expiresIn?: number | null;
+  user?: {
+    email?: string;
+    name?: string;
+  };
+  status?: string | null;
+}
+
+export interface MerchantPrincipal {
+  merchantAdminId?: number;
+  merchantId?: number;
+  adminName?: string;
+}
+
+export interface RawGlobalShift {
+  id?: number | string;
+  name?: string;
+  startTime?: string;
+  endTime?: string;
+  breakMinutes?: number;
+  color?: string;
+  days?: string;
+  storeId?: string;
+  scope?: number;
+}
+
+export interface RawScheduleTemplateListItem {
+  id?: number | string;
+  name?: string;
+}
+
+const EMPTY_PAGE = { items: [] as unknown[] };
+type ApiRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): ApiRecord {
+  return value && typeof value === "object" ? value as ApiRecord : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function asString(value: unknown, fallback = "") {
+  if (value === undefined || value === null) return fallback;
+  return String(value);
+}
+
+function asNumber(value: unknown, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function toNumberOrString(value: string) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && value.trim() !== "" ? numeric : value;
+}
+
+function compact<T extends Record<string, unknown>>(payload: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined)
+  ) as Partial<T>;
+}
+
+function normalizeWorkDayState(state: unknown): WorkDayPattern["state"] {
+  if (state === true || state === "true" || state === "on") return "on";
+  if (state === false || state === "false" || state === "off") return "off";
+  return "none";
+}
+
+function mapWorkDayPattern(pattern: unknown): WorkDayPattern[] | undefined {
+  if (!Array.isArray(pattern)) return undefined;
+  return pattern.map((item) => {
+    const row = asRecord(item);
+    return {
+      dayIndex: asNumber(row.dayIndex),
+      state: normalizeWorkDayState(row.state),
+      hours: asNumber(row.hours),
+    };
+  });
+}
+
+function serializeWorkDayPattern(pattern: WorkDayPattern[] | undefined) {
+  return pattern?.map((item) => ({
+    dayIndex: item.dayIndex,
+    state: item.state,
+    hours: item.hours,
+  }));
+}
+
+function normalizeCountry(country: unknown): Store["country"] {
+  const value = asString(country, "nz").toLowerCase();
+  return (value === "au" ? "au" : "nz") as Store["country"];
+}
+
+function normalizeStatus<T extends string>(status: unknown, enabled: T, disabled: T): T {
+  return asString(status, enabled) === disabled ? disabled : enabled;
+}
+
+export function isBackendId(id: string | undefined | null) {
+  return !!id && /^\d+$/.test(String(id));
+}
+
+export function mapApiStore(input: unknown): Store {
+  const raw = asRecord(input);
+  return {
+    id: asString(raw.id),
+    name: asString(raw.name),
+    code: asString(raw.code),
+    address: asString(raw.address),
+    city: asString(raw.city),
+    country: normalizeCountry(raw.country),
+    phone: asString(raw.phone),
+    email: asString(raw.email),
+    manager: asString(raw.manager),
+    openTime: asString(raw.openTime, "09:00"),
+    closeTime: asString(raw.closeTime, "22:00"),
+    timezone: asString(raw.timezone, "Pacific/Auckland"),
+    status: normalizeStatus(raw.status, "enabled", "disabled"),
+    latitude: raw.latitude === undefined || raw.latitude === null ? undefined : asNumber(raw.latitude),
+    longitude: raw.longitude === undefined || raw.longitude === null ? undefined : asNumber(raw.longitude),
+    geofenceRadius: raw.geofenceRadius === undefined || raw.geofenceRadius === null ? undefined : asNumber(raw.geofenceRadius),
+  };
+}
+
+export function storeToApiPayload(store: Store) {
+  return compact({
+    name: store.name,
+    code: store.code,
+    address: store.address,
+    city: store.city,
+    country: store.country.toUpperCase(),
+    phone: store.phone,
+    email: store.email,
+    manager: store.manager,
+    openTime: store.openTime,
+    closeTime: store.closeTime,
+    timezone: store.timezone,
+    status: store.status,
+    latitude: store.latitude,
+    longitude: store.longitude,
+    geofenceRadius: store.geofenceRadius,
+  });
+}
+
+export function mapApiEmployee(input: unknown): Employee {
+  const raw = asRecord(input);
+  const storeIds = asArray(raw.storeIds).map((id) => asString(id));
+  const assignedStores = asArray(raw.assignedStores).map((id) => asString(id));
+
+  return {
+    id: asString(raw.id),
+    firstName: asString(raw.firstName),
+    lastName: asString(raw.lastName),
+    employeeId: asString(raw.employeeId),
+    role: asString(raw.role, "staff"),
+    phone: asString(raw.phone),
+    email: asString(raw.email),
+    status: normalizeStatus(raw.status, "active", "inactive"),
+    startDate: asString(raw.startDate),
+    storeIds,
+    assignedStores: assignedStores.length > 0 ? assignedStores : storeIds,
+    hourlyRate: asNumber(raw.hourlyRate),
+    notes: asString(raw.notes),
+    avatar: asString(raw.avatar),
+    employeeColor: asString(raw.employeeColor, "#60a5fa"),
+    address: asString(raw.address),
+    dateOfBirth: asString(raw.dateOfBirth),
+    irdNumber: asString(raw.irdNumber),
+    taxCode: asString(raw.taxCode),
+    kiwiSaverStatus: asString(raw.kiwiSaverStatus),
+    employeeContributionRate: asString(raw.employeeContributionRate),
+    employerContributionRate: asString(raw.employerContributionRate),
+    esctRate: asString(raw.esctRate),
+    bankAccountNumber: asString(raw.bankAccountNumber),
+    payrollEmployeeId: asString(raw.payrollEmployeeId),
+    areaIds: asArray(raw.areaIds).map((id) => asString(id)),
+    positionIds: asArray(raw.positionIds).map((id) => asString(id)),
+    paidHoursPerDay: raw.paidHoursPerDay === undefined ? undefined : asNumber(raw.paidHoursPerDay),
+    workDayPattern: mapWorkDayPattern(raw.workDayPattern),
+    contractType: asString(raw.contractType),
+    endDate: asString(raw.endDate),
+    contractedHours: asString(raw.contractedHours),
+    annualSalary: asString(raw.annualSalary),
+    defaultHourlyRate: asString(raw.defaultHourlyRate),
+  };
+}
+
+export function employeeToApiPayload(employee: Employee & { password?: string }, includePassword: boolean) {
+  return compact({
+    firstName: employee.firstName,
+    lastName: employee.lastName,
+    employeeId: employee.employeeId,
+    role: employee.role,
+    phone: employee.phone,
+    email: employee.email,
+    password: includePassword ? employee.password : employee.password || undefined,
+    status: employee.status,
+    startDate: employee.startDate,
+    storeIds: (employee.storeIds || []).map(toNumberOrString),
+    hourlyRate: employee.hourlyRate,
+    notes: employee.notes,
+    avatar: employee.avatar,
+    employeeColor: employee.employeeColor,
+    address: employee.address,
+    dateOfBirth: employee.dateOfBirth,
+    irdNumber: employee.irdNumber,
+    taxCode: employee.taxCode,
+    kiwiSaverStatus: employee.kiwiSaverStatus,
+    employeeContributionRate: employee.employeeContributionRate,
+    employerContributionRate: employee.employerContributionRate,
+    esctRate: employee.esctRate,
+    bankAccountNumber: employee.bankAccountNumber,
+    payrollEmployeeId: employee.payrollEmployeeId,
+    paidHoursPerDay: employee.paidHoursPerDay,
+    workDayPattern: serializeWorkDayPattern(employee.workDayPattern),
+    contractType: employee.contractType,
+    endDate: employee.endDate,
+    contractedHours: employee.contractedHours,
+    annualSalary: employee.annualSalary,
+    defaultHourlyRate: employee.defaultHourlyRate,
+    areaIds: employee.areaIds || [],
+    positionIds: employee.positionIds || [],
+  });
+}
+
+export function mapApiArea(input: unknown): Area {
+  const raw = asRecord(input);
+  const storeId = asString(raw.storeId);
+  const areaType = raw.scope === 0 || storeId === "all" ? "general" : "store";
+  return {
+    id: asString(raw.id),
+    name: asString(raw.name),
+    color: asString(raw.color, "blue"),
+    storeId: areaType === "general" ? "" : storeId,
+    areaType,
+    order: asNumber(raw.order),
+  };
+}
+
+export function areaToApiPayload(area: Area) {
+  return compact({
+    name: area.name,
+    color: area.color,
+    order: area.order,
+    storeId: (area.areaType || "store") === "general" ? "all" : area.storeId,
+  });
+}
+
+export function mapApiGlobalShift(raw: RawGlobalShift): ScheduleShift {
+  const storeId = asString(raw?.storeId);
+  const isGeneral = raw?.scope === 0 || storeId === "all";
+  return {
+    id: `global-${asString(raw?.id)}`,
+    shiftId: asString(raw?.id),
+    isGlobalPreset: true,
+    employeeId: "",
+    employeeIds: [],
+    areaId: "",
+    storeId: isGeneral ? "" : storeId,
+    shiftType: isGeneral ? "general" : "store",
+    date: "",
+    startTime: asString(raw?.startTime, "09:00"),
+    endTime: asString(raw?.endTime, "17:00"),
+    breakMinutes: asNumber(raw?.breakMinutes, 0),
+    shiftName: asString(raw?.name),
+    color: asString(raw?.color, "blue"),
+    note: "",
+    status: "published",
+  };
+}
+
+export function globalShiftPayloadFromScheduleShift(shift: Pick<ScheduleShift, "shiftName" | "startTime" | "endTime" | "breakMinutes" | "color" | "storeId" | "shiftType">) {
+  return compact({
+    name: shift.shiftName,
+    startTime: shift.startTime,
+    endTime: shift.endTime,
+    breakMinutes: shift.breakMinutes,
+    color: shift.color,
+    storeId: shift.shiftType === "general" ? "all" : shift.storeId,
+  });
+}
+
+export function mapApiScheduleCell(input: unknown, storeId: string): ScheduleShift {
+  const raw = asRecord(input);
+  const employeeIds = asArray(raw.employees).map((employee) => asString(asRecord(employee).id));
+  const areaId = asString(raw.areaId);
+  const date = asString(raw.date_str || raw.dateStr);
+  const shiftId = asString(raw.shiftId || raw.shiftsId);
+
+  return {
+    id: raw.id ? `schedule-${raw.id}` : `schedule-${storeId}-${areaId}-${date}-${shiftId}`,
+    shiftId,
+    employeeId: employeeIds[0] || "",
+    employeeIds,
+    areaId,
+    storeId,
+    shiftType: "store",
+    date,
+    startTime: asString(raw.startTime, "09:00"),
+    endTime: asString(raw.endTime, "17:00"),
+    breakMinutes: 0,
+    shiftName: asString(raw.shiftsName || raw.shiftsname || raw.shiftName),
+    color: asString(raw.color, "blue"),
+    note: "",
+    status: "draft",
+  };
+}
+
+function mapTemplateCell(input: unknown): RosterTemplateCell {
+  const raw = asRecord(input);
+  const employeeIds = asArray(raw.employees).map((employee) => asString(asRecord(employee).id));
+
+  return {
+    id: asString(raw.id),
+    shiftId: asString(raw.shiftsId || raw.shiftId),
+    areaId: asString(raw.areaId),
+    dayIndex: Math.max(0, asNumber(raw.weekDay, 1) - 1),
+    startTime: asString(raw.startTime, "09:00"),
+    endTime: asString(raw.endTime, "17:00"),
+    employeeIds,
+    color: asString(raw.color, "blue"),
+    label: asString(raw.shiftsName || raw.shiftName),
+  };
+}
+
+export function mapApiRosterTemplate(input: unknown): RosterTemplate {
+  const raw = asRecord(input);
+  const areas = asArray(raw.areas).map(asRecord);
+  return {
+    id: asString(raw.id),
+    name: asString(raw.name),
+    storeId: raw.storeId === null || raw.storeId === undefined ? "" : asString(raw.storeId),
+    totalDays: asNumber(raw.totalDays, 7),
+    status: raw.status === 0 ? "disabled" : "enabled",
+    areaIds: areas
+      .slice()
+      .sort((a, b) => asNumber(a.orderSort) - asNumber(b.orderSort))
+      .map((area) => asString(area.id))
+      .filter(Boolean),
+    cells: asArray(raw.cells).map(mapTemplateCell),
+  };
+}
+
+export const merchantApi = {
+  login: (email: string, password: string) =>
+    apiRequest<MerchantLoginResult>("/api/v1/merchant/auth/login", {
+      method: "POST",
+      auth: false,
+      body: { email, password },
+    }),
+  activate: (token: string, newPassword: string) =>
+    apiRequest<null>("/api/v1/merchant/auth/activate", {
+      method: "POST",
+      auth: false,
+      body: { token, newPassword },
+    }),
+  logout: () =>
+    apiRequest<null>("/api/v1/merchant/auth/logout", {
+      method: "POST",
+    }),
+  authMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/auth/me"),
+  listStores: async () => {
+    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/stores");
+    return (data?.items || []).map(mapApiStore);
+  },
+  createStore: async (store: Store) => {
+    const data = await apiRequest<unknown>("/api/v1/merchant/stores", {
+      method: "POST",
+      body: storeToApiPayload(store),
+    });
+    return mapApiStore(data);
+  },
+  updateStore: async (id: string, store: Store) => {
+    const data = await apiRequest<unknown>(`/api/v1/merchant/stores/${id}`, {
+      method: "PATCH",
+      body: storeToApiPayload(store),
+    });
+    return mapApiStore(data);
+  },
+  deleteStore: (id: string) =>
+    apiRequest(`/api/v1/merchant/stores/${id}`, {
+      method: "DELETE",
+    }),
+  listEmployees: async (storeId: string, params: { page?: number; size?: number; status?: string; q?: string } = {}) => {
+    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/employees", {
+      storeId,
+      query: { page: params.page || 1, size: params.size || 1000, status: params.status, q: params.q },
+    });
+    return (data?.items || []).map(mapApiEmployee);
+  },
+  createEmployee: async (employee: Employee & { password?: string }) => {
+    const data = await apiRequest<unknown>("/api/v1/merchant/employees", {
+      method: "POST",
+      body: employeeToApiPayload(employee, true),
+    });
+    return mapApiEmployee(data);
+  },
+  updateEmployee: async (id: string, employee: Employee & { password?: string }) => {
+    const data = await apiRequest<unknown>(`/api/v1/merchant/employees/${id}`, {
+      method: "PATCH",
+      body: employeeToApiPayload(employee, false),
+    });
+    return mapApiEmployee(data);
+  },
+  deleteEmployee: (id: string) =>
+    apiRequest(`/api/v1/merchant/employees/${id}`, {
+      method: "DELETE",
+    }),
+  listAreas: async (storeId: string) => {
+    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/schedule-areas", { storeId });
+    return (data?.items || []).map(mapApiArea);
+  },
+  createArea: async (area: Area, headerStoreId?: string) => {
+    const data = await apiRequest<unknown>("/api/v1/merchant/schedule-areas", {
+      method: "POST",
+      storeId: headerStoreId,
+      body: areaToApiPayload(area),
+    });
+    return mapApiArea(data);
+  },
+  updateArea: async (id: string, area: Area) => {
+    const data = await apiRequest<unknown>(`/api/v1/merchant/schedule-areas/${id}`, {
+      method: "PATCH",
+      body: areaToApiPayload(area),
+    });
+    return mapApiArea(data);
+  },
+  deleteArea: (id: string) =>
+    apiRequest(`/api/v1/merchant/schedule-areas/${id}`, {
+      method: "DELETE",
+    }),
+  listGlobalShifts: async (storeId: string) => {
+    const data = await apiRequest<{ items?: RawGlobalShift[] }>("/api/v1/merchant/global-shifts", { storeId });
+    return (data?.items || []).map(mapApiGlobalShift);
+  },
+  createGlobalShift: async (shift: Pick<ScheduleShift, "shiftName" | "startTime" | "endTime" | "breakMinutes" | "color" | "storeId" | "shiftType">) => {
+    const data = await apiRequest<RawGlobalShift>("/api/v1/merchant/global-shifts", {
+      method: "POST",
+      body: globalShiftPayloadFromScheduleShift(shift),
+    });
+    return mapApiGlobalShift(data);
+  },
+  updateGlobalShift: async (id: string, shift: ScheduleShift) => {
+    const data = await apiRequest<RawGlobalShift>(`/api/v1/merchant/global-shifts/${id}`, {
+      method: "PATCH",
+      body: globalShiftPayloadFromScheduleShift(shift),
+    });
+    return mapApiGlobalShift(data);
+  },
+  deleteGlobalShift: (id: string) =>
+    apiRequest(`/api/v1/merchant/global-shifts/${id}`, {
+      method: "DELETE",
+    }),
+  listScheduleTemplates: async (storeId: string) => {
+    const data = await apiRequest<{ items?: RawScheduleTemplateListItem[] }>("/api/v1/merchant/schedule-templates", { storeId });
+    return data?.items || [];
+  },
+  getScheduleTemplate: async (id: string) => {
+    const data = await apiRequest<unknown>(`/api/v1/merchant/schedule-templates/${id}`);
+    return mapApiRosterTemplate(data);
+  },
+  createScheduleTemplate: async (storeId: string, payload: unknown) => {
+    const data = await apiRequest<unknown>("/api/v1/merchant/schedule-templates", {
+      method: "POST",
+      storeId,
+      body: payload,
+    });
+    return mapApiRosterTemplate(data);
+  },
+  updateScheduleTemplate: async (id: string, payload: unknown) => {
+    const data = await apiRequest<unknown>(`/api/v1/merchant/schedule-templates/${id}`, {
+      method: "PATCH",
+      body: payload,
+    });
+    return mapApiRosterTemplate(data);
+  },
+  deleteScheduleTemplate: (id: string) =>
+    apiRequest(`/api/v1/merchant/schedule-templates/${id}`, {
+      method: "DELETE",
+    }),
+  getSchedule: async (storeId: string) => {
+    const data = await apiRequest<{ cells?: unknown[] }>("/api/v1/merchant/schedule", { storeId });
+    return (data?.cells || []).map((cell) => mapApiScheduleCell(cell, storeId));
+  },
+  saveScheduleDraft: (storeId: string, payload: unknown) =>
+    apiRequest<null>("/api/v1/merchant/schedule/draft", {
+      method: "PUT",
+      storeId,
+      body: payload,
+    }),
+  publishSchedule: (storeId: string) =>
+    apiRequest<null>("/api/v1/merchant/schedule/publish", {
+      method: "POST",
+      storeId,
+    }),
+  listPositions: async () => {
+    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/positions");
+    return (data || EMPTY_PAGE).items || [];
+  },
+  listWorkAreas: async () => {
+    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/work-areas");
+    return (data || EMPTY_PAGE).items || [];
+  },
+};

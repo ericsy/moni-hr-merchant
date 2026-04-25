@@ -106,7 +106,7 @@ interface ScheduleProps {
 
 export default function Schedule({ initialTemplateId = "" }: ScheduleProps) {
   const { t, locale } = useLocale();
-  const { stores, scheduleShifts, setScheduleShifts, templates } = useData();
+  const { stores, scheduleShifts, setScheduleShifts, saveGlobalShift, deleteGlobalShift, templates } = useData();
   const { selectedStoreId } = useStore();
 
   const [selectedDate, setSelectedDate] = useState(dayjs().format("YYYY-MM-DD"));
@@ -138,8 +138,8 @@ export default function Schedule({ initialTemplateId = "" }: ScheduleProps) {
 
   const visibleDayShifts = scheduleShifts
     .filter((shift) => {
-      const matchDate = shift.date === currentDateStr;
-      const matchStore = selectedStoreId === "all" || shift.storeId === selectedStoreId;
+      const matchDate = shift.isGlobalPreset || shift.date === currentDateStr;
+      const matchStore = selectedStoreId === "all" || shift.shiftType === "general" || shift.storeId === selectedStoreId;
       return matchDate && matchStore;
     })
     .sort((a, b) => {
@@ -185,12 +185,20 @@ export default function Schedule({ initialTemplateId = "" }: ScheduleProps) {
     setModalOpen(true);
   };
 
-  const handleDeleteShift = (id: string) => {
-    setScheduleShifts((prev) => prev.filter((shift) => shift.id !== id));
-    toast.success(t.schedule.deleteSuccess);
+  const handleDeleteShift = async (shift: ScheduleShift) => {
+    try {
+      if (shift.isGlobalPreset && shift.shiftId) {
+        await deleteGlobalShift(shift.shiftId);
+      } else {
+        setScheduleShifts((prev) => prev.filter((item) => item.id !== shift.id));
+      }
+      toast.success(t.schedule.deleteSuccess);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Delete failed");
+    }
   };
 
-  const handleSaveShift = () => {
+  const handleSaveShift = async () => {
     if (!shiftDate) {
       toast.error(locale === "zh" ? "请选择班次日期" : "Please select a date");
       return;
@@ -205,17 +213,19 @@ export default function Schedule({ initialTemplateId = "" }: ScheduleProps) {
       editingShift?.storeId ||
       (selectedStoreId !== "all" ? selectedStoreId : "");
 
-    if (!storeIdToUse) {
+    if (shiftType === "store" && !storeIdToUse) {
       toast.error(locale === "zh" ? "请先选择具体门店后再创建班次" : "Please choose a store before creating a shift");
       return;
     }
 
     const shiftData: ScheduleShift = {
       id: editingShift?.id || `sh${Date.now()}`,
+      shiftId: editingShift?.shiftId,
+      isGlobalPreset: true,
       employeeId: "",
       employeeIds: [],
       areaId: "",
-      storeId: storeIdToUse,
+      storeId: shiftType === "general" ? "" : storeIdToUse,
       shiftType,
       date: shiftDate,
       startTime: shiftStartTime,
@@ -227,15 +237,17 @@ export default function Schedule({ initialTemplateId = "" }: ScheduleProps) {
       status: editingShift?.status || "draft",
     };
 
-    if (editingShift) {
-      setScheduleShifts((prev) => prev.map((shift) => (shift.id === editingShift.id ? shiftData : shift)));
-    } else {
-      setScheduleShifts((prev) => [...prev, shiftData]);
+    try {
+      const saved = await saveGlobalShift(shiftData, editingShift?.shiftId);
+      setSelectedDate(shiftData.date || currentDateStr);
+      toast.success(t.schedule.saveSuccess);
+      setModalOpen(false);
+      if (!editingShift && saved.id) {
+        setEditingShift(null);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Save failed");
     }
-
-    setSelectedDate(shiftData.date);
-    toast.success(t.schedule.saveSuccess);
-    setModalOpen(false);
   };
 
   const handlePublishDay = () => {
@@ -452,7 +464,7 @@ export default function Schedule({ initialTemplateId = "" }: ScheduleProps) {
                 storeName={selectedStoreId === "all" ? storeNameMap[shift.storeId] || shift.storeId : ""}
                 calcHours={calcHours}
                 onEdit={() => handleEditShift(shift)}
-                onDelete={() => handleDeleteShift(shift.id)}
+                onDelete={() => handleDeleteShift(shift)}
               />
             ))}
           </div>
