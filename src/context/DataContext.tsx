@@ -4,6 +4,7 @@ import {
   merchantApi,
 } from "../lib/merchantApi";
 import { useAuth } from "./AuthContext";
+import { usePermissions } from "./PermissionsContext";
 
 export interface WorkDayPattern {
   dayIndex: number; // 0=Mon,1=Tue,...6=Sun
@@ -874,6 +875,7 @@ const DataContext = createContext<DataContextType>({
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
+  const { loading: permissionsLoading } = usePermissions();
   const [initialData] = useState<PersistedDataSnapshot>(() => getDefaultDataSnapshot());
   const [employees, setEmployees] = useState<Employee[]>(initialData.employees);
   const [stores, setStores] = useState<Store[]>(initialData.stores);
@@ -900,6 +902,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadData = useCallback(async (storeContext = currentStoreContextRef.current) => {
+    if (permissionsLoading) return;
+
     if (status !== "authenticated") {
       setEmployees([]);
       setStores([]);
@@ -946,7 +950,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (loadSeqRef.current === seq) setLoading(false);
     }
-  }, [loadTemplatesForStore, status]);
+  }, [loadTemplatesForStore, permissionsLoading, status]);
 
   const refreshData = useCallback(() => loadData(currentStoreContextRef.current), [loadData]);
 
@@ -956,7 +960,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [loadData]);
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && !permissionsLoading) {
       refreshData();
     } else {
       queueMicrotask(() => {
@@ -967,7 +971,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setRosterTemplates([]);
       });
     }
-  }, [refreshData, status]);
+  }, [permissionsLoading, refreshData, status]);
 
   const saveStore = useCallback(async (store: Store, existingId?: string) => {
     const saved = existingId

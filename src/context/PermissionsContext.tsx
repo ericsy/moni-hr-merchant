@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { collectMerchantEndpointOverrides, configureMerchantEndpoints, resetMerchantEndpoints } from "../config/merchantEndpoints";
 import { getStoredAccessToken } from "../lib/apiClient";
 import { merchantApi, type MerchantFeatureTreeNode } from "../lib/merchantApi";
 import { useAuth } from "./AuthContext";
@@ -23,6 +24,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     const token = getStoredAccessToken();
 
     if (status !== "authenticated" || !token) {
+      resetMerchantEndpoints();
       setPermissions([]);
       setError(null);
       setLoadedToken("");
@@ -34,9 +36,12 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       setLoading(true);
       setError(null);
       const data = await merchantApi.permissionsTree();
-      setPermissions(Array.isArray(data) ? data : []);
+      const nextPermissions = Array.isArray(data) ? data : [];
+      configureMerchantEndpoints(collectMerchantEndpointOverrides(nextPermissions));
+      setPermissions(nextPermissions);
       setLoadedToken(token);
     } catch (err) {
+      resetMerchantEndpoints();
       setError(err instanceof Error ? err : new Error("Failed to fetch permissions"));
       setPermissions([]);
       setLoadedToken(token);

@@ -1,12 +1,11 @@
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { Navigate, Route, useNavigate } from "react-router-dom";
 import AppLayout from "./Layout";
 import { usePermissions } from "../context/PermissionsContext";
 import type { MerchantFeatureTreeNode } from "../lib/merchantApi";
 import {
   getPagePath,
-  getRouteConfigByFeatureUrl,
-  merchantRoutes,
+  resolveRouteConfigFromFeature,
   type PageKey,
   type MerchantRouteConfig,
 } from "../config/routes";
@@ -27,7 +26,7 @@ export function collectAuthorizedRouteConfigs(permissions: MerchantFeatureTreeNo
     for (const node of sortByOrder(nodes)) {
       if (!isEnabledFeature(node)) continue;
 
-      const routeConfig = getRouteConfigByFeatureUrl(node.url);
+      const routeConfig = resolveRouteConfigFromFeature(node);
       if (routeConfig && !seenPageKeys.has(routeConfig.pageKey)) {
         seenPageKeys.add(routeConfig.pageKey);
         routeConfigs.push(routeConfig);
@@ -69,7 +68,7 @@ export function useDynamicRoutes() {
         ? (
           <DashboardComponent
             onNavigate={(page: string) => {
-              navigate(getPagePath(page as PageKey) || "/");
+              navigate(getPagePath(page as PageKey, authorizedRoutes) || "/");
             }}
           />
         )
@@ -81,7 +80,9 @@ export function useDynamicRoutes() {
           path={route.path}
           element={
             <AppLayout currentPage={route.pageKey}>
-              {pageElement}
+              <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">加载中...</div>}>
+                {pageElement}
+              </Suspense>
             </AppLayout>
           }
         />
@@ -97,7 +98,5 @@ export function useDynamicRoutes() {
 }
 
 export function hasAnyMerchantRoute(permissions: MerchantFeatureTreeNode[]) {
-  return collectAuthorizedRouteConfigs(permissions).some((route) =>
-    merchantRoutes.some((candidate) => candidate.pageKey === route.pageKey)
-  );
+  return collectAuthorizedRouteConfigs(permissions).length > 0;
 }

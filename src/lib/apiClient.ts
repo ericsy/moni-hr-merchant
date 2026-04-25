@@ -52,7 +52,10 @@ function getApiBaseUrl() {
 }
 
 function buildUrl(path: string, query?: Record<string, QueryValue>) {
-  const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+  const rawPath = String(path || "");
+  const url = /^https?:\/\//i.test(rawPath)
+    ? rawPath
+    : `${getApiBaseUrl()}${rawPath.startsWith("/") ? rawPath : `/${rawPath}`}`;
   const params = new URLSearchParams();
 
   Object.entries(query || {}).forEach(([key, value]) => {
@@ -61,7 +64,9 @@ function buildUrl(path: string, query?: Record<string, QueryValue>) {
   });
 
   const qs = params.toString();
-  return qs ? `${url}?${qs}` : url;
+  if (!qs) return url;
+
+  return `${url}${url.includes("?") ? "&" : "?"}${qs}`;
 }
 
 function isApiResult<T>(payload: unknown): payload is ApiResult<T> {

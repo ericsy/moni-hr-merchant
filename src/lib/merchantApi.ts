@@ -1,3 +1,4 @@
+import { appendEndpointPath, getMerchantEndpoint } from "../config/merchantEndpoints";
 import { apiRequest } from "./apiClient";
 import type {
   Area,
@@ -30,9 +31,17 @@ export interface MerchantFeatureTreeNode {
   nameZh?: string | null;
   nameEn?: string | null;
   url?: string | null;
+  component?: string | null;
+  componentPath?: string | null;
+  routePath?: string | null;
+  requestUrl?: string | null;
+  requestPath?: string | null;
+  apiUrl?: string | null;
+  apiPath?: string | null;
   status?: number | null;
   sortOrder?: number | null;
   children?: MerchantFeatureTreeNode[] | null;
+  meta?: Record<string, unknown> | null;
 }
 
 export interface RawGlobalShift {
@@ -385,58 +394,58 @@ export const merchantApi = {
   permissionsTree: () =>
     apiRequest<MerchantFeatureTreeNode[]>("/api/v1/merchant/auth/permissions-tree"),
   listStores: async () => {
-    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/stores");
+    const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("stores"));
     return (data?.items || []).map(mapApiStore);
   },
   createStore: async (store: Store) => {
-    const data = await apiRequest<unknown>("/api/v1/merchant/stores", {
+    const data = await apiRequest<unknown>(getMerchantEndpoint("stores"), {
       method: "POST",
       body: storeToApiPayload(store),
     });
     return mapApiStore(data);
   },
   updateStore: async (id: string, store: Store) => {
-    const data = await apiRequest<unknown>(`/api/v1/merchant/stores/${id}`, {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("stores"), id), {
       method: "PATCH",
       body: storeToApiPayload(store),
     });
     return mapApiStore(data);
   },
   deleteStore: (id: string) =>
-    apiRequest(`/api/v1/merchant/stores/${id}`, {
+    apiRequest(appendEndpointPath(getMerchantEndpoint("stores"), id), {
       method: "DELETE",
     }),
   listEmployees: async (storeId: string, params: { page?: number; size?: number; status?: string; q?: string } = {}) => {
-    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/employees", {
+    const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("employees"), {
       storeId,
       query: { page: params.page || 1, size: params.size || 1000, status: params.status, q: params.q },
     });
     return (data?.items || []).map(mapApiEmployee);
   },
   createEmployee: async (employee: Employee & { password?: string }) => {
-    const data = await apiRequest<unknown>("/api/v1/merchant/employees", {
+    const data = await apiRequest<unknown>(getMerchantEndpoint("employees"), {
       method: "POST",
       body: employeeToApiPayload(employee, true),
     });
     return mapApiEmployee(data);
   },
   updateEmployee: async (id: string, employee: Employee & { password?: string }) => {
-    const data = await apiRequest<unknown>(`/api/v1/merchant/employees/${id}`, {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("employees"), id), {
       method: "PATCH",
       body: employeeToApiPayload(employee, false),
     });
     return mapApiEmployee(data);
   },
   deleteEmployee: (id: string) =>
-    apiRequest(`/api/v1/merchant/employees/${id}`, {
+    apiRequest(appendEndpointPath(getMerchantEndpoint("employees"), id), {
       method: "DELETE",
     }),
   listAreas: async (storeId: string) => {
-    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/schedule-areas", { storeId });
+    const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("areas"), { storeId });
     return (data?.items || []).map(mapApiArea);
   },
   createArea: async (area: Area, headerStoreId?: string) => {
-    const data = await apiRequest<unknown>("/api/v1/merchant/schedule-areas", {
+    const data = await apiRequest<unknown>(getMerchantEndpoint("areas"), {
       method: "POST",
       storeId: headerStoreId,
       body: areaToApiPayload(area),
@@ -444,48 +453,48 @@ export const merchantApi = {
     return mapApiArea(data);
   },
   updateArea: async (id: string, area: Area) => {
-    const data = await apiRequest<unknown>(`/api/v1/merchant/schedule-areas/${id}`, {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("areas"), id), {
       method: "PATCH",
       body: areaToApiPayload(area),
     });
     return mapApiArea(data);
   },
   deleteArea: (id: string) =>
-    apiRequest(`/api/v1/merchant/schedule-areas/${id}`, {
+    apiRequest(appendEndpointPath(getMerchantEndpoint("areas"), id), {
       method: "DELETE",
     }),
   listGlobalShifts: async (storeId: string) => {
-    const data = await apiRequest<{ items?: RawGlobalShift[] }>("/api/v1/merchant/global-shifts", { storeId });
+    const data = await apiRequest<{ items?: RawGlobalShift[] }>(getMerchantEndpoint("globalShifts"), { storeId });
     return (data?.items || []).map(mapApiGlobalShift);
   },
   createGlobalShift: async (shift: Pick<ScheduleShift, "shiftName" | "startTime" | "endTime" | "breakMinutes" | "color" | "storeId" | "shiftType">) => {
-    const data = await apiRequest<RawGlobalShift>("/api/v1/merchant/global-shifts", {
+    const data = await apiRequest<RawGlobalShift>(getMerchantEndpoint("globalShifts"), {
       method: "POST",
       body: globalShiftPayloadFromScheduleShift(shift),
     });
     return mapApiGlobalShift(data);
   },
   updateGlobalShift: async (id: string, shift: ScheduleShift) => {
-    const data = await apiRequest<RawGlobalShift>(`/api/v1/merchant/global-shifts/${id}`, {
+    const data = await apiRequest<RawGlobalShift>(appendEndpointPath(getMerchantEndpoint("globalShifts"), id), {
       method: "PATCH",
       body: globalShiftPayloadFromScheduleShift(shift),
     });
     return mapApiGlobalShift(data);
   },
   deleteGlobalShift: (id: string) =>
-    apiRequest(`/api/v1/merchant/global-shifts/${id}`, {
+    apiRequest(appendEndpointPath(getMerchantEndpoint("globalShifts"), id), {
       method: "DELETE",
     }),
   listScheduleTemplates: async (storeId: string) => {
-    const data = await apiRequest<{ items?: RawScheduleTemplateListItem[] }>("/api/v1/merchant/schedule-templates", { storeId });
+    const data = await apiRequest<{ items?: RawScheduleTemplateListItem[] }>(getMerchantEndpoint("scheduleTemplates"), { storeId });
     return data?.items || [];
   },
   getScheduleTemplate: async (id: string) => {
-    const data = await apiRequest<unknown>(`/api/v1/merchant/schedule-templates/${id}`);
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("scheduleTemplates"), id));
     return mapApiRosterTemplate(data);
   },
   createScheduleTemplate: async (storeId: string, payload: unknown) => {
-    const data = await apiRequest<unknown>("/api/v1/merchant/schedule-templates", {
+    const data = await apiRequest<unknown>(getMerchantEndpoint("scheduleTemplates"), {
       method: "POST",
       storeId,
       body: payload,
@@ -493,37 +502,37 @@ export const merchantApi = {
     return mapApiRosterTemplate(data);
   },
   updateScheduleTemplate: async (id: string, payload: unknown) => {
-    const data = await apiRequest<unknown>(`/api/v1/merchant/schedule-templates/${id}`, {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("scheduleTemplates"), id), {
       method: "PATCH",
       body: payload,
     });
     return mapApiRosterTemplate(data);
   },
   deleteScheduleTemplate: (id: string) =>
-    apiRequest(`/api/v1/merchant/schedule-templates/${id}`, {
+    apiRequest(appendEndpointPath(getMerchantEndpoint("scheduleTemplates"), id), {
       method: "DELETE",
     }),
   getSchedule: async (storeId: string) => {
-    const data = await apiRequest<{ cells?: unknown[] }>("/api/v1/merchant/schedule", { storeId });
+    const data = await apiRequest<{ cells?: unknown[] }>(getMerchantEndpoint("schedule"), { storeId });
     return (data?.cells || []).map((cell) => mapApiScheduleCell(cell, storeId));
   },
   saveScheduleDraft: (storeId: string, payload: unknown) =>
-    apiRequest<null>("/api/v1/merchant/schedule/draft", {
+    apiRequest<null>(appendEndpointPath(getMerchantEndpoint("schedule"), "draft"), {
       method: "PUT",
       storeId,
       body: payload,
     }),
   publishSchedule: (storeId: string) =>
-    apiRequest<null>("/api/v1/merchant/schedule/publish", {
+    apiRequest<null>(appendEndpointPath(getMerchantEndpoint("schedule"), "publish"), {
       method: "POST",
       storeId,
     }),
   listPositions: async () => {
-    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/positions");
+    const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("positions"));
     return (data || EMPTY_PAGE).items || [];
   },
   listWorkAreas: async () => {
-    const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/work-areas");
+    const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("workAreas"));
     return (data || EMPTY_PAGE).items || [];
   },
 };

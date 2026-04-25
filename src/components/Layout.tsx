@@ -25,8 +25,7 @@ import { usePermissions } from "../context/PermissionsContext";
 import type { MerchantFeatureTreeNode } from "../lib/merchantApi";
 import {
   getPagePath,
-  getRouteConfigByFeatureUrl,
-  isApiFeatureUrl,
+  resolveRouteConfigFromFeature,
   type PageKey,
 } from "../config/routes";
 
@@ -58,9 +57,31 @@ export default function AppLayout({
 
   console.log("[Layout] currentPage:", currentPage, "collapsed:", collapsed, "selectedStoreId:", selectedStoreId);
 
+  const routePathByPageKey = useMemo(() => {
+    const map = new Map<PageKey, string>();
+
+    const visit = (nodes: MerchantFeatureTreeNode[]) => {
+      for (const node of nodes) {
+        if (node.status !== 1) continue;
+
+        const routeConfig = resolveRouteConfigFromFeature(node);
+        if (routeConfig && !map.has(routeConfig.pageKey)) {
+          map.set(routeConfig.pageKey, routeConfig.path);
+        }
+
+        if (node.children?.length) {
+          visit(node.children);
+        }
+      }
+    };
+
+    visit(permissions);
+    return map;
+  }, [permissions]);
+
   const menuItems = useMemo(() => {
     const seenPageKeys = new Set<PageKey>();
-    const iconMap: Record<PageKey, React.ReactNode> = {
+    const iconMap: Record<string, React.ReactNode> = {
       dashboard: <LayoutDashboard size={18} />,
       employees: <Users size={18} />,
       stores: <Store size={18} />,
@@ -71,7 +92,6 @@ export default function AppLayout({
     };
 
     const getNodeLabel = (node: MerchantFeatureTreeNode, fallback: string) => {
-      if (isApiFeatureUrl(node.url)) return fallback;
       if (locale === "zh") return node.nameZh || node.nameEn || fallback;
       return node.nameEn || node.nameZh || fallback;
     };
@@ -82,7 +102,7 @@ export default function AppLayout({
         .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))
         .flatMap((node) => {
           const children = node.children?.length ? buildMenuItems(node.children) : [];
-          const routeConfig = getRouteConfigByFeatureUrl(node.url);
+          const routeConfig = resolveRouteConfigFromFeature(node);
 
           if (!routeConfig) {
             if (children.length === 0) return [];
@@ -123,7 +143,7 @@ export default function AppLayout({
       return;
     }
 
-    const path = getPagePath(page);
+    const path = routePathByPageKey.get(page) || getPagePath(page);
     if (path) {
       navigate(path);
     }
