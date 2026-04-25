@@ -25,6 +25,16 @@ export interface MerchantPrincipal {
   adminName?: string;
 }
 
+export interface MerchantFeatureTreeNode {
+  id?: number | string | null;
+  nameZh?: string | null;
+  nameEn?: string | null;
+  url?: string | null;
+  status?: number | null;
+  sortOrder?: number | null;
+  children?: MerchantFeatureTreeNode[] | null;
+}
+
 export interface RawGlobalShift {
   id?: number | string;
   name?: string;
@@ -372,6 +382,8 @@ export const merchantApi = {
       method: "POST",
     }),
   authMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/auth/me"),
+  permissionsTree: () =>
+    apiRequest<MerchantFeatureTreeNode[]>("/api/v1/merchant/auth/permissions-tree"),
   listStores: async () => {
     const data = await apiRequest<{ items?: unknown[] }>("/api/v1/merchant/stores");
     return (data?.items || []).map(mapApiStore);

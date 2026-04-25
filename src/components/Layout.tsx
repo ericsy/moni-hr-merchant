@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Badge, Space, Select } from "antd";
+import { useMemo, useState } from "react";
+import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Badge, Space, Select, type MenuProps } from "antd";
+import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -20,12 +21,21 @@ import { useLocale } from "../context/LocaleContext";
 import { useData } from "../context/DataContext";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
+import { usePermissions } from "../context/PermissionsContext";
+import type { MerchantFeatureTreeNode } from "../lib/merchantApi";
+import {
+  getPagePath,
+  getRouteConfigByFeatureUrl,
+  isApiFeatureUrl,
+  type PageKey,
+} from "../config/routes";
 
 const { Option } = Select;
 
 const { Sider, Header, Content } = AntLayout;
+type MenuItem = NonNullable<MenuProps["items"]>[number];
 
-export type PageKey = "dashboard" | "employees" | "stores" | "areas" | "schedule" | "rosterTemplate" | "rosters";
+export type { PageKey } from "../config/routes";
 
 interface LayoutProps {
   currentPage?: PageKey;
@@ -35,54 +45,89 @@ interface LayoutProps {
 
 export default function AppLayout({
   currentPage = "dashboard",
-  onPageChange = () => {},
+  onPageChange,
   children,
 }: LayoutProps) {
+  const navigate = useNavigate();
   const { locale, setLocale, t } = useLocale();
   const { stores } = useData();
   const { selectedStoreId, setSelectedStoreId } = useStore();
   const { logout, user } = useAuth();
+  const { permissions } = usePermissions();
   const [collapsed, setCollapsed] = useState(false);
 
   console.log("[Layout] currentPage:", currentPage, "collapsed:", collapsed, "selectedStoreId:", selectedStoreId);
 
-  const menuItems = [
-    {
-      key: "dashboard",
-      icon: <LayoutDashboard size={18} />,
-      label: t.nav.dashboard,
-    },
-    {
-      key: "employees",
-      icon: <Users size={18} />,
-      label: t.nav.employees,
-    },
-    {
-      key: "stores",
-      icon: <Store size={18} />,
-      label: t.nav.stores,
-    },
-    {
-      key: "areas",
-      icon: <MapPin size={18} />,
-      label: t.nav.areas,
-    },
-    {
-      key: "schedule",
-      icon: <Clock size={18} />,
-      label: t.nav.schedule,
-    },
-    {
-      key: "rosters",
-      icon: <CalendarRange size={18} />,
-      label: t.nav.rosters,
-    },
-    {
-      key: "rosterTemplate",
-      icon: <CalendarDays size={18} />,
-      label: t.nav.rosterTemplate,
-    },
-  ];
+  const menuItems = useMemo(() => {
+    const seenPageKeys = new Set<PageKey>();
+    const iconMap: Record<PageKey, React.ReactNode> = {
+      dashboard: <LayoutDashboard size={18} />,
+      employees: <Users size={18} />,
+      stores: <Store size={18} />,
+      areas: <MapPin size={18} />,
+      schedule: <Clock size={18} />,
+      rosters: <CalendarRange size={18} />,
+      rosterTemplate: <CalendarDays size={18} />,
+    };
+
+    const getNodeLabel = (node: MerchantFeatureTreeNode, fallback: string) => {
+      if (isApiFeatureUrl(node.url)) return fallback;
+      if (locale === "zh") return node.nameZh || node.nameEn || fallback;
+      return node.nameEn || node.nameZh || fallback;
+    };
+
+    const buildMenuItems = (nodes: MerchantFeatureTreeNode[]): MenuItem[] => {
+      return [...nodes]
+        .filter((node) => node.status === 1)
+        .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))
+        .flatMap((node) => {
+          const children = node.children?.length ? buildMenuItems(node.children) : [];
+          const routeConfig = getRouteConfigByFeatureUrl(node.url);
+
+          if (!routeConfig) {
+            if (children.length === 0) return [];
+
+            const groupLabel = locale === "zh"
+              ? node.nameZh || node.nameEn || ""
+              : node.nameEn || node.nameZh || "";
+
+            return [{
+              key: `feature-${node.id ?? node.url ?? groupLabel}`,
+              label: groupLabel,
+              children,
+            }];
+          }
+
+          if (seenPageKeys.has(routeConfig.pageKey)) {
+            return children;
+          }
+
+          seenPageKeys.add(routeConfig.pageKey);
+          const fallbackLabel = t.nav[routeConfig.pageKey as keyof typeof t.nav] ?? routeConfig.pageKey;
+
+          return [{
+            key: routeConfig.pageKey,
+            icon: iconMap[routeConfig.pageKey],
+            label: getNodeLabel(node, fallbackLabel),
+            children: children.length > 0 ? children : undefined,
+          }];
+        });
+    };
+
+    return buildMenuItems(permissions);
+  }, [permissions, locale, t]);
+
+  const handlePageChange = (page: PageKey) => {
+    if (onPageChange) {
+      onPageChange(page);
+      return;
+    }
+
+    const path = getPagePath(page);
+    if (path) {
+      navigate(path);
+    }
+  };
 
   const userMenuItems = [
     { key: "profile", icon: <User size={14} />, label: locale === "zh" ? "个人资料" : "Profile" },
@@ -150,7 +195,7 @@ export default function AppLayout({
             mode="inline"
             selectedKeys={[currentPage]}
             items={menuItems}
-            onClick={({ key }) => onPageChange(key as PageKey)}
+            onClick={({ key }) => handlePageChange(key as PageKey)}
             style={{
               background: "transparent",
               border: "none",
