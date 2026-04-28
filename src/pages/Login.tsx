@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, CalendarDays, LogIn } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -39,8 +41,9 @@ export default function Login() {
       const result = await login(email.trim(), password);
       if (!result.success) {
         toast.error(result.message ?? "登录失败");
+      } else {
+        navigate("/", { replace: true });
       }
-      // On success, AuthContext status change triggers App.tsx re-render
     } finally {
       setLoading(false);
     }

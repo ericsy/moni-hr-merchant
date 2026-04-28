@@ -12,6 +12,7 @@ type PageModule = { default: React.ComponentType<Record<string, unknown>> };
 type RouteComponent = React.ComponentType<Record<string, unknown>> | React.LazyExoticComponent<React.ComponentType<Record<string, unknown>>>;
 
 export type KnownPageKey =
+  | "home"
   | "dashboard"
   | "employees"
   | "stores"
@@ -56,10 +57,10 @@ const lazyPageComponents = new Map<string, React.LazyExoticComponent<React.Compo
 const merchantRouteTemplates: MerchantRouteTemplate[] = [
   {
     pageKey: "dashboard",
-    path: "/",
+    path: "/dashboard",
     componentPath: "../pages/Dashboard.tsx",
     requestPath: "",
-    aliases: ["/", "/home", "/dashboard"],
+    aliases: ["/", "/dashboard"],
   },
   {
     pageKey: "employees",
@@ -67,7 +68,7 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
     componentPath: "../pages/Employees.tsx",
     requestPath: "/api/v1/merchant/employees",
     endpointKey: "employees",
-    aliases: ["/employees", "/employee", "/api/v1/merchant/employees"],
+    aliases: ["/employees", "/employee", "/employee-management", "/api/v1/merchant/employees"],
   },
   {
     pageKey: "stores",
@@ -75,7 +76,7 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
     componentPath: "../pages/Stores.tsx",
     requestPath: "/api/v1/merchant/stores",
     endpointKey: "stores",
-    aliases: ["/stores", "/store", "/api/v1/merchant/stores"],
+    aliases: ["/stores", "/store", "/store-management", "/api/v1/merchant/stores"],
   },
   {
     pageKey: "areas",
@@ -83,7 +84,7 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
     componentPath: "../pages/Areas.tsx",
     requestPath: "/api/v1/merchant/schedule-areas",
     endpointKey: "areas",
-    aliases: ["/areas", "/schedule-areas", "/api/v1/merchant/schedule-areas"],
+    aliases: ["/areas", "/area", "/area-management", "/schedule-areas", "/api/v1/merchant/schedule-areas"],
   },
   {
     pageKey: "schedule",
@@ -91,7 +92,16 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
     componentPath: "../pages/Schedule.tsx",
     requestPath: "/api/v1/merchant/schedule",
     endpointKey: "schedule",
-    aliases: ["/schedule", "/schedules", "/shifts", "/api/v1/merchant/schedule", "/api/v1/merchant/global-shifts"],
+    aliases: [
+      "/schedule",
+      "/schedules",
+      "/shift",
+      "/shifts",
+      "/shift-management",
+      "/global-shifts",
+      "/api/v1/merchant/schedule",
+      "/api/v1/merchant/global-shifts",
+    ],
   },
   {
     pageKey: "rosters",
@@ -99,7 +109,7 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
     componentPath: "../pages/Rosters.tsx",
     requestPath: "/api/v1/merchant/schedule",
     endpointKey: "schedule",
-    aliases: ["/rosters", "/roster"],
+    aliases: ["/rosters", "/roster", "/roster-management", "/scheduling", "/scheduling-management"],
   },
   {
     pageKey: "rosterTemplate",
@@ -112,6 +122,8 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
       "/rosterTemplate",
       "/schedule-templates",
       "/templates",
+      "/scheduling-template",
+      "/scheduling-templates",
       "/api/v1/merchant/schedule-templates",
     ],
   },
@@ -131,31 +143,41 @@ const routeTemplateByEndpointKey: Partial<Record<MerchantEndpointKey, MerchantRo
 };
 
 const pageKeyAliases: Record<string, KnownPageKey> = {
-  home: "dashboard",
+  home: "home",
   dashboard: "dashboard",
   employees: "employees",
   employee: "employees",
+  employeemanagement: "employees",
   stores: "stores",
   store: "stores",
+  storemanagement: "stores",
   areas: "areas",
   area: "areas",
+  areamanagement: "areas",
   scheduleareas: "areas",
   schedulearea: "areas",
   schedule: "schedule",
   schedules: "schedule",
+  shiftmanagement: "schedule",
+  globalshiftmanagement: "schedule",
   shifts: "schedule",
+  shift: "schedule",
   rosters: "rosters",
   roster: "rosters",
+  rostermanagement: "rosters",
+  schedulingmanagement: "rosters",
   rostertemplate: "rosterTemplate",
   rostertemplates: "rosterTemplate",
   scheduletemplates: "rosterTemplate",
   scheduletemplate: "rosterTemplate",
+  schedulingtemplates: "rosterTemplate",
+  schedulingtemplate: "rosterTemplate",
   templates: "rosterTemplate",
 };
 
 const componentPathFields = ["componentPath", "component", "viewPath", "componentUrl", "componentName"];
 const routePathFields = ["routePath", "path", "menuPath", "pagePath", "frontendPath", "frontPath"];
-const pageKeyFields = ["pageKey", "key", "code", "permissionCode", "featureCode"];
+const pageKeyFields = ["pageKey", "key", "code", "permissionCode", "featureCode", "nameEn", "name"];
 const nestedFieldContainers = ["meta", "metadata", "extra", "options"];
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -322,7 +344,11 @@ function getRoutePathFromFeature(node: MerchantFeatureTreeNode, routeTemplate?: 
   }
 
   if (node.url && !isRequestLikePath(node.url)) {
-    return normalizeRoutePath(node.url);
+    const featureRoutePath = normalizeRoutePath(node.url);
+    if (featureRoutePath === "/" && routeTemplate?.path && routeTemplate.path !== "/") {
+      return routeTemplate.path;
+    }
+    return featureRoutePath;
   }
 
   return routeTemplate?.path || (pageKey ? toKebabPath(pageKey) : "");
@@ -374,6 +400,7 @@ export function resolveRouteConfigFromFeature(node: MerchantFeatureTreeNode): Me
 
 export function getPagePath(pageKey?: PageKey | null, routes?: MerchantRouteConfig[]) {
   if (!pageKey) return undefined;
+  if (pageKey === "home") return "/";
   return routes?.find((route) => route.pageKey === pageKey)?.path || routeTemplateByPageKey.get(pageKey as KnownPageKey)?.path;
 }
 

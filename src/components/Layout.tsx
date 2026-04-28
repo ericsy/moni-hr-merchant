@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Badge, Space, Select, type MenuProps } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
+  House,
   LayoutDashboard,
   Users,
   Store,
@@ -43,7 +44,7 @@ interface LayoutProps {
 }
 
 export default function AppLayout({
-  currentPage = "dashboard",
+  currentPage = "home",
   onPageChange,
   children,
 }: LayoutProps) {
@@ -82,6 +83,7 @@ export default function AppLayout({
   const menuItems = useMemo(() => {
     const seenPageKeys = new Set<PageKey>();
     const iconMap: Record<string, React.ReactNode> = {
+      home: <House size={18} />,
       dashboard: <LayoutDashboard size={18} />,
       employees: <Users size={18} />,
       stores: <Store size={18} />,
@@ -134,7 +136,13 @@ export default function AppLayout({
         });
     };
 
-    return buildMenuItems(permissions);
+    const homeMenuItem: MenuItem = {
+      key: "home",
+      icon: iconMap.home,
+      label: t.nav.home,
+    };
+
+    return [homeMenuItem, ...buildMenuItems(permissions)];
   }, [permissions, locale, t]);
 
   const handlePageChange = (page: PageKey) => {

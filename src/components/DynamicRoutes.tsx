@@ -1,5 +1,5 @@
 import { Suspense, useMemo } from "react";
-import { Navigate, Route, useNavigate } from "react-router-dom";
+import { Route, useNavigate } from "react-router-dom";
 import AppLayout from "./Layout";
 import { usePermissions } from "../context/PermissionsContext";
 import type { MerchantFeatureTreeNode } from "../lib/merchantApi";
@@ -27,7 +27,7 @@ export function collectAuthorizedRouteConfigs(permissions: MerchantFeatureTreeNo
       if (!isEnabledFeature(node)) continue;
 
       const routeConfig = resolveRouteConfigFromFeature(node);
-      if (routeConfig && !seenPageKeys.has(routeConfig.pageKey)) {
+      if (routeConfig && routeConfig.pageKey !== "home" && !seenPageKeys.has(routeConfig.pageKey)) {
         seenPageKeys.add(routeConfig.pageKey);
         routeConfigs.push(routeConfig);
       }
@@ -57,8 +57,6 @@ export function useDefaultAuthorizedPath() {
 export function useDynamicRoutes() {
   const navigate = useNavigate();
   const authorizedRoutes = useAuthorizedRouteConfigs();
-  const hasRootRoute = authorizedRoutes.some((route) => route.path === "/");
-  const defaultPath = useDefaultAuthorizedPath();
 
   return useMemo(() => {
     const routes = authorizedRoutes.map((route) => {
@@ -89,12 +87,8 @@ export function useDynamicRoutes() {
       );
     });
 
-    if (!hasRootRoute && defaultPath !== "/") {
-      routes.unshift(<Route key="root-redirect" path="/" element={<Navigate to={defaultPath} replace />} />);
-    }
-
     return routes;
-  }, [authorizedRoutes, defaultPath, hasRootRoute, navigate]);
+  }, [authorizedRoutes, navigate]);
 }
 
 export function hasAnyMerchantRoute(permissions: MerchantFeatureTreeNode[]) {

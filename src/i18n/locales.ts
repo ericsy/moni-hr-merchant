@@ -43,6 +43,7 @@ export const locales = {
 
     // Nav
     nav: {
+      home: "首页",
       employees: "员工管理",
       stores: "店面管理",
       areas: "区域管理",
@@ -257,6 +258,7 @@ export const locales = {
     hours: "hrs",
 
     nav: {
+      home: "Home",
       employees: "Employees",
       stores: "Stores",
       areas: "Areas",

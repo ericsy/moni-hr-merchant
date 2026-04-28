@@ -1,6 +1,7 @@
 import { useState } from "react";
 import AppLayout from "../components/Layout";
 import type { PageKey } from "../components/Layout";
+import Home from "./Home";
 import Dashboard from "./Dashboard";
 import Employees from "./Employees";
 import Stores from "./Stores";
@@ -10,7 +11,7 @@ import RosterTemplatePage from "./RosterTemplate";
 import Rosters from "./Rosters";
 
 export default function Index() {
-  const [currentPage, setCurrentPage] = useState<PageKey>("dashboard");
+  const [currentPage, setCurrentPage] = useState<PageKey>("home");
 
   console.log("[Index] currentPage:", currentPage);
 
@@ -21,6 +22,8 @@ export default function Index() {
 
   const renderPage = () => {
     switch (currentPage) {
+      case "home":
+        return <Home />;
       case "dashboard":
         return <Dashboard onNavigate={handleNavigate} />;
       case "employees":

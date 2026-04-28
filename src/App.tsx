@@ -1,13 +1,15 @@
 import React from "react";
 import { Toaster, toast } from "sonner";
-import { Button, Spin } from "antd";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Spin } from "antd";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { LocaleProvider } from "./context/LocaleContext";
 import { DataProvider } from "./context/DataContext";
 import { StoreProvider } from "./context/StoreContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PermissionsProvider, usePermissions } from "./context/PermissionsContext";
-import { useAuthorizedRouteConfigs, useDynamicRoutes } from "./components/DynamicRoutes";
+import { useDynamicRoutes } from "./components/DynamicRoutes";
+import AppLayout from "./components/Layout";
+import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Activate from "./pages/Activate";
 import NotFound from "./pages/NotFound";
@@ -36,11 +38,14 @@ class ErrorBoundary extends React.Component<
 }
 
 function AuthenticatedRoutes() {
-  const { loading, error, refetch } = usePermissions();
-  const authorizedRoutes = useAuthorizedRouteConfigs();
+  const location = useLocation();
+  const { loading } = usePermissions();
   const dynamicRoutes = useDynamicRoutes();
+  const isDefaultPage = location.pathname === "/" || location.pathname === "/home";
+  const isAuthPage = location.pathname === "/login" || location.pathname === "/activate";
+  const shouldWaitForPermissions = loading && !isDefaultPage && !isAuthPage;
 
-  if (loading) {
+  if (shouldWaitForPermissions) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Spin size="large" />
@@ -48,26 +53,19 @@ function AuthenticatedRoutes() {
     );
   }
 
-  if (authorizedRoutes.length === 0) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background text-center">
-        <div className="text-lg font-semibold text-foreground">
-          {error ? "权限菜单加载失败" : "当前账号暂无可访问菜单"}
-        </div>
-        <div className="text-sm text-muted-foreground">
-          {error?.message || "请联系管理员开通对应功能权限"}
-        </div>
-        {error && (
-          <Button type="primary" onClick={refetch}>
-            重试
-          </Button>
-        )}
-      </div>
-    );
-  }
-
   return (
     <Routes>
+      <Route
+        path="/"
+        element={
+          <AppLayout currentPage="home">
+            <Home />
+          </AppLayout>
+        }
+      />
+      <Route path="/home" element={<Navigate to="/" replace />} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route path="/activate" element={<Navigate to="/" replace />} />
       {dynamicRoutes}
       <Route path="*" element={<NotFound />} />
     </Routes>

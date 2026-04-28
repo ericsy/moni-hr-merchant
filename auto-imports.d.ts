@@ -54,6 +54,7 @@ declare global {
   const GripVerticalIcon: typeof import('lucide-react').GripVerticalIcon
   const Hash: typeof import('lucide-react').Hash
   const Home: typeof import('lucide-react').Home
+  const House: typeof import('lucide-react').House
   const Info: typeof import('lucide-react').Info
   const InfoIcon: typeof import('lucide-react').InfoIcon
   const Key: typeof import('lucide-react').Key
@@ -66,7 +67,6 @@ declare global {
   const LogIn: typeof import('lucide-react').LogIn
   const LogOut: typeof import('lucide-react').LogOut
   const Mail: typeof import('lucide-react').Mail
-  const Map: typeof import('lucide-react').Map
   const MapPin: typeof import('lucide-react').MapPin
   const Menu: typeof import('lucide-react').Menu
   const Minus: typeof import('lucide-react').Minus

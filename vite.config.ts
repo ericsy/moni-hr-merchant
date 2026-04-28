@@ -7,9 +7,12 @@ import AutoImport from "unplugin-auto-import/vite";
 import checker from "vite-plugin-checker";
 import * as lucideIcons from "lucide-react";
 
+// 避免 lucide 图标名覆盖 JavaScript 原生全局对象。
+const lucideAutoImportDenyList = new Set(["Map"]);
+
 // 获取所有 lucide-react 导出的符号名
 const allLucideExports = Object.keys(lucideIcons).filter(
-  (key) => key !== "default"
+  (key) => key !== "default" && !lucideAutoImportDenyList.has(key)
 );
 
 // 扫描 src 目录，找出实际使用的 lucide 图标
