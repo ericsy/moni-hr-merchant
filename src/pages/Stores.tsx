@@ -29,7 +29,7 @@ import {
   UserCircle,
 } from "lucide-react";
 import { useLocale } from "../context/LocaleContext";
-import { useData, type Store } from "../context/DataContext";
+import { useData, type CountryOption, type Store } from "../context/DataContext";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import GeoFenceMapPicker from "../components/GeoFenceMapPicker";
@@ -51,7 +51,28 @@ const TIMEZONE_OPTIONS = [
   { value: "Australia/Adelaide", label: "Australia/Adelaide (ACST)" },
 ];
 
-const COUNTRY_FLAGS: Record<string, string> = { nz: "🇳🇿", au: "🇦🇺" };
+const FALLBACK_COUNTRIES: CountryOption[] = [
+  { code: "nz", nameZh: "新西兰", nameEn: "New Zealand", dialCode: "64" },
+  { code: "au", nameZh: "澳大利亚", nameEn: "Australia", dialCode: "61" },
+];
+
+function getCountryFlag(code = "") {
+  const normalized = code.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) return "";
+  return String.fromCodePoint(...[...normalized].map((char) => char.charCodeAt(0) + 127397));
+}
+
+function getCountryLabel(country: CountryOption, locale: string) {
+  const name = locale === "zh" ? country.nameZh || country.nameEn : country.nameEn || country.nameZh;
+  return `${getCountryFlag(country.code)} ${name || country.code.toUpperCase()}`.trim();
+}
+
+function getStoreCountryLabel(code: string, countries: CountryOption[], locale: string, fallbackLabels: Record<string, string>) {
+  const normalized = code.toLowerCase();
+  const country = countries.find((item) => item.code.toLowerCase() === normalized);
+  if (country) return getCountryLabel(country, locale);
+  return `${getCountryFlag(normalized)} ${fallbackLabels[normalized] ?? normalized.toUpperCase()}`.trim();
+}
 
 function getStoreInitials(name = "") {
   return name.slice(0, 2).toUpperCase();
@@ -62,6 +83,7 @@ function StoreModal({
   open = false,
   store = null,
   employees = [],
+  countries = FALLBACK_COUNTRIES,
   onSave = () => {},
   onCancel = () => {},
   t,
@@ -70,6 +92,7 @@ function StoreModal({
   open?: boolean;
   store?: Store | null;
   employees?: { storeIds: string[] }[];
+  countries?: CountryOption[];
   onSave?: (store: Store) => void | Promise<void>;
   onCancel?: () => void;
   t: ReturnType<typeof useLocale>["t"];
@@ -80,6 +103,7 @@ function StoreModal({
   const [geofenceValue, setGeofenceValue] = useState<GeoFenceValue | null>(null);
   const isEdit = !!store;
   const st = t.store;
+  const countryOptions = countries.length > 0 ? countries : FALLBACK_COUNTRIES;
 
   const handleOk = async () => {
     try {
@@ -146,8 +170,11 @@ function StoreModal({
           <div className="flex gap-4">
             <Form.Item name="country" label={st.country} rules={[{ required: true, message: t.required }]} style={{ flex: 1 }}>
               <Select placeholder={t.selectPlaceholder}>
-                <Option value="nz">🇳🇿 {st.countries.nz}</Option>
-                <Option value="au">🇦🇺 {st.countries.au}</Option>
+                {countryOptions.map((country) => (
+                  <Option key={country.code} value={country.code.toLowerCase()}>
+                    {getCountryLabel(country, locale)}
+                  </Option>
+                ))}
               </Select>
             </Form.Item>
             <Form.Item name="city" label={st.city} style={{ flex: 1 }}>
@@ -269,12 +296,16 @@ function StoreDetailPanel({
   onEdit = () => {},
   onDelete = () => {},
   t,
+  countries = FALLBACK_COUNTRIES,
+  locale = "zh",
 }: {
   store: Store;
   employeeCount?: number;
   onEdit?: () => void;
   onDelete?: () => void;
   t: ReturnType<typeof useLocale>["t"];
+  countries?: CountryOption[];
+  locale?: string;
 }) {
   const st = t.store;
   const hasGeofence =
@@ -292,7 +323,7 @@ function StoreDetailPanel({
           <StoreInfoRow
             icon={<Globe size={13} />}
             label={st.country}
-            value={`${COUNTRY_FLAGS[store.country] ?? ""} ${st.countries[store.country as "nz" | "au"] ?? store.country}`}
+            value={getStoreCountryLabel(store.country, countries, locale, st.countries)}
           />
           <StoreInfoRow icon={<MapPin size={13} />} label={st.city} value={store.city} />
           <StoreInfoRow icon={<Building2 size={13} />} label={st.address} value={store.address} />
@@ -410,8 +441,9 @@ function StoreDetailPanel({
 // ─── Main Stores Page ───
 export default function Stores() {
   const { t, locale } = useLocale();
-  const { stores, saveStore, deleteStore, employees } = useData();
+  const { stores, saveStore, deleteStore, employees, countries } = useData();
   const st = t.store;
+  const countryOptions = countries.length > 0 ? countries : FALLBACK_COUNTRIES;
 
   const [search, setSearch] = useState("");
   const [filterCountry, setFilterCountry] = useState("all");
@@ -494,8 +526,11 @@ export default function Stores() {
             style={{ width: 160 }}
           >
             <Option value="all">{st.allCountries}</Option>
-            <Option value="nz">🇳🇿 {st.countries.nz}</Option>
-            <Option value="au">🇦🇺 {st.countries.au}</Option>
+            {countryOptions.map((country) => (
+              <Option key={country.code} value={country.code.toLowerCase()}>
+                {getCountryLabel(country, locale)}
+              </Option>
+            ))}
           </Select>
           <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
             {t.total} {filtered.length} {t.items}
@@ -568,7 +603,7 @@ export default function Stores() {
                       {store.name}
                     </div>
                     <div className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-                      {COUNTRY_FLAGS[store.country]} {store.city} · {store.code}
+                      {getCountryFlag(store.country)} {store.city} · {store.code}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <Tag
@@ -606,6 +641,8 @@ export default function Stores() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               t={t}
+              countries={countryOptions}
+              locale={locale}
             />
           ) : (
             <div
@@ -623,6 +660,7 @@ export default function Stores() {
         open={modalOpen}
         store={editingStore}
         employees={employees}
+        countries={countryOptions}
         onSave={handleSave}
         onCancel={() => setModalOpen(false)}
         t={t}

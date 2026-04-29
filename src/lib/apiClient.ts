@@ -1,6 +1,8 @@
 const ACCESS_TOKEN_STORAGE_KEY = "moni_hr_access_token";
+const DEFAULT_STORE_ID = "all";
 
 type QueryValue = string | number | boolean | null | undefined;
+let currentStoreId = DEFAULT_STORE_ID;
 
 interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers"> {
   body?: unknown;
@@ -46,6 +48,14 @@ export function clearStoredAccessToken() {
   setStoredAccessToken("");
 }
 
+export function setCurrentStoreId(storeId: string) {
+  currentStoreId = storeId || DEFAULT_STORE_ID;
+}
+
+export function getCurrentStoreId() {
+  return currentStoreId;
+}
+
 function getApiBaseUrl() {
   const raw = import.meta.env.VITE_API_BASE_URL || "";
   return String(raw).replace(/\/$/, "");
@@ -76,9 +86,14 @@ function isApiResult<T>(payload: unknown): payload is ApiResult<T> {
 export async function apiRequest<T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { body, query, storeId, auth = true, headers, ...requestOptions } = options;
   const requestHeaders = new Headers(headers);
+  const effectiveStoreId = storeId || getCurrentStoreId();
 
   if (body !== undefined && !requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json");
+  }
+
+  if (auth) {
+    requestHeaders.set("X-Store-Id", effectiveStoreId);
   }
 
   if (auth) {
@@ -86,10 +101,6 @@ export async function apiRequest<T = unknown>(path: string, options: ApiRequestO
     if (token) {
       requestHeaders.set("Authorization", `Bearer ${token}`);
     }
-  }
-
-  if (storeId && storeId !== "all") {
-    requestHeaders.set("X-Store-Id", storeId);
   }
 
   const response = await fetch(buildUrl(path, query), {

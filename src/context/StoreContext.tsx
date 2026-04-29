@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useData } from "./DataContext";
+import { setCurrentStoreId } from "../lib/apiClient";
 
 interface StoreContextType {
   selectedStoreId: string;
@@ -14,6 +15,11 @@ const StoreContext = createContext<StoreContextType>({
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { stores, reloadForStore } = useData();
   const [selectedStoreId, setSelectedStoreId] = useState<string>("all");
+  const previousStoreIdRef = useRef(selectedStoreId);
+
+  useEffect(() => {
+    setCurrentStoreId(selectedStoreId);
+  }, [selectedStoreId]);
 
   // When stores change and the selected store no longer exists, reset to "all"
   useEffect(() => {
@@ -27,6 +33,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [stores, selectedStoreId]);
 
   useEffect(() => {
+    if (previousStoreIdRef.current === selectedStoreId) {
+      return;
+    }
+
+    previousStoreIdRef.current = selectedStoreId;
     reloadForStore(selectedStoreId).catch((error) => {
       console.log("[StoreContext] failed to reload store context:", error);
     });

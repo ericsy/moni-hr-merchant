@@ -51,6 +51,7 @@ export const locales = {
       dashboard: "控制台",
       rosterTemplate: "排班模版",
       rosters: "排班管理",
+      billing: "账单订阅",
     },
 
     // Dashboard
@@ -266,6 +267,7 @@ export const locales = {
       dashboard: "Dashboard",
       rosterTemplate: "Roster Template",
       rosters: "Rosters",
+      billing: "Billing",
     },
 
     dashboard: {

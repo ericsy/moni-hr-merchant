@@ -38,7 +38,7 @@ import {
   Minus,
 } from "lucide-react";
 import dayjs from "dayjs";
-import { useData, type Employee, type WorkDayPattern, type Area } from "../context/DataContext";
+import { useData, type Employee, type WorkDayPattern, type EmployeeDictItem } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { toast } from "sonner";
@@ -51,12 +51,6 @@ const COLOR_PALETTE = [
   "#60a5fa", "#a78bfa", "#34d399", "#fb923c",
   "#f472b6", "#38bdf8", "#facc15", "#4ade80",
   "#f87171", "#c084fc",
-];
-
-const MOCK_POSITIONS = [
-  { id: "pos1", name: "Cashier" },
-  { id: "pos2", name: "Team Lead" },
-  { id: "pos3", name: "Stock Controller" },
 ];
 
 const defaultWorkDayPattern: WorkDayPattern[] = [
@@ -210,7 +204,8 @@ export function EmployeeModal({
   open = false,
   employee = null,
   stores = [],
-  areas = [],
+  workAreas = [],
+  positions = [],
   defaultStoreIds = [],
   onSave = () => {},
   onCancel = () => {},
@@ -220,7 +215,8 @@ export function EmployeeModal({
   open?: boolean;
   employee?: Employee | null;
   stores?: { id: string; name: string }[];
-  areas?: Area[];
+  workAreas?: EmployeeDictItem[];
+  positions?: EmployeeDictItem[];
   defaultStoreIds?: string[];
   onSave?: (emp: Employee) => void | Promise<void>;
   onCancel?: () => void;
@@ -298,11 +294,6 @@ export function EmployeeModal({
       };
 
   const et = t.employee as Record<string, unknown>;
-  const storeNameMap: Record<string, string> = {};
-  stores.forEach((store) => {
-    storeNameMap[store.id] = store.name;
-  });
-
   const tabItems = [
     {
       key: "general",
@@ -442,16 +433,14 @@ export function EmployeeModal({
         <div className="flex flex-col gap-0">
           <Form.Item name="areaIds" label={et.areas as string}>
             <Select mode="multiple" placeholder={t.selectPlaceholder}>
-              {areas.map((area) => (
-                <Option key={area.id} value={area.id}>
-                  {storeNameMap[area.storeId] ? `${storeNameMap[area.storeId]} / ${area.name}` : area.name}
-                </Option>
+              {workAreas.map((area) => (
+                <Option key={area.id} value={area.id}>{area.name}</Option>
               ))}
             </Select>
           </Form.Item>
           <Form.Item name="positionIds" label={et.positions as string}>
             <Select mode="multiple" placeholder={t.selectPlaceholder}>
-              {MOCK_POSITIONS.map((p) => (
+              {positions.map((p) => (
                 <Option key={p.id} value={p.id}>{p.name}</Option>
               ))}
             </Select>
@@ -534,14 +523,16 @@ export function EmployeeModal({
 function DetailPanel({
   employee,
   stores = [],
-  areas = [],
+  workAreas = [],
+  positions = [],
   onEdit = () => {},
   onDelete = () => {},
   t,
 }: {
   employee: Employee;
   stores?: { id: string; name: string }[];
-  areas?: Area[];
+  workAreas?: EmployeeDictItem[];
+  positions?: EmployeeDictItem[];
   onEdit?: () => void;
   onDelete?: () => void;
   t: ReturnType<typeof useLocale>["t"];
@@ -553,11 +544,11 @@ function DetailPanel({
     .filter(Boolean) as string[];
 
   const areaNames = (employee.areaIds ?? [])
-    .map((id) => areas.find((area) => area.id === id)?.name)
+    .map((id) => workAreas.find((area) => area.id === id)?.name)
     .filter(Boolean) as string[];
 
   const positionNames = (employee.positionIds ?? [])
-    .map((id) => MOCK_POSITIONS.find((p) => p.id === id)?.name)
+    .map((id) => positions.find((p) => p.id === id)?.name)
     .filter(Boolean) as string[];
 
   const workDays = employee.workDayPattern ?? defaultWorkDayPattern;
@@ -749,7 +740,7 @@ function DetailPanel({
 
 // ─── Main Employees Page ───
 export default function Employees() {
-  const { employees, saveEmployee, deleteEmployee, stores, areas } = useData();
+  const { employees, saveEmployee, deleteEmployee, stores, positions, workAreas } = useData();
   const { t, locale } = useLocale();
   const { selectedStoreId } = useStore();
   const et = t.employee as Record<string, unknown>;
@@ -934,7 +925,8 @@ export default function Employees() {
             <DetailPanel
               employee={selectedEmployee}
               stores={stores}
-              areas={areas}
+              workAreas={workAreas}
+              positions={positions}
               onEdit={handleEdit}
               onDelete={handleDelete}
               t={t}
@@ -952,7 +944,8 @@ export default function Employees() {
         open={modalOpen}
         employee={editingEmployee}
         stores={stores}
-        areas={areas}
+        workAreas={workAreas}
+        positions={positions}
         defaultStoreIds={selectedStoreId !== "all" ? [selectedStoreId] : []}
         onSave={handleSave}
         onCancel={() => setModalOpen(false)}

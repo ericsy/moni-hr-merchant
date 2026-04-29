@@ -2,7 +2,9 @@ import { appendEndpointPath, getMerchantEndpoint } from "../config/merchantEndpo
 import { apiRequest } from "./apiClient";
 import type {
   Area,
+  CountryOption,
   Employee,
+  EmployeeDictItem,
   RosterTemplate,
   RosterTemplateCell,
   ScheduleShift,
@@ -61,6 +63,42 @@ export interface RawScheduleTemplateListItem {
   name?: string;
 }
 
+export interface MerchantCheckoutSession {
+  checkoutUrl?: string | null;
+}
+
+export interface MerchantSubscription {
+  merchantId?: number | string | null;
+  planId?: number | string | null;
+  quantity?: number | null;
+  status?: string | null;
+  cancelAtPeriodEnd?: number | boolean | null;
+  currentPeriodEnd?: string | null;
+}
+
+export interface MerchantInvoiceSummary {
+  id?: string | null;
+  number?: string | null;
+  status?: string | null;
+  currency?: string | null;
+  total?: number | null;
+  amountPaid?: number | null;
+  amountDue?: number | null;
+  created?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  hostedInvoiceUrl?: string | null;
+  invoicePdf?: string | null;
+  billingReason?: string | null;
+  description?: string | null;
+}
+
+export interface MerchantInvoiceList {
+  items?: MerchantInvoiceSummary[];
+  hasMore?: boolean;
+  nextStartingAfter?: string | null;
+}
+
 const EMPTY_PAGE = { items: [] as unknown[] };
 type ApiRecord = Record<string, unknown>;
 
@@ -114,18 +152,19 @@ function mapWorkDayPattern(pattern: unknown): WorkDayPattern[] | undefined {
 function serializeWorkDayPattern(pattern: WorkDayPattern[] | undefined) {
   return pattern?.map((item) => ({
     dayIndex: item.dayIndex,
-    state: item.state,
+    state: item.state === "on" ? true : item.state === "off" ? false : "none",
     hours: item.hours,
   }));
 }
 
-function normalizeCountry(country: unknown): Store["country"] {
-  const value = asString(country, "nz").toLowerCase();
-  return (value === "au" ? "au" : "nz") as Store["country"];
+function normalizeCountry(country: unknown) {
+  return asString(country, "nz").trim().toLowerCase() || "nz";
 }
 
 function normalizeStatus<T extends string>(status: unknown, enabled: T, disabled: T): T {
-  return asString(status, enabled) === disabled ? disabled : enabled;
+  const value = asString(status, enabled).trim().toLowerCase();
+  if (["0", "false", disabled.toLowerCase()].includes(value)) return disabled;
+  return enabled;
 }
 
 export function isBackendId(id: string | undefined | null) {
@@ -166,12 +205,28 @@ export function storeToApiPayload(store: Store) {
     manager: store.manager,
     openTime: store.openTime,
     closeTime: store.closeTime,
-    timezone: store.timezone,
-    status: store.status,
     latitude: store.latitude,
     longitude: store.longitude,
     geofenceRadius: store.geofenceRadius,
   });
+}
+
+export function mapApiCountry(input: unknown): CountryOption {
+  const raw = asRecord(input);
+  return {
+    code: asString(raw.code).toLowerCase(),
+    nameZh: asString(raw.nameZh),
+    nameEn: asString(raw.nameEn),
+    dialCode: asString(raw.dialCode),
+  };
+}
+
+export function mapApiDictItem(input: unknown): EmployeeDictItem {
+  const raw = asRecord(input);
+  return {
+    id: asString(raw.id),
+    name: asString(raw.name),
+  };
 }
 
 export function mapApiEmployee(input: unknown): Employee {
@@ -390,9 +445,14 @@ export const merchantApi = {
     apiRequest<null>("/api/v1/merchant/auth/logout", {
       method: "POST",
     }),
+  merchantMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/me"),
   authMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/auth/me"),
   permissionsTree: () =>
     apiRequest<MerchantFeatureTreeNode[]>("/api/v1/merchant/auth/permissions-tree"),
+  listCountries: async () => {
+    const data = await apiRequest<unknown[]>(getMerchantEndpoint("countries"));
+    return (Array.isArray(data) ? data : []).map(mapApiCountry);
+  },
   listStores: async () => {
     const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("stores"));
     return (data?.items || []).map(mapApiStore);
@@ -529,10 +589,26 @@ export const merchantApi = {
     }),
   listPositions: async () => {
     const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("positions"));
-    return (data || EMPTY_PAGE).items || [];
+    return ((data || EMPTY_PAGE).items || []).map(mapApiDictItem);
   },
   listWorkAreas: async () => {
     const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("workAreas"));
-    return (data || EMPTY_PAGE).items || [];
+    return ((data || EMPTY_PAGE).items || []).map(mapApiDictItem);
   },
+  subscribeBilling: (planId: number, quantity: number) =>
+    apiRequest<MerchantCheckoutSession>(appendEndpointPath(getMerchantEndpoint("billing"), "subscribe"), {
+      method: "POST",
+      body: { planId, quantity },
+    }),
+  addBillingQuantity: (addQuantity: number) =>
+    apiRequest<MerchantSubscription>(appendEndpointPath(getMerchantEndpoint("billing"), "add-quantity"), {
+      method: "POST",
+      body: { addQuantity },
+    }),
+  getBillingSubscription: () =>
+    apiRequest<MerchantSubscription>(appendEndpointPath(getMerchantEndpoint("billing"), "subscription")),
+  listBillingInvoices: (params: { limit?: number; startingAfter?: string; status?: string } = {}) =>
+    apiRequest<MerchantInvoiceList>(appendEndpointPath(getMerchantEndpoint("billing"), "invoices"), {
+      query: params,
+    }),
 };

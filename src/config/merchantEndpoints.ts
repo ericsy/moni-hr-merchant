@@ -8,7 +8,9 @@ export type MerchantEndpointKey =
   | "scheduleTemplates"
   | "schedule"
   | "positions"
-  | "workAreas";
+  | "workAreas"
+  | "countries"
+  | "billing";
 
 export const DEFAULT_MERCHANT_ENDPOINTS: Record<MerchantEndpointKey, string> = {
   stores: "/api/v1/merchant/stores",
@@ -19,6 +21,8 @@ export const DEFAULT_MERCHANT_ENDPOINTS: Record<MerchantEndpointKey, string> = {
   schedule: "/api/v1/merchant/schedule",
   positions: "/api/v1/merchant/positions",
   workAreas: "/api/v1/merchant/work-areas",
+  countries: "/api/v1/merchant/countries",
+  billing: "/api/v1/merchant/billing",
 };
 
 const endpointKeyAliases: Record<string, MerchantEndpointKey> = {
@@ -57,6 +61,11 @@ const endpointKeyAliases: Record<string, MerchantEndpointKey> = {
   position: "positions",
   workareas: "workAreas",
   workarea: "workAreas",
+  countries: "countries",
+  country: "countries",
+  billing: "billing",
+  subscription: "billing",
+  invoices: "billing",
 };
 
 const endpointMapFields = ["requestUrls", "requestUrlMap", "apiUrls", "apiUrlMap", "endpoints", "apis"];

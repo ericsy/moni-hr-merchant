@@ -38,10 +38,12 @@ declare global {
   const Clock: typeof import('lucide-react').Clock
   const Command: typeof import('lucide-react').Command
   const Component: typeof import('lucide-react').Component
+  const CreditCard: typeof import('lucide-react').CreditCard
   const DollarSign: typeof import('lucide-react').DollarSign
   const Download: typeof import('lucide-react').Download
   const Edit: typeof import('lucide-react').Edit
   const Edit2: typeof import('lucide-react').Edit2
+  const ExternalLink: typeof import('lucide-react').ExternalLink
   const Eye: typeof import('lucide-react').Eye
   const EyeOff: typeof import('lucide-react').EyeOff
   const FileText: typeof import('lucide-react').FileText
@@ -83,6 +85,7 @@ declare global {
   const Plus: typeof import('lucide-react').Plus
   const Radio: typeof import('lucide-react').Radio
   const Radius: typeof import('lucide-react').Radius
+  const RefreshCw: typeof import('lucide-react').RefreshCw
   const Route: typeof import('lucide-react').Route
   const Save: typeof import('lucide-react').Save
   const Search: typeof import('lucide-react').Search
@@ -98,6 +101,7 @@ declare global {
   const Suspense: typeof import('react').Suspense
   const Table: typeof import('lucide-react').Table
   const Tag: typeof import('lucide-react').Tag
+  const Text: typeof import('lucide-react').Text
   const Trash2: typeof import('lucide-react').Trash2
   const TriangleAlertIcon: typeof import('lucide-react').TriangleAlertIcon
   const User: typeof import('lucide-react').User

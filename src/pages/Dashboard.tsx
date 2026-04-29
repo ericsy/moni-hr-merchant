@@ -12,6 +12,12 @@ interface DashboardProps {
   onNavigate?: (page: string) => void;
 }
 
+function getCountryFlag(code = "") {
+  const normalized = code.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) return "";
+  return String.fromCodePoint(...[...normalized].map((char) => char.charCodeAt(0) + 127397));
+}
+
 export default function Dashboard({ onNavigate = () => {} }: DashboardProps) {
   const { t, locale } = useLocale();
   const { employees, stores } = useData();
@@ -197,7 +203,7 @@ export default function Dashboard({ onNavigate = () => {} }: DashboardProps) {
                     {store.name}
                   </div>
                   <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    {store.country === "nz" ? "🇳🇿 NZ" : "🇦🇺 AU"} · {store.city}
+                    {getCountryFlag(store.country)} {store.country.toUpperCase()} · {store.city}
                   </div>
                 </div>
                 <Tag

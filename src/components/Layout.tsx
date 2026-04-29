@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Bell,
+  CreditCard,
   Settings,
   LogOut,
   User,
@@ -91,6 +92,7 @@ export default function AppLayout({
       schedule: <Clock size={18} />,
       rosters: <CalendarRange size={18} />,
       rosterTemplate: <CalendarDays size={18} />,
+      billing: <CreditCard size={18} />,
     };
 
     const getNodeLabel = (node: MerchantFeatureTreeNode, fallback: string) => {

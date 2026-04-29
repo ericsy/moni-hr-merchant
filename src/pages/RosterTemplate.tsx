@@ -289,6 +289,8 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     saveEmployee,
     stores,
     areas,
+    positions,
+    workAreas,
     scheduleShifts,
     rosterTemplates: allTemplates,
     setRosterTemplates: setTemplates,
@@ -351,7 +353,11 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     .filter(Boolean) as Area[];
 
   const selectableAreas = areas
-    .filter((area) => (area.areaType || "store") === "general" || area.storeId === activeTemplateStoreId)
+    .filter((area) => {
+      if ((area.areaType || "store") === "general") return true;
+      if (activeTemplateStoreId) return area.storeId === activeTemplateStoreId;
+      return selectedStoreId === "all" || area.storeId === selectedStoreId;
+    })
     .filter((area) => !(activeTemplate?.areaIds || []).includes(area.id))
     .sort((a, b) => a.order - b.order);
 
@@ -483,6 +489,31 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   // ── Template CRUD ─────────────────────────────────────────────────────────
 
+  const createDraftTemplate = (initialAreaIds: string[] = []) => {
+    const uniqueAreaIds = Array.from(new Set(initialAreaIds.filter(Boolean)));
+    const firstArea = uniqueAreaIds
+      .map((areaId) => templateAreaMap[areaId])
+      .find(Boolean);
+    const inferredStoreId = firstArea && (firstArea.areaType || "store") !== "general"
+      ? firstArea.storeId
+      : "";
+    const defaultStoreId = selectedStoreId !== "all"
+      ? selectedStoreId
+      : inferredStoreId || enabledStores[0]?.id || stores[0]?.id || "";
+    const newTemplate: RosterTemplate = {
+      id: `rt-${Date.now()}`,
+      name: locale === "zh" ? `新排班模版 ${allTemplates.length + 1}` : `New Roster Template ${allTemplates.length + 1}`,
+      storeId: defaultStoreId,
+      totalDays: 7,
+      areaIds: uniqueAreaIds,
+      cells: [],
+    };
+
+    setTemplates((prev) => [...prev, newTemplate]);
+    setActiveTemplateId(newTemplate.id);
+    return newTemplate;
+  };
+
   const updateTemplate = (updater: (t: RosterTemplate) => RosterTemplate) => {
     if (!resolvedActiveTemplateId) return;
     setTemplates((prev) => prev.map((t) => (t.id === resolvedActiveTemplateId ? updater(t) : t)));
@@ -500,7 +531,19 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   const handleAddArea = () => {
     if (!selectedAreaId) return;
-    updateTemplate((t) => ({ ...t, areaIds: [...t.areaIds, selectedAreaId] }));
+
+    if (!activeTemplate) {
+      createDraftTemplate([selectedAreaId]);
+      setSelectedAreaId("");
+      setAddAreaOpen(false);
+      toast.success(locale === "zh" ? "已创建模版并加入区域" : "Template created and area linked");
+      return;
+    }
+
+    updateTemplate((t) => ({
+      ...t,
+      areaIds: t.areaIds.includes(selectedAreaId) ? t.areaIds : [...t.areaIds, selectedAreaId],
+    }));
     setSelectedAreaId("");
     setAddAreaOpen(false);
     toast.success(locale === "zh" ? "区域已加入模版" : "Area linked to template");
@@ -685,16 +728,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
   const handleNewTemplate = () => {
     const defaultStoreId = selectedStoreId !== "all" ? selectedStoreId : enabledStores[0]?.id || stores[0]?.id || "";
     const defaultAreaId = areas.find((area) => (area.areaType || "store") === "general" || area.storeId === defaultStoreId)?.id || "";
-    const newT: RosterTemplate = {
-      id: `rt-${Date.now()}`,
-      name: locale === "zh" ? `新排班模版 ${allTemplates.length + 1}` : `New Roster Template ${allTemplates.length + 1}`,
-      storeId: defaultStoreId,
-      totalDays: 7,
-      areaIds: defaultAreaId ? [defaultAreaId] : [],
-      cells: [],
-    };
-    setTemplates((prev) => [...prev, newT]);
-    setActiveTemplateId(newT.id);
+    createDraftTemplate(defaultAreaId ? [defaultAreaId] : []);
     toast.success(locale === "zh" ? "新模版已创建" : "New template created");
   };
 
@@ -1143,7 +1177,8 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         open={addEmployeeOpen}
         employee={null}
         stores={stores}
-        areas={areas}
+        workAreas={workAreas}
+        positions={positions}
         defaultStoreIds={activeTemplateStoreId ? [activeTemplateStoreId] : []}
         onSave={handleAddEmployee}
         onCancel={() => setAddEmployeeOpen(false)}

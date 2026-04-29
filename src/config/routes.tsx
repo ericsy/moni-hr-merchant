@@ -19,7 +19,8 @@ export type KnownPageKey =
   | "areas"
   | "schedule"
   | "rosters"
-  | "rosterTemplate";
+  | "rosterTemplate"
+  | "billing";
 
 export type PageKey = KnownPageKey | (string & {});
 
@@ -51,6 +52,7 @@ const pageModules = import.meta.glob<PageModule>([
   "../pages/Schedule.tsx",
   "../pages/Rosters.tsx",
   "../pages/RosterTemplate.tsx",
+  "../pages/Billing.tsx",
 ]);
 const lazyPageComponents = new Map<string, React.LazyExoticComponent<React.ComponentType<Record<string, unknown>>>>();
 
@@ -127,6 +129,23 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
       "/api/v1/merchant/schedule-templates",
     ],
   },
+  {
+    pageKey: "billing",
+    path: "/billing",
+    componentPath: "../pages/Billing.tsx",
+    requestPath: "/api/v1/merchant/billing/subscription",
+    endpointKey: "billing",
+    aliases: [
+      "/billing",
+      "/subscription",
+      "/invoices",
+      "/api/v1/merchant/billing",
+      "/api/v1/merchant/billing/subscribe",
+      "/api/v1/merchant/billing/add-quantity",
+      "/api/v1/merchant/billing/subscription",
+      "/api/v1/merchant/billing/invoices",
+    ],
+  },
 ];
 
 export const merchantRoutes = merchantRouteTemplates;
@@ -140,6 +159,7 @@ const routeTemplateByEndpointKey: Partial<Record<MerchantEndpointKey, MerchantRo
   globalShifts: routeTemplateByPageKey.get("schedule"),
   scheduleTemplates: routeTemplateByPageKey.get("rosterTemplate"),
   schedule: routeTemplateByPageKey.get("schedule"),
+  billing: routeTemplateByPageKey.get("billing"),
 };
 
 const pageKeyAliases: Record<string, KnownPageKey> = {
@@ -173,6 +193,11 @@ const pageKeyAliases: Record<string, KnownPageKey> = {
   schedulingtemplates: "rosterTemplate",
   schedulingtemplate: "rosterTemplate",
   templates: "rosterTemplate",
+  billing: "billing",
+  subscription: "billing",
+  subscriptions: "billing",
+  invoices: "billing",
+  invoice: "billing",
 };
 
 const componentPathFields = ["componentPath", "component", "viewPath", "componentUrl", "componentName"];
