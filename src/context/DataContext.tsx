@@ -25,9 +25,11 @@ export interface Employee {
   startDate: string;
   storeIds: string[];
   assignedStores?: string[];
+  storeDetails?: { id: string; name: string }[];
   hourlyRate: number;
   notes: string;
   avatar?: string;
+  avatarPreviewUrl?: string;
   employeeColor?: string;
   address?: string;
   dateOfBirth?: string;
@@ -48,6 +50,8 @@ export interface Employee {
   workDayPattern?: WorkDayPattern[];
   // Employment
   contractType?: string;
+  contractDocumentKey?: string;
+  contractDocumentUrl?: string;
   endDate?: string;
   contractedHours?: string;
   annualSalary?: string;
@@ -508,13 +512,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!existingId && !employee.password) {
       throw new Error("创建员工需要设置初始密码");
     }
+
+    if (employee.email) {
+      const isEmailAvailable = await merchantApi.checkEmployeeEmailAvailable(employee.email, existingId);
+      if (!isEmailAvailable) {
+        throw new Error("该邮箱已被占用，请使用其他邮箱");
+      }
+    }
+
+    if (employee.employeeId) {
+      const isEmployeeIdAvailable = await merchantApi.checkEmployeeIdAvailable(employee.employeeId, existingId);
+      if (!isEmployeeIdAvailable) {
+        throw new Error("该员工工号已存在，请使用其他工号");
+      }
+    }
+
     const saved = existingId
       ? await merchantApi.updateEmployee(existingId, employee)
       : await merchantApi.createEmployee(employee);
+    const normalizedSaved: Employee = {
+      ...saved,
+      areaIds: saved.areaIds?.length ? saved.areaIds : employee.areaIds || [],
+      positionIds: saved.positionIds?.length ? saved.positionIds : employee.positionIds || [],
+    };
     setEmployees((prev) => existingId
-      ? prev.map((item) => item.id === existingId ? saved : item)
-      : [...prev, saved]);
-    return saved;
+      ? prev.map((item) => item.id === existingId ? normalizedSaved : item)
+      : [...prev, normalizedSaved]);
+    return normalizedSaved;
   }, []);
 
   const deleteEmployee = useCallback(async (id: string) => {

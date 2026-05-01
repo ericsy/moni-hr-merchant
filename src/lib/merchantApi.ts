@@ -99,6 +99,11 @@ export interface MerchantInvoiceList {
   nextStartingAfter?: string | null;
 }
 
+export interface MerchantUploadResult {
+  key?: string;
+  downloadUrl?: string;
+}
+
 const EMPTY_PAGE = { items: [] as unknown[] };
 type ApiRecord = Record<string, unknown>;
 
@@ -159,6 +164,29 @@ function serializeWorkDayPattern(pattern: WorkDayPattern[] | undefined) {
 
 function normalizeCountry(country: unknown) {
   return asString(country, "nz").trim().toLowerCase() || "nz";
+}
+
+function asBoolean(value: unknown, fallback = false) {
+  if (typeof value === "boolean") return value;
+  const normalized = asString(value).trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(normalized)) return true;
+  if (["false", "0", "no", "n"].includes(normalized)) return false;
+  return fallback;
+}
+
+function extractAvailableFlag(payload: unknown, fallback = true) {
+  const raw = asRecord(payload);
+  if ("available" in raw) return asBoolean(raw.available, fallback);
+  const nested = asRecord(raw.data);
+  if ("available" in nested) return asBoolean(nested.available, fallback);
+  return fallback;
+}
+
+function normalizeEmployeeContractType(value: unknown) {
+  const raw = asString(value).trim().toLowerCase();
+  if (raw === "fixed-term") return "fixed_term";
+  if (raw === "part-time") return "part_time";
+  return raw;
 }
 
 function normalizeStatus<T extends string>(status: unknown, enabled: T, disabled: T): T {
@@ -231,7 +259,17 @@ export function mapApiDictItem(input: unknown): EmployeeDictItem {
 
 export function mapApiEmployee(input: unknown): Employee {
   const raw = asRecord(input);
-  const storeIds = asArray(raw.storeIds).map((id) => asString(id));
+  const rawStoreIds = asArray(raw.storeIds).map((id) => asString(id));
+  const storeDetails = asArray(raw.storeDetails)
+    .map((item) => {
+      const record = asRecord(item);
+      return {
+        id: asString(record.id),
+        name: asString(record.name || record.storeName),
+      };
+    })
+    .filter((item) => item.id);
+  const storeIds = rawStoreIds.length > 0 ? rawStoreIds : storeDetails.map((item) => item.id);
   const assignedStores = asArray(raw.assignedStores).map((id) => asString(id));
 
   return {
@@ -245,10 +283,16 @@ export function mapApiEmployee(input: unknown): Employee {
     status: normalizeStatus(raw.status, "active", "inactive"),
     startDate: asString(raw.startDate),
     storeIds,
-    assignedStores: assignedStores.length > 0 ? assignedStores : storeIds,
+    storeDetails,
+    assignedStores: assignedStores.length > 0
+      ? assignedStores
+      : storeDetails.length > 0
+      ? storeDetails.map((item) => item.id)
+      : storeIds,
     hourlyRate: asNumber(raw.hourlyRate),
     notes: asString(raw.notes),
     avatar: asString(raw.avatar),
+    avatarPreviewUrl: asString(raw.avatar),
     employeeColor: asString(raw.employeeColor, "#60a5fa"),
     address: asString(raw.address),
     dateOfBirth: asString(raw.dateOfBirth),
@@ -264,11 +308,13 @@ export function mapApiEmployee(input: unknown): Employee {
     positionIds: asArray(raw.positionIds).map((id) => asString(id)),
     paidHoursPerDay: raw.paidHoursPerDay === undefined ? undefined : asNumber(raw.paidHoursPerDay),
     workDayPattern: mapWorkDayPattern(raw.workDayPattern),
-    contractType: asString(raw.contractType),
+    contractType: normalizeEmployeeContractType(raw.contractType),
+    contractDocumentKey: asString(raw.contractDocumentKey),
     endDate: asString(raw.endDate),
     contractedHours: asString(raw.contractedHours),
     annualSalary: asString(raw.annualSalary),
     defaultHourlyRate: asString(raw.defaultHourlyRate),
+    contractDocumentUrl: asString(raw.contractDocumentUrl),
   };
 }
 
@@ -300,13 +346,12 @@ export function employeeToApiPayload(employee: Employee & { password?: string },
     payrollEmployeeId: employee.payrollEmployeeId,
     paidHoursPerDay: employee.paidHoursPerDay,
     workDayPattern: serializeWorkDayPattern(employee.workDayPattern),
-    contractType: employee.contractType,
+    contractType: normalizeEmployeeContractType(employee.contractType),
+    contractDocumentKey: employee.contractDocumentKey,
     endDate: employee.endDate,
     contractedHours: employee.contractedHours,
     annualSalary: employee.annualSalary,
     defaultHourlyRate: employee.defaultHourlyRate,
-    areaIds: employee.areaIds || [],
-    positionIds: employee.positionIds || [],
   });
 }
 
@@ -500,6 +545,24 @@ export const merchantApi = {
     apiRequest(appendEndpointPath(getMerchantEndpoint("employees"), id), {
       method: "DELETE",
     }),
+  checkEmployeeEmailAvailable: async (email: string, excludeId?: string) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("employees"), "email-available"), {
+      query: {
+        email,
+        excludeId: excludeId && isBackendId(excludeId) ? Number(excludeId) : undefined,
+      },
+    });
+    return extractAvailableFlag(data, true);
+  },
+  checkEmployeeIdAvailable: async (employeeId: string, excludeId?: string) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("employees"), "employee-id-available"), {
+      query: {
+        employeeId,
+        excludeId: excludeId && isBackendId(excludeId) ? Number(excludeId) : undefined,
+      },
+    });
+    return extractAvailableFlag(data, true);
+  },
   listAreas: async (storeId: string) => {
     const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("areas"), { storeId });
     return (data?.items || []).map(mapApiArea);
@@ -611,4 +674,20 @@ export const merchantApi = {
     apiRequest<MerchantInvoiceList>(appendEndpointPath(getMerchantEndpoint("billing"), "invoices"), {
       query: params,
     }),
+  uploadEmployeeContract: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<MerchantUploadResult>("/api/v1/merchant/uploads/employee-contract", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  uploadEmployeeAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<MerchantUploadResult>("/api/v1/merchant/uploads/employee-avatar", {
+      method: "POST",
+      body: formData,
+    });
+  },
 };

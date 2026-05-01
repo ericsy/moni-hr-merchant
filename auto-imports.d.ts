@@ -46,6 +46,7 @@ declare global {
   const ExternalLink: typeof import('lucide-react').ExternalLink
   const Eye: typeof import('lucide-react').Eye
   const EyeOff: typeof import('lucide-react').EyeOff
+  const File: typeof import('lucide-react').File
   const FileText: typeof import('lucide-react').FileText
   const Form: typeof import('lucide-react').Form
   const Fragment: typeof import('react').Fragment
@@ -80,6 +81,7 @@ declare global {
   const Option: typeof import('lucide-react').Option
   const Palette: typeof import('lucide-react').Palette
   const PanelLeftIcon: typeof import('lucide-react').PanelLeftIcon
+  const Paperclip: typeof import('lucide-react').Paperclip
   const Pencil: typeof import('lucide-react').Pencil
   const Phone: typeof import('lucide-react').Phone
   const Plus: typeof import('lucide-react').Plus
@@ -104,6 +106,8 @@ declare global {
   const Text: typeof import('lucide-react').Text
   const Trash2: typeof import('lucide-react').Trash2
   const TriangleAlertIcon: typeof import('lucide-react').TriangleAlertIcon
+  const Upload: typeof import('lucide-react').Upload
+  const UploadIcon: typeof import('lucide-react').UploadIcon
   const User: typeof import('lucide-react').User
   const UserCircle: typeof import('lucide-react').UserCircle
   const Users: typeof import('lucide-react').Users

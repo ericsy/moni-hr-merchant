@@ -1177,7 +1177,6 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         open={addEmployeeOpen}
         employee={null}
         stores={stores}
-        workAreas={workAreas}
         positions={positions}
         defaultStoreIds={activeTemplateStoreId ? [activeTemplateStoreId] : []}
         onSave={handleAddEmployee}

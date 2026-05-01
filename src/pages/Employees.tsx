@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Button,
   Input,
@@ -12,6 +12,9 @@ import {
   Popconfirm,
   Modal,
   Tooltip,
+  Upload,
+  type UploadFile,
+  type UploadProps,
 } from "antd";
 import {
   Search,
@@ -36,6 +39,9 @@ import {
   X,
   Check,
   Minus,
+  Upload as UploadIcon,
+  ExternalLink,
+  Paperclip,
 } from "lucide-react";
 import dayjs from "dayjs";
 import { useData, type Employee, type WorkDayPattern, type EmployeeDictItem } from "../context/DataContext";
@@ -43,6 +49,7 @@ import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { toast } from "sonner";
 import WorkDaysCalendar from "../components/WorkDaysCalendar";
+import { merchantApi } from "../lib/merchantApi";
 
 const { Option } = Select;
 
@@ -65,6 +72,15 @@ const defaultWorkDayPattern: WorkDayPattern[] = [
 
 function getInitials(firstName = "", lastName = "") {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+}
+
+function getEmployeeAvatarUrl(employee?: Pick<Employee, "avatar" | "avatarPreviewUrl"> | null) {
+  if (!employee) return "";
+  const previewUrl = employee.avatarPreviewUrl || "";
+  if (previewUrl.startsWith("http://") || previewUrl.startsWith("https://")) return previewUrl;
+  const avatar = employee.avatar || "";
+  if (avatar.startsWith("http://") || avatar.startsWith("https://")) return avatar;
+  return previewUrl;
 }
 
 // ─── WorkDayEditor component ───
@@ -204,7 +220,6 @@ export function EmployeeModal({
   open = false,
   employee = null,
   stores = [],
-  workAreas = [],
   positions = [],
   defaultStoreIds = [],
   onSave = () => {},
@@ -215,7 +230,6 @@ export function EmployeeModal({
   open?: boolean;
   employee?: Employee | null;
   stores?: { id: string; name: string }[];
-  workAreas?: EmployeeDictItem[];
   positions?: EmployeeDictItem[];
   defaultStoreIds?: string[];
   onSave?: (emp: Employee) => void | Promise<void>;
@@ -225,6 +239,57 @@ export function EmployeeModal({
 }) {
   const [form] = Form.useForm();
   const isEdit = !!employee;
+  const [uploadingContract, setUploadingContract] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const buildContractFileList = (targetEmployee: Employee | null): UploadFile[] => {
+    if (!targetEmployee?.contractDocumentKey && !targetEmployee?.contractDocumentUrl) return [];
+    return [{
+      uid: targetEmployee.contractDocumentKey || targetEmployee.contractDocumentUrl || "contract-file",
+      name: targetEmployee.contractDocumentKey?.split("/").pop() || "contract",
+      status: "done",
+      url: targetEmployee.contractDocumentUrl || undefined,
+    }];
+  };
+  const [contractFileList, setContractFileList] = useState<UploadFile[]>(() => {
+    if (!employee?.contractDocumentKey && !employee?.contractDocumentUrl) return [];
+    return [{
+      uid: employee.contractDocumentKey || employee.contractDocumentUrl || "contract-file",
+      name: employee.contractDocumentKey?.split("/").pop() || "contract",
+      status: "done",
+      url: employee.contractDocumentUrl || undefined,
+    }];
+  });
+
+  useEffect(() => {
+    setContractFileList(buildContractFileList(employee));
+  }, [employee]);
+
+  const buildAvatarFileList = (targetEmployee: Employee | null): UploadFile[] => {
+    const avatarUrl = getEmployeeAvatarUrl(targetEmployee);
+    const avatarValue = targetEmployee?.avatar || "";
+    if (!avatarUrl && !avatarValue) return [];
+    return [{
+      uid: avatarValue || avatarUrl || "avatar-file",
+      name: avatarValue.split("/").pop() || avatarUrl.split("/").pop() || "avatar",
+      status: "done",
+      url: avatarUrl || undefined,
+    }];
+  };
+  const [avatarFileList, setAvatarFileList] = useState<UploadFile[]>(() => buildAvatarFileList(employee));
+
+  useEffect(() => {
+    setAvatarFileList(buildAvatarFileList(employee));
+  }, [employee]);
+
+  const syncContractFormValue = (fileList: UploadFile[]) => {
+    const uploaded = fileList[0];
+    form.setFieldValue("contractDocumentKey", uploaded?.response?.key || uploaded?.uid || "");
+  };
+
+  const syncAvatarFormValue = (fileList: UploadFile[]) => {
+    const uploaded = fileList[0];
+    form.setFieldValue("avatar", uploaded?.response?.key || uploaded?.uid || "");
+  };
 
   const handleOk = async () => {
     try {
@@ -244,7 +309,8 @@ export function EmployeeModal({
         assignedStores: values.storeIds ?? [],
         hourlyRate: values.hourlyRate ?? 0,
         notes: values.notes ?? "",
-        avatar: employee?.avatar ?? "",
+        avatar: values.avatar ?? employee?.avatar ?? "",
+        avatarPreviewUrl: avatarFileList[0]?.url ?? employee?.avatarPreviewUrl ?? employee?.avatar ?? "",
         employeeColor: values.employeeColor ?? "#60a5fa",
         address: values.address ?? "",
         dateOfBirth: values.dateOfBirth ? dayjs(values.dateOfBirth).format("YYYY-MM-DD") : "",
@@ -256,11 +322,13 @@ export function EmployeeModal({
         esctRate: values.esctRate ?? "",
         bankAccountNumber: values.bankAccountNumber ?? "",
         payrollEmployeeId: values.payrollEmployeeId ?? "",
-        areaIds: values.areaIds ?? [],
+        areaIds: employee?.areaIds ?? [],
         positionIds: values.positionIds ?? [],
         paidHoursPerDay: values.paidHoursPerDay ?? 8,
         workDayPattern: values.workDayPattern ?? defaultWorkDayPattern,
         contractType: values.contractType ?? "permanent",
+        contractDocumentKey: values.contractDocumentKey ?? employee?.contractDocumentKey ?? "",
+        contractDocumentUrl: contractFileList[0]?.url ?? employee?.contractDocumentUrl ?? "",
         endDate: values.endDate ? dayjs(values.endDate).format("YYYY-MM-DD") : "",
         contractedHours: values.contractedHours ?? "",
         annualSalary: values.annualSalary ?? "",
@@ -279,11 +347,14 @@ export function EmployeeModal({
         dateOfBirth: employee.dateOfBirth ? dayjs(employee.dateOfBirth) : undefined,
         endDate: employee.endDate ? dayjs(employee.endDate) : undefined,
         workDayPattern: employee.workDayPattern ?? defaultWorkDayPattern,
+        avatar: employee.avatar ?? "",
+        contractDocumentKey: employee.contractDocumentKey ?? "",
       }
     : {
         status: "active",
         role: "staff",
         storeIds: defaultStoreIds,
+        avatar: "",
         employeeColor: "#60a5fa",
         employeeContributionRate: "3%",
         employerContributionRate: "3",
@@ -291,15 +362,121 @@ export function EmployeeModal({
         contractType: "permanent",
         workDayPattern: defaultWorkDayPattern,
         paidHoursPerDay: 8,
+        contractDocumentKey: "",
       };
 
   const et = t.employee as Record<string, unknown>;
+  const contractUploadText = uploadingContract
+    ? et.contractUploading as string
+    : (contractFileList.length > 0 ? et.contractUploadReplace as string : et.contractUploadButton as string);
+  const avatarUploadText = uploadingAvatar
+    ? et.contractUploading as string
+    : (avatarFileList.length > 0 ? et.avatarUploadReplace as string : et.avatarUploadButton as string);
+
+  const handleContractUpload: UploadProps["beforeUpload"] = async (file) => {
+    try {
+      setUploadingContract(true);
+      const uploaded = await merchantApi.uploadEmployeeContract(file);
+      const nextFile: UploadFile = {
+        uid: uploaded.key || `${file.name}-${Date.now()}`,
+        name: file.name,
+        status: "done",
+        url: uploaded.downloadUrl || undefined,
+        response: uploaded,
+      };
+      const nextFileList = [nextFile];
+      setContractFileList(nextFileList);
+      syncContractFormValue(nextFileList);
+      form.validateFields(["contractDocumentKey"]).catch(() => undefined);
+      toast.success(et.contractUploadSuccess as string);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : et.contractUploadFailed as string);
+    } finally {
+      setUploadingContract(false);
+    }
+    return Upload.LIST_IGNORE;
+  };
+
+  const handleRemoveContract = () => {
+    setContractFileList([]);
+    syncContractFormValue([]);
+  };
+
+  const handleAvatarUpload: UploadProps["beforeUpload"] = async (file) => {
+    try {
+      setUploadingAvatar(true);
+      const uploaded = await merchantApi.uploadEmployeeAvatar(file);
+      const nextFile: UploadFile = {
+        uid: uploaded.key || `${file.name}-${Date.now()}`,
+        name: file.name,
+        status: "done",
+        url: uploaded.downloadUrl || undefined,
+        response: uploaded,
+      };
+      const nextFileList = [nextFile];
+      setAvatarFileList(nextFileList);
+      syncAvatarFormValue(nextFileList);
+      toast.success(et.avatarUploadSuccess as string);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : et.avatarUploadFailed as string);
+    } finally {
+      setUploadingAvatar(false);
+    }
+    return Upload.LIST_IGNORE;
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarFileList([]);
+    syncAvatarFormValue([]);
+  };
+
   const tabItems = [
     {
       key: "general",
       label: et.tabGeneral as string,
       children: (
         <div className="flex flex-col gap-0">
+          <Form.Item name="avatar" hidden>
+            <Input />
+          </Form.Item>
+          <Form.Item label={et.avatar as string} extra={et.avatarHint as string}>
+            <div className="flex items-center gap-4">
+              <Avatar
+                size={64}
+                src={avatarFileList[0]?.url}
+                style={{
+                  background: (form.getFieldValue("employeeColor") || employee?.employeeColor || "#60a5fa"),
+                  fontSize: 22,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                {getInitials(form.getFieldValue("firstName") || employee?.firstName || "", form.getFieldValue("lastName") || employee?.lastName || "")}
+              </Avatar>
+              <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+                <Upload
+                  fileList={avatarFileList}
+                  maxCount={1}
+                  beforeUpload={handleAvatarUpload}
+                  onRemove={() => {
+                    handleRemoveAvatar();
+                    return true;
+                  }}
+                  accept="image/*"
+                  showUploadList={false}
+                >
+                  <Button icon={<UploadIcon size={14} />} loading={uploadingAvatar}>
+                    {avatarUploadText}
+                  </Button>
+                </Upload>
+                {avatarFileList.length > 0 && (
+                  <Button onClick={handleRemoveAvatar}>
+                    {et.avatarRemove as string}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Form.Item>
           <div className="flex gap-4">
             <Form.Item name="firstName" label={et.firstName as string} rules={[{ required: true, message: t.required }]} style={{ flex: 1 }}>
               <Input prefix={<User size={13} />} />
@@ -431,13 +608,6 @@ export function EmployeeModal({
       label: et.tabAssignments as string,
       children: (
         <div className="flex flex-col gap-0">
-          <Form.Item name="areaIds" label={et.areas as string}>
-            <Select mode="multiple" placeholder={t.selectPlaceholder}>
-              {workAreas.map((area) => (
-                <Option key={area.id} value={area.id}>{area.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
           <Form.Item name="positionIds" label={et.positions as string}>
             <Select mode="multiple" placeholder={t.selectPlaceholder}>
               {positions.map((p) => (
@@ -490,6 +660,48 @@ export function EmployeeModal({
           <Form.Item name="defaultHourlyRate" label={et.defaultHourlyRate as string}>
             <InputNumber min={0} step={0.5} style={{ width: "100%" }} addonAfter={et.nzd as string} />
           </Form.Item>
+          <Form.Item
+            name="contractDocumentKey"
+            label={et.contractFile as string}
+            rules={[{ required: true, message: et.contractUploadRequired as string }]}
+            extra={et.contractUploadHint as string}
+          >
+            <div className="flex flex-col gap-3">
+              <Upload
+                fileList={contractFileList}
+                maxCount={1}
+                beforeUpload={handleContractUpload}
+                onRemove={() => {
+                  handleRemoveContract();
+                  return true;
+                }}
+                accept=".pdf,.doc,.docx,image/*"
+                showUploadList={{
+                  showPreviewIcon: !!contractFileList[0]?.url,
+                  showRemoveIcon: true,
+                }}
+                onPreview={(file) => {
+                  if (file.url) window.open(file.url, "_blank", "noopener,noreferrer");
+                }}
+              >
+                <Button icon={<UploadIcon size={14} />} loading={uploadingContract}>
+                  {contractUploadText}
+                </Button>
+              </Upload>
+              {contractFileList[0]?.url && (
+                <a
+                  href={contractFileList[0].url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs"
+                  style={{ color: "var(--primary)" }}
+                >
+                  <ExternalLink size={12} />
+                  {et.contractView as string}
+                </a>
+              )}
+            </div>
+          </Form.Item>
         </div>
       ),
     },
@@ -523,7 +735,6 @@ export function EmployeeModal({
 function DetailPanel({
   employee,
   stores = [],
-  workAreas = [],
   positions = [],
   onEdit = () => {},
   onDelete = () => {},
@@ -531,7 +742,6 @@ function DetailPanel({
 }: {
   employee: Employee;
   stores?: { id: string; name: string }[];
-  workAreas?: EmployeeDictItem[];
   positions?: EmployeeDictItem[];
   onEdit?: () => void;
   onDelete?: () => void;
@@ -541,10 +751,6 @@ function DetailPanel({
 
   const assignedStoreNames = (employee.storeIds ?? [])
     .map((id) => stores.find((s) => s.id === id)?.name)
-    .filter(Boolean) as string[];
-
-  const areaNames = (employee.areaIds ?? [])
-    .map((id) => workAreas.find((area) => area.id === id)?.name)
     .filter(Boolean) as string[];
 
   const positionNames = (employee.positionIds ?? [])
@@ -561,6 +767,8 @@ function DetailPanel({
     employee.contractType
       ? ((et.contractTypes as Record<string, string>)[employee.contractType] ?? employee.contractType)
       : "-";
+  const contractFileName = employee.contractDocumentKey?.split("/").pop() || "";
+  const avatarUrl = getEmployeeAvatarUrl(employee);
 
   const tabItems = [
     {
@@ -618,17 +826,6 @@ function DetailPanel({
       children: (
         <div className="flex flex-col">
           <InfoRow
-            icon={<MapPin size={13} />}
-            label={et.areas as string}
-            value={
-              areaNames.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {areaNames.map((n) => <Tag key={n} style={{ fontSize: 11, margin: 0 }}>{n}</Tag>)}
-                </div>
-              ) : "-"
-            }
-          />
-          <InfoRow
             icon={<ClipboardList size={13} />}
             label={et.positions as string}
             value={
@@ -668,6 +865,22 @@ function DetailPanel({
           <InfoRow icon={<Clock size={13} />} label={et.contractedHours as string} value={employee.contractedHours ? `${employee.contractedHours} hrs` : ""} />
           <InfoRow icon={<DollarSign size={13} />} label={et.annualSalary as string} value={employee.annualSalary ? `$${employee.annualSalary}` : ""} />
           <InfoRow icon={<DollarSign size={13} />} label={et.defaultHourlyRate as string} value={employee.defaultHourlyRate ? `$${employee.defaultHourlyRate} ${et.nzd as string}` : ""} />
+          <InfoRow
+            icon={<Paperclip size={13} />}
+            label={et.contractFile as string}
+            value={employee.contractDocumentUrl ? (
+              <a
+                href={employee.contractDocumentUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1"
+                style={{ color: "var(--primary)" }}
+              >
+                <ExternalLink size={12} />
+                {contractFileName || et.contractView as string}
+              </a>
+            ) : "-"}
+          />
         </div>
       ),
     },
@@ -682,6 +895,7 @@ function DetailPanel({
       >
         <Avatar
           size={56}
+          src={avatarUrl || undefined}
           style={{
             background: employee.employeeColor ?? "var(--primary)",
             fontSize: 20,
@@ -740,7 +954,7 @@ function DetailPanel({
 
 // ─── Main Employees Page ───
 export default function Employees() {
-  const { employees, saveEmployee, deleteEmployee, stores, positions, workAreas } = useData();
+  const { employees, saveEmployee, deleteEmployee, stores, positions } = useData();
   const { t, locale } = useLocale();
   const { selectedStoreId } = useStore();
   const et = t.employee as Record<string, unknown>;
@@ -877,6 +1091,7 @@ export default function Employees() {
                 >
                   <Avatar
                     size={38}
+                    src={getEmployeeAvatarUrl(emp) || undefined}
                     style={{
                       background: emp.employeeColor ?? "var(--primary)",
                       fontSize: 13,
@@ -925,7 +1140,6 @@ export default function Employees() {
             <DetailPanel
               employee={selectedEmployee}
               stores={stores}
-              workAreas={workAreas}
               positions={positions}
               onEdit={handleEdit}
               onDelete={handleDelete}
@@ -944,7 +1158,6 @@ export default function Employees() {
         open={modalOpen}
         employee={editingEmployee}
         stores={stores}
-        workAreas={workAreas}
         positions={positions}
         defaultStoreIds={selectedStoreId !== "all" ? [selectedStoreId] : []}
         onSave={handleSave}

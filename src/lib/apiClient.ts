@@ -87,8 +87,9 @@ export async function apiRequest<T = unknown>(path: string, options: ApiRequestO
   const { body, query, storeId, auth = true, headers, ...requestOptions } = options;
   const requestHeaders = new Headers(headers);
   const effectiveStoreId = storeId || getCurrentStoreId();
+  const isFormDataBody = typeof FormData !== "undefined" && body instanceof FormData;
 
-  if (body !== undefined && !requestHeaders.has("Content-Type")) {
+  if (body !== undefined && !isFormDataBody && !requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json");
   }
 
@@ -106,7 +107,7 @@ export async function apiRequest<T = unknown>(path: string, options: ApiRequestO
   const response = await fetch(buildUrl(path, query), {
     ...requestOptions,
     headers: requestHeaders,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isFormDataBody ? body : JSON.stringify(body),
   });
 
   const text = await response.text();

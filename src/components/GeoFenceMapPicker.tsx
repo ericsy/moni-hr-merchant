@@ -61,7 +61,7 @@ import { useLocale } from "../context/LocaleContext";
 import { toast } from "sonner";
 
 // ─── 替换为您自己的 Google Maps API Key ───────────────────────────────────────
-const GOOGLE_MAPS_API_KEY = "AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY";
+const GOOGLE_MAPS_API_KEY = "AIzaSyBGGyk3gO2e0sAZhmsU2UqOtO6QOOfhoO8";
 // ─────────────────────────────────────────────────────────────────────────────
 
 // 默认中心：新西兰奥克兰
