@@ -280,7 +280,7 @@ export default function Areas() {
     <div data-cmp="Areas" className="flex flex-col gap-4">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <div className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
+          <div role="heading" aria-level={1} className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
             {copy.title}
           </div>
           <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
@@ -297,6 +297,7 @@ export default function Areas() {
         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       >
         <Input
+          aria-label={locale === "zh" ? "搜索区域" : "Search areas"}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={copy.searchPlaceholder}
@@ -360,6 +361,7 @@ export default function Areas() {
                     <Tooltip title={copy.editArea}>
                       <button
                         type="button"
+                        aria-label={`${copy.editArea}: ${area.name}`}
                         onClick={() => openEditModal(area)}
                         className="rounded-lg flex items-center justify-center"
                         style={{ width: 30, height: 30, background: "var(--muted)", color: "var(--muted-foreground)" }}
@@ -370,6 +372,7 @@ export default function Areas() {
                     <Tooltip title={inUse ? copy.cannotDelete : copy.delete}>
                       <button
                         type="button"
+                        aria-label={`${copy.delete}: ${area.name}`}
                         onClick={() => handleDelete(area)}
                         className="rounded-lg flex items-center justify-center"
                         style={{
@@ -431,6 +434,13 @@ export default function Areas() {
         onOk={handleSave}
         okText={editingArea ? copy.save : copy.create}
         cancelText={copy.cancel}
+        okButtonProps={{
+          "aria-label": editingArea ? copy.save : copy.create,
+          "data-testid": "area-modal-submit",
+        }}
+        cancelButtonProps={{
+          "aria-label": copy.cancel,
+        }}
         destroyOnHidden
       >
         <div className="flex flex-col gap-4 pt-3">
@@ -439,6 +449,7 @@ export default function Areas() {
               {copy.areaName}
             </div>
             <Input
+              aria-label={copy.areaName}
               value={form.name}
               onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
               onPressEnter={handleSave}
@@ -463,6 +474,7 @@ export default function Areas() {
                   <button
                     key={option.key}
                     type="button"
+                    aria-label={option.label}
                     onClick={() => setForm((prev) => ({
                       ...prev,
                       areaType: option.key,
@@ -501,6 +513,7 @@ export default function Areas() {
               </div>
               {selectedStoreId === "all" ? (
                 <Select
+                  aria-label={copy.store}
                   value={form.storeId || undefined}
                   onChange={(value) => setForm((prev) => ({ ...prev, storeId: value }))}
                   style={{ width: "100%" }}
@@ -535,6 +548,7 @@ export default function Areas() {
                 <button
                   key={option.key}
                   type="button"
+                  aria-label={`${copy.color}: ${option.key}`}
                   onClick={() => setForm((prev) => ({ ...prev, color: option.key }))}
                   className="rounded-full transition-all"
                   style={{
