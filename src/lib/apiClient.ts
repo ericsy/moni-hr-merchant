@@ -1,8 +1,11 @@
 const ACCESS_TOKEN_STORAGE_KEY = "moni_hr_access_token";
 const DEFAULT_STORE_ID = "";
+const DEFAULT_LANGUAGE = "zh";
 
 type QueryValue = string | number | boolean | null | undefined;
+type ApiLanguage = "zh" | "en";
 let currentStoreId = DEFAULT_STORE_ID;
+let currentLanguage: ApiLanguage = DEFAULT_LANGUAGE;
 
 interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers"> {
   body?: unknown;
@@ -56,6 +59,14 @@ export function getCurrentStoreId() {
   return currentStoreId;
 }
 
+export function setCurrentLanguage(language: string) {
+  currentLanguage = language === "en" ? "en" : "zh";
+}
+
+export function getCurrentLanguage() {
+  return currentLanguage;
+}
+
 function getApiBaseUrl() {
   const raw = import.meta.env.VITE_API_BASE_URL || "";
   return String(raw).replace(/\/$/, "");
@@ -88,6 +99,8 @@ export async function apiRequest<T = unknown>(path: string, options: ApiRequestO
   const requestHeaders = new Headers(headers);
   const effectiveStoreId = storeId || getCurrentStoreId();
   const isFormDataBody = typeof FormData !== "undefined" && body instanceof FormData;
+
+  requestHeaders.set("X-Lang", getCurrentLanguage());
 
   if (body !== undefined && !isFormDataBody && !requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json");

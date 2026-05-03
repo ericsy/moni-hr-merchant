@@ -488,15 +488,15 @@ export function EmployeeModal({
             <Form.Item name="phone" label={et.phone as string} style={{ flex: 1 }}>
               <Input prefix={<Phone size={13} />} />
             </Form.Item>
-            <Form.Item name="email" label={et.email as string} rules={[{ required: true, message: t.required }, { type: "email", message: "Invalid email" }]} style={{ flex: 1 }}>
+            <Form.Item name="email" label={et.email as string} rules={[{ required: true, message: t.required }, { type: "email", message: et.invalidEmail as string }]} style={{ flex: 1 }}>
               <Input prefix={<Mail size={13} />} />
             </Form.Item>
           </div>
           {!isEdit && (
             <Form.Item
               name="password"
-              label={locale === "zh" ? "初始密码" : "Initial Password"}
-              rules={[{ required: true, message: t.required }, { min: 8, message: locale === "zh" ? "密码至少需要 8 位字符" : "At least 8 characters" }]}
+              label={et.initialPassword as string}
+              rules={[{ required: true, message: t.required }, { min: 8, message: et.passwordMinLength as string }]}
             >
               <Input.Password />
             </Form.Item>
@@ -836,8 +836,7 @@ function DetailPanel({
             workDayPattern={workDays}
             onPatternChange={(newPattern) => {
               console.log("[WorkDaysCalendar] pattern changed:", newPattern);
-              // In view mode, show toast hint
-              toast.info(`Work pattern updated. Click Edit to save changes.`);
+              toast.info(et.workPatternUpdated as string);
             }}
           />
         </div>
@@ -850,7 +849,7 @@ function DetailPanel({
         <div className="flex flex-col">
           <InfoRow icon={<FileText size={13} />} label={et.contractType as string} value={contractTypeLabel} />
           <InfoRow icon={<CalendarDays size={13} />} label={et.endDate as string} value={employee.endDate ?? ""} />
-          <InfoRow icon={<Clock size={13} />} label={et.contractedHours as string} value={employee.contractedHours ? `${employee.contractedHours} hrs` : ""} />
+          <InfoRow icon={<Clock size={13} />} label={et.contractedHours as string} value={employee.contractedHours ? `${employee.contractedHours} ${t.hours}` : ""} />
           <InfoRow icon={<DollarSign size={13} />} label={et.annualSalary as string} value={employee.annualSalary ? `$${employee.annualSalary}` : ""} />
           <InfoRow icon={<DollarSign size={13} />} label={et.defaultHourlyRate as string} value={employee.defaultHourlyRate ? `$${employee.defaultHourlyRate} ${et.nzd as string}` : ""} />
           <InfoRow
@@ -996,7 +995,7 @@ export default function Employees() {
       setSelectedId(filtered.find((e) => e.id !== selectedEmployee.id)?.id ?? "");
       toast.success(et.deleteSuccess as string);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Delete failed");
+      toast.error(error instanceof Error ? error.message : et.deleteFailed as string);
     }
   };
 
@@ -1007,7 +1006,7 @@ export default function Employees() {
       setModalOpen(false);
       toast.success(et.saveSuccess as string);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Save failed");
+      toast.error(error instanceof Error ? error.message : et.saveFailed as string);
     }
   };
 

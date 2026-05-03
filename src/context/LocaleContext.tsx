@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { locales, type Locale, type LocaleStrings } from "../i18n/locales";
+import { setCurrentLanguage } from "../lib/apiClient";
 
 interface LocaleContextType {
   locale: Locale;
@@ -14,8 +15,16 @@ const LocaleContext = createContext<LocaleContextType>({
 });
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocale] = useState<Locale>("zh");
+  const [locale, setLocaleState] = useState<Locale>("zh");
   const t = locales[locale];
+  const setLocale = (nextLocale: Locale) => {
+    setCurrentLanguage(nextLocale);
+    setLocaleState(nextLocale);
+  };
+
+  useEffect(() => {
+    setCurrentLanguage(locale);
+  }, [locale]);
 
   console.log("[LocaleProvider] current locale:", locale);
 

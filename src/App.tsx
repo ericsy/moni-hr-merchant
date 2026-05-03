@@ -1,8 +1,12 @@
 import React from "react";
 import { Toaster, toast } from "sonner";
-import { Spin } from "antd";
+import { ConfigProvider, Spin } from "antd";
+import enUS from "antd/locale/en_US";
+import zhCN from "antd/locale/zh_CN";
+import dayjs from "dayjs";
+import "dayjs/locale/zh-cn";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { LocaleProvider } from "./context/LocaleContext";
+import { LocaleProvider, useLocale } from "./context/LocaleContext";
 import { DataProvider } from "./context/DataContext";
 import { StoreProvider } from "./context/StoreContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -89,22 +93,38 @@ function AuthGate() {
   return <AuthenticatedRoutes />;
 }
 
+function AntdLocaleProvider({ children }: { children: React.ReactNode }) {
+  const { locale } = useLocale();
+
+  React.useEffect(() => {
+    dayjs.locale(locale === "zh" ? "zh-cn" : "en");
+  }, [locale]);
+
+  return (
+    <ConfigProvider locale={locale === "zh" ? zhCN : enUS}>
+      {children}
+    </ConfigProvider>
+  );
+}
+
 const App = () => (
   <LocaleProvider>
-    <AuthProvider>
-      <PermissionsProvider>
-        <DataProvider>
-          <StoreProvider>
-            <BrowserRouter basename={APP_BASE_PATH}>
-              <ErrorBoundary>
-                <AuthGate />
-              </ErrorBoundary>
-            </BrowserRouter>
-            <Toaster position="top-right" richColors />
-          </StoreProvider>
-        </DataProvider>
-      </PermissionsProvider>
-    </AuthProvider>
+    <AntdLocaleProvider>
+      <AuthProvider>
+        <PermissionsProvider>
+          <DataProvider>
+            <StoreProvider>
+              <BrowserRouter basename={APP_BASE_PATH}>
+                <ErrorBoundary>
+                  <AuthGate />
+                </ErrorBoundary>
+              </BrowserRouter>
+              <Toaster position="top-right" richColors />
+            </StoreProvider>
+          </DataProvider>
+        </PermissionsProvider>
+      </AuthProvider>
+    </AntdLocaleProvider>
   </LocaleProvider>
 );
 

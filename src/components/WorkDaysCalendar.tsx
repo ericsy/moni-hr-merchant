@@ -1,39 +1,65 @@
 import { useState, useMemo } from "react";
-import { Button, Select, InputNumber, Tooltip, Badge } from "antd";
+import { Button, Select, InputNumber, Tooltip } from "antd";
 import { ChevronLeft, ChevronRight, CalendarDays, Info, Gift } from "lucide-react";
 import type { WorkDayPattern } from "../context/DataContext";
+import { useLocale } from "../context/LocaleContext";
 
 const { Option } = Select;
 
 // ─── NZ & AU Public Holidays (YYYY-MM-DD) ───
-const PUBLIC_HOLIDAYS: Record<string, string> = {
+const PUBLIC_HOLIDAYS: Record<string, { en: string; zh: string }> = {
   // NZ 2025
-  "2025-01-01": "New Year's Day",
-  "2025-01-02": "Day after New Year's Day",
-  "2025-02-06": "Waitangi Day",
-  "2025-04-18": "Good Friday",
-  "2025-04-21": "Easter Monday",
-  "2025-04-25": "ANZAC Day",
-  "2025-06-02": "King's Birthday",
-  "2025-10-27": "Labour Day",
-  "2025-12-25": "Christmas Day",
-  "2025-12-26": "Boxing Day",
+  "2025-01-01": { en: "New Year's Day", zh: "元旦" },
+  "2025-01-02": { en: "Day after New Year's Day", zh: "元旦次日" },
+  "2025-02-06": { en: "Waitangi Day", zh: "怀唐伊日" },
+  "2025-04-18": { en: "Good Friday", zh: "耶稣受难日" },
+  "2025-04-21": { en: "Easter Monday", zh: "复活节星期一" },
+  "2025-04-25": { en: "ANZAC Day", zh: "澳新军团日" },
+  "2025-06-02": { en: "King's Birthday", zh: "国王诞辰日" },
+  "2025-10-27": { en: "Labour Day", zh: "劳动节" },
+  "2025-12-25": { en: "Christmas Day", zh: "圣诞节" },
+  "2025-12-26": { en: "Boxing Day", zh: "节礼日" },
   // NZ 2026
-  "2026-01-01": "New Year's Day",
-  "2026-01-02": "Day after New Year's Day",
-  "2026-02-06": "Waitangi Day",
-  "2026-04-03": "Good Friday",
-  "2026-04-06": "Easter Monday",
-  "2026-04-25": "ANZAC Day",
-  "2026-06-01": "King's Birthday",
-  "2026-10-26": "Labour Day",
-  "2026-12-25": "Christmas Day",
-  "2026-12-28": "Boxing Day (observed)",
+  "2026-01-01": { en: "New Year's Day", zh: "元旦" },
+  "2026-01-02": { en: "Day after New Year's Day", zh: "元旦次日" },
+  "2026-02-06": { en: "Waitangi Day", zh: "怀唐伊日" },
+  "2026-04-03": { en: "Good Friday", zh: "耶稣受难日" },
+  "2026-04-06": { en: "Easter Monday", zh: "复活节星期一" },
+  "2026-04-25": { en: "ANZAC Day", zh: "澳新军团日" },
+  "2026-06-01": { en: "King's Birthday", zh: "国王诞辰日" },
+  "2026-10-26": { en: "Labour Day", zh: "劳动节" },
+  "2026-12-25": { en: "Christmas Day", zh: "圣诞节" },
+  "2026-12-28": { en: "Boxing Day (observed)", zh: "节礼日（补假）" },
   // AU 2025
-  "2025-01-27": "Australia Day (observed)",
-  "2025-03-10": "Canberra Day",
-  "2025-11-04": "Melbourne Cup Day",
+  "2025-01-27": { en: "Australia Day (observed)", zh: "澳大利亚日（补假）" },
+  "2025-03-10": { en: "Canberra Day", zh: "堪培拉日" },
+  "2025-11-04": { en: "Melbourne Cup Day", zh: "墨尔本杯日" },
 };
+
+const FALLBACK_CALENDAR_COPY = {
+  weekDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+  monthNames: [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ],
+  monthShortNames: [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ],
+  workHours: "Work Hours",
+  thisMonth: "this month",
+  publicHoliday: "public holiday",
+  publicHolidays: "public holidays",
+  off: "OFF",
+  legend: "Legend",
+  workingDay: "Working Day",
+  dayOffWeekend: "Day Off / Weekend",
+  publicHolidayLegend: "Public Holiday",
+  holidayIndicator: "Holiday indicator",
+  holidayTooltipPrefix: "Holiday",
+};
+
+type WorkDaysCalendarCopy = typeof FALLBACK_CALENDAR_COPY;
 
 type DayType = "workday" | "weekend" | "holiday" | "holiday-workday";
 
@@ -64,7 +90,8 @@ function getDayType(
 function buildCalendarWeeks(
   year: number,
   month: number,
-  pattern: WorkDayPattern[]
+  pattern: WorkDayPattern[],
+  locale: string
 ): CalendarDay[][] {
   // Get start of the week (Mon) containing first day of month
   const firstDay = new Date(year, month, 1);
@@ -89,10 +116,11 @@ function buildCalendarWeeks(
     const week: CalendarDay[] = [];
     for (let d = 0; d < 7; d++) {
       const date = new Date(cur);
-      const dateStr = date.toISOString().split("T")[0];
+      const dateStr = formatLocalDateKey(date);
       const dayOfWeek = d; // 0=Mon...6=Sun
-      const isHoliday = !!PUBLIC_HOLIDAYS[dateStr];
-      const holidayName = PUBLIC_HOLIDAYS[dateStr] ?? "";
+      const holiday = PUBLIC_HOLIDAYS[dateStr];
+      const isHoliday = !!holiday;
+      const holidayName = holiday ? (locale === "zh" ? holiday.zh : holiday.en) : "";
       const patternDay = pattern[dayOfWeek] ?? {
         dayIndex: dayOfWeek,
         state: "off",
@@ -120,30 +148,32 @@ function buildCalendarWeeks(
   return weeks;
 }
 
-const DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+function formatLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function formatDateLabel(date: Date) {
+function formatDateLabel(date: Date, monthShortNames: string[]) {
   const day = date.getDate();
-  const month = MONTH_NAMES[date.getMonth()].slice(0, 3);
+  const month = monthShortNames[date.getMonth()] ?? FALLBACK_CALENDAR_COPY.monthShortNames[date.getMonth()];
   const year = date.getFullYear();
   return { day, month, year };
 }
 
 function DayCell({
   day,
+  copy,
   isCurrentMonth = true,
   onToggleHours = () => {},
 }: {
   day: CalendarDay;
+  copy: WorkDaysCalendarCopy;
   isCurrentMonth?: boolean;
   onToggleHours?: (dateStr: string, hours: number) => void;
 }) {
-  const { day: dayNum, month, year } = formatDateLabel(day.date);
+  const { day: dayNum, month, year } = formatDateLabel(day.date, copy.monthShortNames);
   const isWorkday = day.type === "workday" || day.type === "holiday-workday";
   const isHolidayType = day.type === "holiday" || day.type === "holiday-workday";
   const isWeekendType = day.type === "weekend";
@@ -183,7 +213,7 @@ function DayCell({
 
   return (
     <Tooltip
-      title={day.isHoliday ? `🎉 ${day.holidayName}` : undefined}
+      title={day.isHoliday ? `${copy.holidayTooltipPrefix}: ${day.holidayName}` : undefined}
       placement="top"
     >
       <div
@@ -217,7 +247,7 @@ function DayCell({
             className="text-xs font-medium"
             style={{ color: subText, fontSize: 10, marginBottom: 1 }}
           >
-            {DOW_LABELS[day.dayOfWeek]}
+            {copy.weekDays[day.dayOfWeek] ?? FALLBACK_CALENDAR_COPY.weekDays[day.dayOfWeek]}
           </span>
           <span
             className="font-bold"
@@ -273,13 +303,23 @@ export default function WorkDaysCalendar({
   workDayPattern?: WorkDayPattern[];
   onPatternChange?: (pattern: WorkDayPattern[]) => void;
 }) {
+  const { locale, t } = useLocale();
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const employeeCopy = t.employee as Record<string, unknown>;
+  const calendarCopy = (employeeCopy.workDaysCalendar ?? {}) as Partial<WorkDaysCalendarCopy>;
+  const copy: WorkDaysCalendarCopy = {
+    ...FALLBACK_CALENDAR_COPY,
+    ...calendarCopy,
+    weekDays: (employeeCopy.weekDays as string[] | undefined) ?? FALLBACK_CALENDAR_COPY.weekDays,
+    monthNames: calendarCopy.monthNames ?? FALLBACK_CALENDAR_COPY.monthNames,
+    monthShortNames: calendarCopy.monthShortNames ?? FALLBACK_CALENDAR_COPY.monthShortNames,
+  };
 
   const weeks = useMemo(
-    () => buildCalendarWeeks(viewYear, viewMonth, workDayPattern),
-    [viewYear, viewMonth, workDayPattern]
+    () => buildCalendarWeeks(viewYear, viewMonth, workDayPattern, locale),
+    [viewYear, viewMonth, workDayPattern, locale]
   );
 
   // Count holidays this month
@@ -356,7 +396,7 @@ export default function WorkDaysCalendar({
               onChange={setViewMonth}
               style={{ width: 110 }}
             >
-              {MONTH_NAMES.map((m, i) => (
+              {copy.monthNames.map((m, i) => (
                 <Option key={i} value={i}>{m}</Option>
               ))}
             </Select>
@@ -393,7 +433,7 @@ export default function WorkDaysCalendar({
             <span style={{ fontWeight: 600 }}>
               {totalWorkHours.toFixed(1)}h
             </span>
-            <span style={{ opacity: 0.8 }}>this month</span>
+            <span style={{ opacity: 0.8 }}>{copy.thisMonth}</span>
           </div>
           {holidaysThisMonth.length > 0 && (
             <Tooltip
@@ -416,7 +456,9 @@ export default function WorkDaysCalendar({
               >
                 <Gift size={12} />
                 <span style={{ fontWeight: 600 }}>{holidaysThisMonth.length}</span>
-                <span style={{ opacity: 0.8 }}>public holiday{holidaysThisMonth.length > 1 ? "s" : ""}</span>
+                <span style={{ opacity: 0.8 }}>
+                  {holidaysThisMonth.length > 1 ? copy.publicHolidays : copy.publicHoliday}
+                </span>
                 <Info size={11} style={{ opacity: 0.7 }} />
               </div>
             </Tooltip>
@@ -433,7 +475,7 @@ export default function WorkDaysCalendar({
           className="text-xs font-medium"
           style={{ color: "var(--muted-foreground)", flexShrink: 0 }}
         >
-          Work Hours:
+          {copy.workHours}:
         </span>
         {workDayPattern.map((day) => (
           <div key={day.dayIndex} className="flex items-center gap-1">
@@ -448,7 +490,7 @@ export default function WorkDaysCalendar({
                 minWidth: 28,
               }}
             >
-              {DOW_LABELS[day.dayIndex]}
+              {copy.weekDays[day.dayIndex] ?? FALLBACK_CALENDAR_COPY.weekDays[day.dayIndex]}
             </span>
             {day.state === "on" ? (
               <InputNumber
@@ -469,7 +511,7 @@ export default function WorkDaysCalendar({
                   fontSize: 10,
                 }}
               >
-                OFF
+                {copy.off}
               </span>
             )}
           </div>
@@ -480,17 +522,17 @@ export default function WorkDaysCalendar({
       <div style={{ padding: "0 0" }}>
         {/* Column headers */}
         <div className="flex" style={{ borderBottom: "1px solid var(--border)" }}>
-          {DOW_LABELS.map((label) => (
+          {copy.weekDays.map((label, index) => (
             <div
               key={label}
               className="flex items-center justify-center text-xs font-bold py-2"
               style={{
                 flex: 1,
-                color: label === "Sat" || label === "Sun"
+                color: index >= 5
                   ? "var(--workday-weekend-text)"
                   : "var(--foreground)",
                 background:
-                  label === "Sat" || label === "Sun"
+                  index >= 5
                     ? "var(--workday-weekend-header)"
                     : "var(--card)",
                 borderRight: "1px solid var(--border)",
@@ -527,6 +569,7 @@ export default function WorkDaysCalendar({
                 >
                   <DayCell
                     day={day}
+                    copy={copy}
                     isCurrentMonth={isCurrentMonth}
                   />
                 </div>
@@ -542,7 +585,7 @@ export default function WorkDaysCalendar({
         style={{ borderTop: "1px solid var(--border)" }}
       >
         <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          Legend:
+          {copy.legend}:
         </span>
         <div className="flex items-center gap-1.5">
           <div
@@ -554,7 +597,7 @@ export default function WorkDaysCalendar({
             }}
           />
           <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            Working Day
+            {copy.workingDay}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -567,7 +610,7 @@ export default function WorkDaysCalendar({
             }}
           />
           <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            Day Off / Weekend
+            {copy.dayOffWeekend}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -580,13 +623,13 @@ export default function WorkDaysCalendar({
             }}
           />
           <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            Public Holiday
+            {copy.publicHolidayLegend}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           <Gift size={12} style={{ color: "var(--workday-holiday-text)" }} />
           <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            Holiday indicator
+            {copy.holidayIndicator}
           </span>
         </div>
       </div>
