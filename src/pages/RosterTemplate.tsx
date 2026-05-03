@@ -288,6 +288,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     rosterTemplates: allTemplates,
     setRosterTemplates: setTemplates,
     saveRosterTemplate,
+    deleteRosterTemplate,
   } = useData();
   const { locale, t } = useLocale();
   const { selectedStoreId } = useStore();
@@ -742,6 +743,22 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     }
   };
 
+  const handleDeleteTemplate = async () => {
+    if (!activeTemplate) return;
+    const deletedTemplateId = activeTemplate.id;
+    const nextTemplateId = visibleTemplates.find((template) => template.id !== deletedTemplateId)?.id || "";
+
+    try {
+      await deleteRosterTemplate(deletedTemplateId);
+      setActiveTemplateId(nextTemplateId);
+      setNameEditing(false);
+      onSave();
+      toast.success(locale === "zh" ? "模版已删除" : "Template deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Template delete failed");
+    }
+  };
+
   // ── Duration buttons ───────────────────────────────────────────────────────
 
   const durationOptions = [
@@ -858,10 +875,33 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
             type="primary"
             icon={<Save size={14} />}
             onClick={handleSaveTemplate}
+            disabled={!activeTemplate}
             style={{ display: "flex", alignItems: "center", gap: 4 }}
           >
             {locale === "zh" ? "保存模版" : "Save Template"}
           </Button>
+          <Popconfirm
+            title={locale === "zh" ? "删除排班模版" : "Delete roster template"}
+            description={
+              locale === "zh"
+                ? "删除后不可恢复，确定继续？"
+                : "This cannot be undone. Continue?"
+            }
+            okText={locale === "zh" ? "删除" : "Delete"}
+            cancelText={locale === "zh" ? "取消" : "Cancel"}
+            okButtonProps={{ danger: true }}
+            onConfirm={handleDeleteTemplate}
+            disabled={!activeTemplate}
+          >
+            <Button
+              danger
+              icon={<Trash2 size={14} />}
+              disabled={!activeTemplate}
+              style={{ display: "flex", alignItems: "center", gap: 4 }}
+            >
+              {locale === "zh" ? "删除模版" : "Delete Template"}
+            </Button>
+          </Popconfirm>
         </div>
       </div>
 

@@ -748,7 +748,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [buildTemplatePayload]);
 
   const deleteRosterTemplate = useCallback(async (id: string) => {
-    await merchantApi.deleteScheduleTemplate(id);
+    if (isBackendId(id)) {
+      await merchantApi.deleteScheduleTemplate(id);
+    }
     setRosterTemplates((prev) => prev.filter((template) => template.id !== id));
   }, []);
 

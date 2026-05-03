@@ -969,7 +969,14 @@ export default function Employees() {
     });
   }, [employees, search, selectedStoreId, filterStatus]);
 
-  const selectedEmployee = employees.find((e) => e.id === selectedId) ?? filtered[0] ?? null;
+  const selectedEmployee = filtered.find((e) => e.id === selectedId) ?? filtered[0] ?? null;
+
+  useEffect(() => {
+    const nextSelectedId = selectedEmployee?.id ?? "";
+    if (selectedId !== nextSelectedId) {
+      setSelectedId(nextSelectedId);
+    }
+  }, [selectedEmployee?.id, selectedId]);
 
   const handleAdd = () => {
     setEditingEmployee(null);
