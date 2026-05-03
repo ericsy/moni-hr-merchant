@@ -963,7 +963,7 @@ export default function Employees() {
         `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(q) ||
         emp.email.toLowerCase().includes(q) ||
         emp.employeeId.toLowerCase().includes(q);
-      const matchStore = selectedStoreId === "all" || emp.storeIds.includes(selectedStoreId);
+      const matchStore = !selectedStoreId || emp.storeIds.includes(selectedStoreId);
       const matchStatus = !filterStatus || emp.status === filterStatus;
       return matchSearch && matchStore && matchStatus;
     });
@@ -1147,7 +1147,7 @@ export default function Employees() {
         employee={editingEmployee}
         stores={stores}
         positions={positions}
-        defaultStoreIds={selectedStoreId !== "all" ? [selectedStoreId] : []}
+        defaultStoreIds={selectedStoreId ? [selectedStoreId] : []}
         onSave={handleSave}
         onCancel={() => setModalOpen(false)}
         t={t}

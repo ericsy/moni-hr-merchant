@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useData } from "./DataContext";
 import { setCurrentStoreId } from "../lib/apiClient";
+import { merchantApi } from "../lib/merchantApi";
 
 interface StoreContextType {
   selectedStoreId: string;
@@ -8,36 +9,58 @@ interface StoreContextType {
 }
 
 const StoreContext = createContext<StoreContextType>({
-  selectedStoreId: "all",
+  selectedStoreId: "",
   setSelectedStoreId: () => {},
 });
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const { stores, reloadForStore } = useData();
-  const [selectedStoreId, setSelectedStoreId] = useState<string>("all");
+  const { stores, lastStoreId, reloadForStore } = useData();
+  const [selectedStoreId, setSelectedStoreIdState] = useState<string>("");
   const previousStoreIdRef = useRef(selectedStoreId);
+  const initializedRef = useRef(false);
+
+  const fallbackStoreId = stores.find((store) => store.status === "enabled")?.id || stores[0]?.id || "";
+
+  const setSelectedStoreId = (id: string) => {
+    if (!id || id === "all") return;
+    setSelectedStoreIdState(id);
+  };
 
   useEffect(() => {
     setCurrentStoreId(selectedStoreId);
   }, [selectedStoreId]);
 
-  // When stores change and the selected store no longer exists, reset to "all"
   useEffect(() => {
-    if (selectedStoreId !== "all") {
-      const exists = stores.find((s) => s.id === selectedStoreId);
-      if (!exists) {
-        console.log("[StoreContext] selected store no longer exists, resetting to all");
-        queueMicrotask(() => setSelectedStoreId("all"));
+    if (stores.length === 0) {
+      initializedRef.current = false;
+      if (selectedStoreId) setSelectedStoreIdState("");
+      return;
+    }
+
+    const storeIds = new Set(stores.map((store) => store.id));
+    const nextStoreId = storeIds.has(lastStoreId)
+      ? lastStoreId
+      : storeIds.has(selectedStoreId)
+      ? selectedStoreId
+      : fallbackStoreId;
+
+    if (!initializedRef.current || !storeIds.has(selectedStoreId)) {
+      initializedRef.current = true;
+      if (nextStoreId && selectedStoreId !== nextStoreId) {
+        setSelectedStoreIdState(nextStoreId);
       }
     }
-  }, [stores, selectedStoreId]);
+  }, [fallbackStoreId, lastStoreId, selectedStoreId, stores]);
 
   useEffect(() => {
-    if (previousStoreIdRef.current === selectedStoreId) {
+    if (!selectedStoreId || previousStoreIdRef.current === selectedStoreId) {
       return;
     }
 
     previousStoreIdRef.current = selectedStoreId;
+    merchantApi.updateLastStore(selectedStoreId).catch((error) => {
+      console.log("[StoreContext] failed to update last store:", error);
+    });
     reloadForStore(selectedStoreId).catch((error) => {
       console.log("[StoreContext] failed to reload store context:", error);
     });

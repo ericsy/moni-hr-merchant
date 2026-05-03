@@ -694,11 +694,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   // Areas: use shared base area data from context
   const displayAreas: Area[] = areas
-    .filter((area) => selectedStoreId === "all" || (area.areaType || "store") === "general" || area.storeId === selectedStoreId)
+    .filter((area) => !selectedStoreId || (area.areaType || "store") === "general" || area.storeId === selectedStoreId)
     .sort((a, b) => a.order - b.order);
 
   const filteredTemplates = rosterTemplates.filter((t) =>
-    (selectedStoreId === "all" || t.storeId === selectedStoreId) &&
+    (!selectedStoreId || t.storeId === selectedStoreId) &&
     (!templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase()))
   );
   const filteredEmployees = activeEmployees.filter((e) =>
@@ -720,9 +720,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   const modalStoreId =
     shiftForm.storeId ||
-    (selectedStoreId !== "all"
-      ? selectedStoreId
-      : areas.find((area) => area.id === shiftForm.areaId)?.storeId || "");
+    selectedStoreId ||
+    areas.find((area) => area.id === shiftForm.areaId)?.storeId ||
+    "";
 
   const shiftPresetMap: Record<string, ShiftPresetOption> = {};
   scheduleShifts.forEach((shift) => {
@@ -797,7 +797,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       scheduleShifts.filter((s) => {
         const matchArea = s.areaId === areaId;
         const matchDate = s.date === dateStr;
-        const matchStore = selectedStoreId === "all" || s.storeId === selectedStoreId;
+        const matchStore = !selectedStoreId || s.storeId === selectedStoreId;
         return matchArea && matchDate && matchStore;
       }),
     [scheduleShifts, selectedStoreId]
@@ -805,7 +805,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   // Week shifts count per date (for header badge)
   const dateTotalShifts = (dateStr: string) =>
-    scheduleShifts.filter((s) => s.date === dateStr && (selectedStoreId === "all" || s.storeId === selectedStoreId)).length;
+    scheduleShifts.filter((s) => s.date === dateStr && (!selectedStoreId || s.storeId === selectedStoreId)).length;
 
   // Weekly total hours per employee
   const weekHoursForEmp = (empId: string) =>
@@ -814,7 +814,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         (s) =>
           getShiftEmployeeIds(s).includes(empId) &&
           s.date === d.format("YYYY-MM-DD") &&
-          (selectedStoreId === "all" || s.storeId === selectedStoreId)
+          (!selectedStoreId || s.storeId === selectedStoreId)
       );
       return sum + ss.reduce((s2, sh) => s2 + parseFloat(calcHours(sh.startTime, sh.endTime, sh.breakMinutes)), 0);
     }, 0).toFixed(1);
@@ -828,7 +828,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     const rawTmpl = rawRosterTemplates.find((template) => template.id === templateId);
     if (!rawTmpl || !startDate) return null;
 
-    const storeId = rawTmpl.storeId || (selectedStoreId !== "all" ? selectedStoreId : stores[0]?.id || "s1");
+    const storeId = rawTmpl.storeId || selectedStoreId || stores[0]?.id || "s1";
     const visibleAreaIds = new Set(displayAreas.map((area) => area.id));
     const templateAreaIds = Array.from(new Set(
       (targetAreaId
@@ -1078,9 +1078,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       shiftName: "",
       color: DEFAULT_COLOR_KEY,
       note: "",
-      storeId: selectedStoreId !== "all"
-        ? selectedStoreId
-        : areas.find((area) => area.id === areaId)?.storeId || stores[0]?.id || "",
+      storeId: selectedStoreId || areas.find((area) => area.id === areaId)?.storeId || stores[0]?.id || "",
     });
     setModalOpen(true);
   };
@@ -1555,7 +1553,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                             (s) =>
                               getShiftEmployeeIds(s).includes(emp.id) &&
                               s.date === d.format("YYYY-MM-DD") &&
-                              (selectedStoreId === "all" || s.storeId === selectedStoreId)
+                              (!selectedStoreId || s.storeId === selectedStoreId)
                           );
                           const dayHrs = ss.reduce((acc, sh) => acc + parseFloat(calcHours(sh.startTime, sh.endTime, sh.breakMinutes)), 0);
                           return (

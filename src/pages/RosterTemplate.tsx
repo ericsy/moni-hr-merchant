@@ -327,13 +327,13 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   const enabledStores = stores.filter((store) => store.status === "enabled");
   const visibleTemplates = allTemplates.filter(
-    (template) => selectedStoreId === "all" || template.storeId === selectedStoreId
+    (template) => !selectedStoreId || template.storeId === selectedStoreId
   );
   const resolvedActiveTemplateId = visibleTemplates.some((template) => template.id === activeTemplateId)
     ? activeTemplateId
     : visibleTemplates[0]?.id || "";
   const activeTemplate = visibleTemplates.find((template) => template.id === resolvedActiveTemplateId) || null;
-  const activeTemplateStoreId = activeTemplate?.storeId || (selectedStoreId !== "all" ? selectedStoreId : "");
+  const activeTemplateStoreId = activeTemplate?.storeId || selectedStoreId;
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
@@ -350,7 +350,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     .filter((area) => {
       if ((area.areaType || "store") === "general") return true;
       if (activeTemplateStoreId) return area.storeId === activeTemplateStoreId;
-      return selectedStoreId === "all" || area.storeId === selectedStoreId;
+      return !selectedStoreId || area.storeId === selectedStoreId;
     })
     .filter((area) => !(activeTemplate?.areaIds || []).includes(area.id))
     .sort((a, b) => a.order - b.order);
@@ -494,9 +494,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     const inferredStoreId = firstArea && (firstArea.areaType || "store") !== "general"
       ? firstArea.storeId
       : "";
-    const defaultStoreId = selectedStoreId !== "all"
-      ? selectedStoreId
-      : inferredStoreId || enabledStores[0]?.id || stores[0]?.id || "";
+    const defaultStoreId = selectedStoreId || inferredStoreId || enabledStores[0]?.id || stores[0]?.id || "";
     const newTemplate: RosterTemplate = {
       id: `rt-${Date.now()}`,
       name: locale === "zh" ? `新排班模版 ${allTemplates.length + 1}` : `New Roster Template ${allTemplates.length + 1}`,
@@ -726,7 +724,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
   // ── New template ──────────────────────────────────────────────────────────
 
   const handleNewTemplate = () => {
-    const defaultStoreId = selectedStoreId !== "all" ? selectedStoreId : enabledStores[0]?.id || stores[0]?.id || "";
+    const defaultStoreId = selectedStoreId || enabledStores[0]?.id || stores[0]?.id || "";
     const defaultAreaId = areas.find((area) => (area.areaType || "store") === "general" || area.storeId === defaultStoreId)?.id || "";
     createDraftTemplate(defaultAreaId ? [defaultAreaId] : []);
     toast.success(locale === "zh" ? "新模版已创建" : "New template created");

@@ -1,5 +1,5 @@
 const ACCESS_TOKEN_STORAGE_KEY = "moni_hr_access_token";
-const DEFAULT_STORE_ID = "all";
+const DEFAULT_STORE_ID = "";
 
 type QueryValue = string | number | boolean | null | undefined;
 let currentStoreId = DEFAULT_STORE_ID;
@@ -93,7 +93,7 @@ export async function apiRequest<T = unknown>(path: string, options: ApiRequestO
     requestHeaders.set("Content-Type", "application/json");
   }
 
-  if (auth) {
+  if (auth && effectiveStoreId) {
     requestHeaders.set("X-Store-Id", effectiveStoreId);
   }
 

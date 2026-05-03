@@ -50,8 +50,8 @@ const buildDefaultForm = (selectedStoreId: string, fallbackStoreId = ""): Schedu
   endTime: "17:00",
   breakMinutes: 30,
   color: DEFAULT_COLOR_KEY,
-  shiftType: selectedStoreId !== "all" ? "store" : "general",
-  storeId: selectedStoreId !== "all" ? selectedStoreId : fallbackStoreId,
+  shiftType: selectedStoreId ? "store" : "general",
+  storeId: selectedStoreId || fallbackStoreId,
 });
 
 export default function Schedule() {
@@ -145,7 +145,7 @@ export default function Schedule() {
 
   const filteredShifts = useMemo(() => {
     return globalShifts
-      .filter((shift) => selectedStoreId === "all" || (shift.shiftType || "store") === "general" || shift.storeId === selectedStoreId)
+      .filter((shift) => !selectedStoreId || (shift.shiftType || "store") === "general" || shift.storeId === selectedStoreId)
       .sort((a, b) => {
         if (a.startTime !== b.startTime) return a.startTime.localeCompare(b.startTime);
         if (a.endTime !== b.endTime) return a.endTime.localeCompare(b.endTime);
@@ -180,7 +180,7 @@ export default function Schedule() {
       breakMinutes: shift.breakMinutes ?? 30,
       color: shift.color || DEFAULT_COLOR_KEY,
       shiftType: shift.shiftType || ((shift.storeId || "") ? "store" : "general"),
-      storeId: shift.storeId || (selectedStoreId !== "all" ? selectedStoreId : ""),
+      storeId: shift.storeId || selectedStoreId,
     });
     setModalOpen(true);
   };
@@ -524,9 +524,7 @@ function ShiftModal({
                     shiftType: option.key,
                     storeId: option.key === "general"
                       ? ""
-                      : currentStoreId !== "all"
-                      ? currentStoreId
-                      : prev.storeId || stores[0]?.id || "",
+                      : currentStoreId || prev.storeId || stores[0]?.id || "",
                   }))}
                 >
                   <div className="text-sm font-semibold" style={{ color: active ? "var(--primary)" : "var(--foreground)" }}>
@@ -546,28 +544,15 @@ function ShiftModal({
             <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
               {copy.store}
             </div>
-            {currentStoreId === "all" ? (
-              <Select
-                value={form.storeId || undefined}
-                onChange={(value) => setForm((prev) => ({ ...prev, storeId: value }))}
-                style={{ width: "100%" }}
-                placeholder={copy.store}
-              >
-                {stores.map((store) => (
-                  <Option key={store.id} value={store.id}>{store.name}</Option>
-                ))}
-              </Select>
-            ) : (
-              <div
-                className="rounded-xl px-3 py-2.5 text-sm"
-                style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)" }}
-              >
-                <div className="mb-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                  {copy.currentStore}
-                </div>
-                <div>{stores.find((store) => store.id === currentStoreId)?.name || currentStoreId}</div>
+            <div
+              className="rounded-xl px-3 py-2.5 text-sm"
+              style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+            >
+              <div className="mb-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {copy.currentStore}
               </div>
-            )}
+              <div>{stores.find((store) => store.id === currentStoreId)?.name || currentStoreId}</div>
+            </div>
           </div>
         )}
 

@@ -299,7 +299,7 @@ export default function AppLayout({
             </div>
 
             <Space size={12}>
-              {/* Global Store Selector */}
+              {/* Store Selector */}
               <Select
                 value={selectedStoreId}
                 onChange={(v) => {
@@ -308,12 +308,8 @@ export default function AppLayout({
                 }}
                 style={{ width: 160 }}
                 size="small"
+                placeholder={locale === "zh" ? "选择店面" : "Select Store"}
               >
-                <Option value="all">
-                  <span style={{ color: "var(--muted-foreground)" }}>
-                    {locale === "zh" ? "全部店面" : "All Stores"}
-                  </span>
-                </Option>
                 {stores.map((s) => (
                   <Option key={s.id} value={s.id}>
                     {s.name}

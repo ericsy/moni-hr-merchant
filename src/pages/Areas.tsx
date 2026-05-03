@@ -138,7 +138,7 @@ export default function Areas() {
   const [selectedAreaId, setSelectedAreaId] = useState("");
   const [form, setForm] = useState({
     name: "",
-    storeId: selectedStoreId !== "all" ? selectedStoreId : "",
+    storeId: selectedStoreId,
     areaType: "store" as "store" | "general",
     color: DEFAULT_COLOR_KEY,
   });
@@ -173,7 +173,7 @@ export default function Areas() {
     const keyword = search.trim().toLowerCase();
 
     return areas
-      .filter((area) => selectedStoreId === "all" || getAreaType(area) === "general" || area.storeId === selectedStoreId)
+      .filter((area) => !selectedStoreId || getAreaType(area) === "general" || area.storeId === selectedStoreId)
       .filter((area) => {
         if (!keyword) return true;
         const storeName = getAreaType(area) === "general"
@@ -206,9 +206,7 @@ export default function Areas() {
 
   const selectedArea = filteredAreas.find((area) => area.id === selectedAreaId) || null;
 
-  const selectedStoreLabel = selectedStoreId === "all"
-    ? copy.allStores
-    : stores.find((store) => store.id === selectedStoreId)?.name || copy.allStores;
+  const selectedStoreLabel = stores.find((store) => store.id === selectedStoreId)?.name || copy.allStores;
 
   const getStoreName = (area: Area) =>
     getAreaType(area) === "general"
@@ -219,7 +217,7 @@ export default function Areas() {
     setEditingArea(null);
     setForm({
       name: "",
-      storeId: selectedStoreId !== "all" ? selectedStoreId : "",
+      storeId: selectedStoreId,
       areaType: "store",
       color: DEFAULT_COLOR_KEY,
     });
@@ -564,9 +562,7 @@ export default function Areas() {
                       areaType: option.key,
                       storeId: option.key === "general"
                         ? ""
-                        : selectedStoreId !== "all"
-                        ? selectedStoreId
-                        : prev.storeId,
+                        : selectedStoreId || prev.storeId,
                     }))}
                     className="rounded-2xl px-4 py-3 text-left transition-all"
                     style={{
@@ -591,30 +587,15 @@ export default function Areas() {
               <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
                 {copy.store}
               </div>
-              {selectedStoreId === "all" ? (
-                <Select
-                  value={form.storeId || undefined}
-                  onChange={(value) => setForm((prev) => ({ ...prev, storeId: value }))}
-                  style={{ width: "100%" }}
-                  placeholder={copy.store}
-                >
-                  {enabledStores.map((store) => (
-                    <Option key={store.id} value={store.id}>
-                      {store.name}
-                    </Option>
-                  ))}
-                </Select>
-              ) : (
-                <div
-                  className="rounded-xl px-3 py-2.5 text-sm"
-                  style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)" }}
-                >
-                  <div className="mb-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    {copy.currentStore}
-                  </div>
-                  <div>{stores.find((store) => store.id === selectedStoreId)?.name || selectedStoreId}</div>
+              <div
+                className="rounded-xl px-3 py-2.5 text-sm"
+                style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+              >
+                <div className="mb-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  {copy.currentStore}
                 </div>
-              )}
+                <div>{stores.find((store) => store.id === selectedStoreId)?.name || selectedStoreId}</div>
+              </div>
             </div>
           )}
 

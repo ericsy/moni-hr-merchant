@@ -157,6 +157,7 @@ export interface RosterTemplate {
 interface DataContextType {
   loading: boolean;
   error: string;
+  lastStoreId: string;
   refreshData: () => Promise<void>;
   reloadForStore: (storeId: string) => Promise<void>;
   employees: Employee[];
@@ -237,14 +238,21 @@ const getContextStoreIds = (selectedStoreId: string, storeItems: Store[]) => {
   return storeItems.map((store) => store.id).filter(Boolean);
 };
 
-const getScopedStoreId = (selectedStoreId: string) => selectedStoreId || "all";
+const resolveStoreContext = (requestedStoreId: string, storeItems: Store[], lastStoreId?: string) => {
+  const candidateIds = [requestedStoreId, lastStoreId].filter((id) => id && id !== "all");
+  const storeIds = new Set(storeItems.map((store) => store.id).filter(Boolean));
+  const matched = candidateIds.find((id) => storeIds.has(id));
+  if (matched) return matched;
+
+  return storeItems.find((store) => store.status === "enabled")?.id || storeItems[0]?.id || "";
+};
 
 async function loadByStoreContext<T extends { id: string }>(
   selectedStoreId: string,
   storeItems: Store[],
   loader: (storeId: string) => Promise<T[]>
 ) {
-  const scopedStoreId = getScopedStoreId(selectedStoreId);
+  const scopedStoreId = selectedStoreId || "all";
   if (scopedStoreId !== "all") return loader(scopedStoreId);
 
   try {
@@ -319,6 +327,7 @@ const makeTemplateCellShift = (cell: RosterTemplateCell, storeId: string): Sched
 const DataContext = createContext<DataContextType>({
   loading: false,
   error: "",
+  lastStoreId: "",
   refreshData: async () => {},
   reloadForStore: async () => {},
   employees: [],
@@ -368,7 +377,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [rosterTemplates, setRosterTemplates] = useState<RosterTemplate[]>(initialData.rosterTemplates);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const currentStoreContextRef = useRef("all");
+  const [lastStoreId, setLastStoreId] = useState("");
+  const currentStoreContextRef = useRef("");
   const loadSeqRef = useRef(0);
 
   const loadTemplatesForStore = useCallback(async (storeId: string) => {
@@ -397,6 +407,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setScheduleShifts([]);
       setAreas([]);
       setRosterTemplates([]);
+      setLastStoreId("");
+      currentStoreContextRef.current = "";
       return;
     }
 
@@ -426,7 +438,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         }),
         merchantApi.listStores(),
       ]);
-      const scheduleStoreIds = getContextStoreIds(storeContext, nextStores);
+      const principal = await merchantApi.merchantMe().catch((meError) => {
+        console.warn("[DataContext] failed to load merchant me:", meError);
+        return null;
+      });
+      const nextLastStoreId = principal?.lastStoreId === null || principal?.lastStoreId === undefined
+        ? ""
+        : String(principal.lastStoreId);
+
+      const resolvedStoreContext = resolveStoreContext(storeContext, nextStores, nextLastStoreId);
+      if (currentStoreContextRef.current !== resolvedStoreContext) {
+        currentStoreContextRef.current = resolvedStoreContext;
+      }
+      if (nextLastStoreId && nextLastStoreId !== lastStoreId) {
+        setLastStoreId(nextLastStoreId);
+      }
+
+      const scheduleStoreIds = getContextStoreIds(resolvedStoreContext, nextStores);
 
       const [
         employeeResult,
@@ -435,11 +463,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         scheduleResult,
         templateResult,
       ] = await Promise.all([
-        loadDataPart("employees", () => loadByStoreContext(storeContext, nextStores, (storeId) => merchantApi.listEmployees(storeId))),
-        loadDataPart("areas", () => loadByStoreContext(storeContext, nextStores, (storeId) => merchantApi.listAreas(storeId))),
-        loadDataPart("global shifts", () => loadByStoreContext(storeContext, nextStores, (storeId) => merchantApi.listGlobalShifts(storeId))),
+        loadDataPart("employees", () => loadByStoreContext(resolvedStoreContext, nextStores, (storeId) => merchantApi.listEmployees(storeId))),
+        loadDataPart("areas", () => loadByStoreContext(resolvedStoreContext, nextStores, (storeId) => merchantApi.listAreas(storeId))),
+        loadDataPart("global shifts", () => loadByStoreContext(resolvedStoreContext, nextStores, (storeId) => merchantApi.listGlobalShifts(storeId))),
         loadDataPart("schedule", () => Promise.all(scheduleStoreIds.map((storeId) => merchantApi.getSchedule(storeId)))),
-        loadDataPart("schedule templates", () => loadByStoreContext(storeContext, nextStores, loadTemplatesForStore)),
+        loadDataPart("schedule templates", () => loadByStoreContext(resolvedStoreContext, nextStores, loadTemplatesForStore)),
       ]);
 
       if (loadSeqRef.current !== seq) return;
@@ -467,12 +495,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (loadSeqRef.current === seq) setLoading(false);
     }
-  }, [loadTemplatesForStore, permissionsLoading, status]);
+  }, [lastStoreId, loadTemplatesForStore, permissionsLoading, status]);
 
   const refreshData = useCallback(() => loadData(currentStoreContextRef.current), [loadData]);
 
   const reloadForStore = useCallback((storeId: string) => {
-    currentStoreContextRef.current = storeId || "all";
+    currentStoreContextRef.current = storeId || "";
     return loadData(currentStoreContextRef.current);
   }, [loadData]);
 
@@ -489,6 +517,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setScheduleShifts([]);
         setAreas([]);
         setRosterTemplates([]);
+        setLastStoreId("");
+        currentStoreContextRef.current = "";
       });
     }
   }, [permissionsLoading, refreshData, status]);
@@ -725,6 +755,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   return (
     <DataContext.Provider value={{
       loading, error, refreshData, reloadForStore,
+      lastStoreId,
       employees, setEmployees,
       saveEmployee, deleteEmployee,
       stores, setStores,

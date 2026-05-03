@@ -26,6 +26,7 @@ export interface MerchantPrincipal {
   merchantAdminId?: number;
   merchantId?: number;
   adminName?: string;
+  lastStoreId?: number | null;
 }
 
 export interface MerchantFeatureTreeNode {
@@ -492,6 +493,13 @@ export const merchantApi = {
     }),
   merchantMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/me"),
   authMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/auth/me"),
+  updateLastStore: (storeId: string) => {
+    const numericStoreId = Number(storeId);
+    return apiRequest<null>("/api/v1/merchant/auth/last-store", {
+      method: "PUT",
+      body: { storeId: Number.isFinite(numericStoreId) ? numericStoreId : storeId },
+    });
+  },
   permissionsTree: () =>
     apiRequest<MerchantFeatureTreeNode[]>("/api/v1/merchant/auth/permissions-tree"),
   listCountries: async () => {
