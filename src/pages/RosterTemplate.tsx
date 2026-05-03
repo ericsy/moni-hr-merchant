@@ -367,6 +367,8 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
   }> = {};
 
   scheduleShifts.forEach((shift) => {
+    if (!shift.isGlobalPreset) return;
+
     const shiftType = shift.shiftType || "store";
     const belongsToTemplate = shiftType === "general" || shift.storeId === activeTemplateStoreId;
     if (!belongsToTemplate) return;

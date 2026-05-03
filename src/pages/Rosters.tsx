@@ -82,6 +82,7 @@ const makeShiftPresetKey = ({
 
 interface ShiftPresetOption {
   key: string;
+  shiftId?: string;
   shiftName: string;
   startTime: string;
   endTime: string;
@@ -96,6 +97,7 @@ type TemplateConflictStrategy = "overwrite_slot" | "merge_old" | "merge_new" | "
 interface TemplateCandidateShift {
   candidateKey: string;
   slotKey: string;
+  shiftId?: string;
   employeeId: string;
   employeeIds: string[];
   areaId: string;
@@ -675,6 +677,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const [editingShift, setEditingShift] = useState<ScheduleShift | null>(null);
   const [shiftForm, setShiftForm] = useState({
     presetKey: "",
+    shiftId: "",
     employeeIds: [] as string[],
     employeeId: "",
     areaId: "",
@@ -726,6 +729,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   const shiftPresetMap: Record<string, ShiftPresetOption> = {};
   scheduleShifts.forEach((shift) => {
+    if (!shift.isGlobalPreset) return;
+
     const shiftType = shift.shiftType || "store";
     const belongsToStore = shiftType === "general" || !modalStoreId || shift.storeId === modalStoreId;
     if (!belongsToStore) return;
@@ -745,6 +750,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     if (!shiftPresetMap[key]) {
       shiftPresetMap[key] = {
         key,
+        shiftId: shift.shiftId,
         shiftName,
         startTime: shift.startTime,
         endTime: shift.endTime,
@@ -780,6 +786,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     if (!modalShiftPresetOptions.some((option) => option.key === currentKey)) {
       modalShiftPresetOptions.unshift({
         key: currentKey,
+        shiftId: shiftForm.shiftId || editingShift?.shiftId,
         shiftName: currentShiftName,
         startTime: shiftForm.startTime,
         endTime: shiftForm.endTime,
@@ -823,6 +830,25 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     const d = dayjs(s.date);
     return s.status === "draft" && d >= weekStart && d <= weekStart.add(6, "day");
   }).length;
+
+  const resolveTemplateCellShiftId = (cell: RosterTemplate["cells"][number], storeId: string) => {
+    if (cell.shiftId) return cell.shiftId;
+
+    const cellLabel = (cell.label || cell.startTime).trim();
+    const matchedPreset = scheduleShifts.find((shift) => {
+      if (!shift.isGlobalPreset || !shift.shiftId) return false;
+      const shiftType = shift.shiftType || "store";
+      if (shiftType !== "general" && shift.storeId !== storeId) return false;
+      return (
+        (shift.shiftName || "").trim() === cellLabel &&
+        shift.startTime === cell.startTime &&
+        shift.endTime === cell.endTime &&
+        (shift.color || "") === (cell.color || "")
+      );
+    });
+
+    return matchedPreset?.shiftId;
+  };
 
   const buildTemplateApplyPlan = (templateId: string, startDate: string, targetAreaId: string | null) => {
     const rawTmpl = rawRosterTemplates.find((template) => template.id === templateId);
@@ -871,6 +897,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         candidateShifts.push({
           candidateKey: `${templateId}_${cell.id}_${emp.id}_${cellIdx}_${empIdx}`,
           slotKey: makeAreaDateKey(mappedAreaId, targetDate),
+          shiftId: resolveTemplateCellShiftId(cell, storeId),
           employeeId: emp.id,
           employeeIds: [emp.id],
           areaId: mappedAreaId,
@@ -981,6 +1008,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
       workingShifts.push({
         id: `tmpl_${applySeed}_${index}`,
+        shiftId: candidate.shiftId,
         employeeId: candidate.employeeId,
         employeeIds: candidate.employeeIds,
         areaId: candidate.areaId,
@@ -1067,6 +1095,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     setEditingShift(null);
     setShiftForm({
       presetKey: "",
+      shiftId: "",
       employeeIds: empId ? [empId] : [],
       employeeId: empId,
       areaId,
@@ -1096,6 +1125,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     setEditingShift(shift);
     setShiftForm({
       presetKey,
+      shiftId: shift.shiftId || "",
       employeeIds: getShiftEmployeeIds(shift),
       employeeId: shift.employeeId,
       areaId: shift.areaId,
@@ -1150,12 +1180,18 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       }
     }
 
-    const storeIdToUse = shiftForm.storeId || stores[0]?.id || "s1";
+    const storeIdToUse =
+      shiftForm.storeId ||
+      selectedStoreId ||
+      areas.find((area) => area.id === shiftForm.areaId)?.storeId ||
+      stores[0]?.id ||
+      "s1";
 
     if (editingShift) {
       // For edit: update existing shift with first selected employee, update employeeIds
       const data: ScheduleShift = {
         ...editingShift,
+        shiftId: shiftForm.shiftId || editingShift.shiftId,
         employeeId: empIds[0],
         employeeIds: empIds,
         areaId: shiftForm.areaId,
@@ -1177,6 +1213,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       // For add: create one shift record per employee (each with its own id)
       const newShifts: ScheduleShift[] = empIds.map((empId, idx) => ({
         id: `sh${Date.now()}_${idx}`,
+        shiftId: shiftForm.shiftId || undefined,
         employeeId: empId,
         employeeIds: [empId],
         areaId: shiftForm.areaId,
@@ -1736,7 +1773,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                 setShiftForm((form) => ({
                   ...form,
                   presetKey: preset.key,
+                  shiftId: preset.shiftId || "",
                   shiftType: preset.shiftType,
+                  storeId: preset.shiftType === "general" ? form.storeId : preset.storeId,
                   shiftName: preset.shiftName,
                   startTime: preset.startTime,
                   endTime: preset.endTime,

@@ -442,12 +442,15 @@ export function mapApiScheduleCell(input: unknown, storeId: string): ScheduleShi
 function mapTemplateCell(input: unknown): RosterTemplateCell {
   const raw = asRecord(input);
   const employeeIds = asArray(raw.employees).map((employee) => asString(asRecord(employee).id));
+  const rawDayIndex = raw.dayIndex === undefined || raw.dayIndex === null
+    ? asNumber(raw.weekDay, 1) - 1
+    : asNumber(raw.dayIndex);
 
   return {
     id: asString(raw.id),
     shiftId: asString(raw.shiftsId || raw.shiftId),
     areaId: asString(raw.areaId),
-    dayIndex: Math.max(0, asNumber(raw.weekDay, 1) - 1),
+    dayIndex: Math.max(0, rawDayIndex),
     startTime: asString(raw.startTime, "09:00"),
     endTime: asString(raw.endTime, "17:00"),
     employeeIds,

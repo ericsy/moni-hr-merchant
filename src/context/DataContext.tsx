@@ -275,14 +275,6 @@ async function loadDataPart<T>(label: string, loader: () => Promise<T>) {
   }
 }
 
-const isSameShiftDefinition = (a: ScheduleShift, b: Pick<ScheduleShift, "shiftName" | "startTime" | "endTime" | "color" | "storeId" | "shiftType">) =>
-  (a.shiftName || "").trim() === (b.shiftName || "").trim() &&
-  a.startTime === b.startTime &&
-  a.endTime === b.endTime &&
-  (a.color || "") === (b.color || "") &&
-  (a.shiftType || "store") === (b.shiftType || "store") &&
-  ((a.shiftType || "store") === "general" || a.storeId === b.storeId);
-
 const requireNumericId = (id: string, label: string) => {
   if (!isBackendId(id)) {
     throw new Error(`${label} 尚未同步到后端，无法保存排班`);
@@ -304,24 +296,6 @@ const buildEmptyScheduleDraft = () => ({
     employeesIds: number[];
     color?: string;
   }[],
-});
-
-const makeTemplateCellShift = (cell: RosterTemplateCell, storeId: string): ScheduleShift => ({
-  id: cell.shiftId ? `global-${cell.shiftId}` : `template-cell-${cell.id}`,
-  shiftId: cell.shiftId,
-  employeeId: "",
-  employeeIds: cell.employeeIds || [],
-  areaId: cell.areaId,
-  storeId,
-  shiftType: "store",
-  date: "",
-  startTime: cell.startTime,
-  endTime: cell.endTime,
-  breakMinutes: 30,
-  shiftName: cell.label || cell.startTime,
-  color: cell.color,
-  note: "",
-  status: "published",
 });
 
 const DataContext = createContext<DataContextType>({
@@ -596,27 +570,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setAreas((prev) => prev.filter((area) => area.id !== id));
   }, []);
 
-  const ensureGlobalShiftId = useCallback(async (shift: ScheduleShift, targetStoreId: string) => {
-    if (isBackendId(shift.shiftId)) return shift.shiftId as string;
-
-    const normalizedShift: ScheduleShift = {
-      ...shift,
-      storeId: (shift.shiftType || "store") === "general" ? "" : (shift.storeId || targetStoreId),
-      shiftType: shift.shiftType || "store",
-    };
-
-    const matched = scheduleShifts.find((item) =>
-      item.shiftId &&
-      item.isGlobalPreset &&
-      isSameShiftDefinition(item, normalizedShift)
-    );
-    if (matched?.shiftId) return matched.shiftId;
-
-    const created = await merchantApi.createGlobalShift(normalizedShift);
-    setScheduleShifts((prev) => dedupeById([...prev, created]));
-    return created.shiftId || created.id.replace(/^global-/, "");
-  }, [scheduleShifts]);
-
   const saveGlobalShift = useCallback(async (shift: ScheduleShift, existingShiftId?: string) => {
     const saved = existingShiftId
       ? await merchantApi.updateGlobalShift(existingShiftId, shift)
@@ -648,10 +601,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     for (const shift of nextShifts) {
       if (shift.isGlobalPreset || !shift.areaId || !shift.date || shift.storeId !== storeId) continue;
 
-      const shiftId = await ensureGlobalShiftId(shift, storeId);
+      const shiftId = requireNumericId(shift.shiftId || "", "班次");
       payload.cells.push({
         areaId: requireNumericId(shift.areaId, "区域"),
-        shiftId: requireNumericId(shiftId, "班次"),
+        shiftId,
         date_str: shift.date,
         startTime: shift.startTime,
         endTime: shift.endTime,
@@ -661,7 +614,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
 
     return payload;
-  }, [areas, ensureGlobalShiftId]);
+  }, [areas]);
 
   const saveScheduleDraft = useCallback(async (nextShifts = scheduleShifts, targetStoreId?: string) => {
     const contextIds = targetStoreId && targetStoreId !== "all"
@@ -708,12 +661,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const cells = [];
     for (const cell of template.cells) {
-      if (cell.dayIndex < 0 || cell.dayIndex > 6) continue;
-      const shiftId = await ensureGlobalShiftId(makeTemplateCellShift(cell, storeId), storeId);
+      if (cell.dayIndex < 0 || cell.dayIndex >= template.totalDays) continue;
+      const shiftId = requireNumericId(cell.shiftId || "", "班次");
       cells.push({
         areaId: requireNumericId(cell.areaId, "区域"),
-        shiftsId: requireNumericId(shiftId, "班次"),
-        weekDay: cell.dayIndex + 1,
+        shiftsId: shiftId,
+        dayIndex: cell.dayIndex,
+        weekDay: ((cell.dayIndex % 7) + 7) % 7 + 1,
         startTime: cell.startTime,
         endTime: cell.endTime,
         employeeIds: (cell.employeeIds || []).map((id) => requireNumericId(id, "员工")),
@@ -734,7 +688,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         cells,
       },
     };
-  }, [areas, ensureGlobalShiftId, stores]);
+  }, [areas, stores]);
 
   const saveRosterTemplate = useCallback(async (template: RosterTemplate) => {
     const { storeId, payload } = await buildTemplatePayload(template);
