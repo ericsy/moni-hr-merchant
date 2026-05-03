@@ -337,6 +337,10 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     : visibleTemplates[0]?.id || "";
   const activeTemplate = visibleTemplates.find((template) => template.id === resolvedActiveTemplateId) || null;
   const activeTemplateStoreId = activeTemplate?.storeId || selectedStoreId;
+  const activeTemplateTotalDays = activeTemplate?.totalDays || 7;
+  const activeTemplateVisibleCells = (activeTemplate?.cells || []).filter(
+    (cell) => cell.dayIndex >= 0 && cell.dayIndex < activeTemplateTotalDays
+  );
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
@@ -442,9 +446,9 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
   // Hours per employee per day — iterate employeeIds array
   const empHoursMap: Record<string, number[]> = {};
   activeEmployees.forEach((e) => {
-    empHoursMap[e.id] = Array.from({ length: activeTemplate?.totalDays || 7 }).map(() => 0);
+    empHoursMap[e.id] = Array.from({ length: activeTemplateTotalDays }).map(() => 0);
   });
-  (activeTemplate?.cells || []).forEach((cell) => {
+  activeTemplateVisibleCells.forEach((cell) => {
     const hrs = calcHours(cell.startTime, cell.endTime);
     cell.employeeIds.forEach((eid) => {
       if (empHoursMap[eid]) {
@@ -453,7 +457,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     });
   });
 
-  const totalDaysList = Array.from({ length: activeTemplate?.totalDays || 7 }, (_, i) => i + 1);
+  const totalDaysList = Array.from({ length: activeTemplateTotalDays }, (_, i) => i + 1);
 
   const empNameMap: Record<string, string> = {};
   const empColorMap: Record<string, string> = {};
@@ -475,8 +479,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     endTime: string,
     excludeCellId?: string
   ): RosterShiftCell | null => {
-    const cells = activeTemplate?.cells || [];
-    for (const cell of cells) {
+    for (const cell of activeTemplateVisibleCells) {
       if (cell.id === excludeCellId) continue;
       if (!cell.employeeIds.includes(empId)) continue;
       if (indexedShiftsOverlap(
@@ -524,9 +527,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     updateTemplate((t) => ({
       ...t,
       totalDays: normalizedDays,
-      cells: t.cells
-        .filter((cell) => cell.dayIndex >= 0 && cell.dayIndex < normalizedDays)
-        .map((cell) => ({ ...cell, cycleWeek: getCycleWeek(cell.dayIndex) })),
+      cells: t.cells.map((cell) => ({ ...cell, cycleWeek: getCycleWeek(cell.dayIndex) })),
     }));
     toast.success(
       locale === "zh"
@@ -1136,7 +1137,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                 {/* Day cells */}
                 {totalDaysList.map((day) => {
                   const dayIndex = day - 1;
-                  const cellsInSlot = (activeTemplate?.cells || []).filter(
+                  const cellsInSlot = activeTemplateVisibleCells.filter(
                     (c) => c.areaId === area.id && c.dayIndex === dayIndex
                   );
 
