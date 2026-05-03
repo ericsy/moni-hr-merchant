@@ -1,36 +1,28 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Input, Modal, Select, Tag, Tooltip } from "antd";
 import {
+  CalendarDays,
+  ChevronRight,
+  Clock,
+  Globe,
+  MapPin,
+  Palette,
+  Pencil,
   Plus,
   Search,
-  Pencil,
-  Trash2,
-  Globe,
   Store,
+  Trash2,
   Users,
-  CalendarDays,
-  Clock,
-  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useData, type Area } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
+import { ColorSwatchPicker, DEFAULT_COLOR_KEY, DEFAULT_COLOR_SWATCHES, getColorLabel, resolveColorValue } from "../components/ColorSwatchPicker";
 
 const { Option } = Select;
 
-const AREA_COLOR_OPTIONS = [
-  { key: "blue", value: "var(--primary)" },
-  { key: "green", value: "var(--chart-2)" },
-  { key: "purple", value: "var(--chart-5)" },
-  { key: "orange", value: "var(--chart-3)" },
-  { key: "red", value: "var(--destructive)" },
-];
-
 const normalizeName = (value: string) => value.trim().toLowerCase();
-
-const resolveAreaColor = (color: string) =>
-  AREA_COLOR_OPTIONS.find((option) => option.key === color)?.value || color || "var(--primary)";
 
 const getAreaType = (area: Pick<Area, "areaType"> | { areaType?: "store" | "general" }) =>
   area.areaType || "store";
@@ -38,17 +30,13 @@ const getAreaType = (area: Pick<Area, "areaType"> | { areaType?: "store" | "gene
 const getAreaScopeKey = (area: Pick<Area, "areaType" | "storeId"> | { areaType?: "store" | "general"; storeId: string }) =>
   getAreaType(area) === "general" ? "__general__" : area.storeId;
 
-const resequenceAreaScope = (areas: Area[], scopeKey: string) => {
-  const scopedAreas = areas
-    .filter((area) => getAreaScopeKey(area) === scopeKey)
-    .sort((a, b) => a.order - b.order)
-    .map((area, index) => ({ ...area, order: index }));
-
-  return [
-    ...areas.filter((area) => getAreaScopeKey(area) !== scopeKey),
-    ...scopedAreas,
-  ];
-};
+const getAreaColorMeta = (color: string) =>
+  DEFAULT_COLOR_SWATCHES.find((option) => option.key === color) || {
+    key: color,
+    value: resolveColorValue(color),
+    labelZh: color || "蓝色",
+    labelEn: color || "Blue",
+  };
 
 export default function Areas() {
   const { locale } = useLocale();
@@ -59,27 +47,33 @@ export default function Areas() {
     ? {
         title: "区域管理",
         subtitle: "统一维护基础区域数据，供员工、模版和班次引用",
-        addArea: "新增区域",
-        editArea: "编辑区域",
-        searchPlaceholder: "搜索区域名称或店面...",
+        addArea: "添加区域",
+        editArea: "编辑",
+        addAreaDialog: "新增区域",
+        editAreaDialog: "编辑区域",
+        searchPlaceholder: "搜索区域名称或所属店面",
         noData: "暂无区域数据",
-        noDataHint: "先创建基础区域，再让排班模版和班次引用它",
+        noDataHint: "先创建区域，排班和模版才能引用它",
+        detailEmpty: "请选择左侧区域查看详情",
         areaName: "区域名称",
         areaType: "区域类型",
         store: "所属店面",
-        color: "区域颜色",
+        color: "颜色",
         currentStore: "当前店面",
         storeOnly: "门店专属",
-        general: "通用",
-        storeOnlyDesc: "只在选定门店中使用",
-        generalDesc: "可作为全局通用区域",
+        general: "通用区域",
+        storeOnlyDesc: "只在选定门店内使用",
+        generalDesc: "可供全部店面统一引用",
         generalStoreLabel: "通用区域",
         create: "创建",
         save: "保存",
         cancel: "取消",
         delete: "删除",
+        deleteArea: "删除区域",
+        areaSaved: "区域已保存",
+        areaDeleted: "区域已删除",
         cannotDelete: "该区域已被员工、模版或班次引用，暂时不能删除",
-        duplicateName: "同一店面下已存在同名区域",
+        duplicateName: "同一范围下已存在同名区域",
         storeRequired: "请先选择店面",
         nameRequired: "请输入区域名称",
         order: "排序",
@@ -88,31 +82,41 @@ export default function Areas() {
         templateRefs: "模版",
         shiftRefs: "班次",
         allStores: "全部店面",
+        count: (value: number) => `共 ${value} 条`,
+        orderValue: (value: number) => `排序 ${value}`,
+        selectedLabel: "已选区域",
+        scopeValue: "适用范围",
       }
     : {
         title: "Area Management",
         subtitle: "Maintain base areas once and let employees, templates, and shifts reference them",
         addArea: "Add Area",
-        editArea: "Edit Area",
-        searchPlaceholder: "Search area or store...",
+        editArea: "Edit",
+        addAreaDialog: "Add Area",
+        editAreaDialog: "Edit Area",
+        searchPlaceholder: "Search area name or store",
         noData: "No areas yet",
-        noDataHint: "Create base areas first, then reference them from templates and shifts",
+        noDataHint: "Create areas first so schedules and templates can reference them",
+        detailEmpty: "Select an area from the left to view details",
         areaName: "Area Name",
         areaType: "Area Type",
         store: "Store",
-        color: "Area Color",
+        color: "Color",
         currentStore: "Current Store",
         storeOnly: "Store Only",
-        general: "General",
+        general: "General Area",
         storeOnlyDesc: "Used only in the selected store",
-        generalDesc: "Can be used as a general area",
+        generalDesc: "Can be reused across all stores",
         generalStoreLabel: "General Area",
         create: "Create",
         save: "Save",
         cancel: "Cancel",
         delete: "Delete",
+        deleteArea: "Delete Area",
+        areaSaved: "Area saved",
+        areaDeleted: "Area deleted",
         cannotDelete: "This area is already referenced by employees, templates, or shifts",
-        duplicateName: "An area with the same name already exists in this store",
+        duplicateName: "An area with the same name already exists in this scope",
         storeRequired: "Please select a store",
         nameRequired: "Please enter an area name",
         order: "Order",
@@ -121,18 +125,22 @@ export default function Areas() {
         templateRefs: "Templates",
         shiftRefs: "Shifts",
         allStores: "All Stores",
+        count: (value: number) => `${value} total`,
+        orderValue: (value: number) => `Order ${value}`,
+        selectedLabel: "Selected Area",
+        scopeValue: "Scope",
       };
 
   const enabledStores = stores.filter((store) => store.status === "enabled");
-
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingArea, setEditingArea] = useState<Area | null>(null);
+  const [selectedAreaId, setSelectedAreaId] = useState("");
   const [form, setForm] = useState({
     name: "",
     storeId: selectedStoreId !== "all" ? selectedStoreId : "",
     areaType: "store" as "store" | "general",
-    color: "blue",
+    color: DEFAULT_COLOR_KEY,
   });
 
   const referenceMap = useMemo(() => {
@@ -181,9 +189,31 @@ export default function Areas() {
           if (scopeB === "__general__") return 1;
           return scopeA.localeCompare(scopeB);
         }
-        return a.order - b.order;
+        if (a.order !== b.order) return a.order - b.order;
+        return a.name.localeCompare(b.name);
       });
-  }, [areas, search, selectedStoreId, stores, copy.generalStoreLabel]);
+  }, [areas, copy.generalStoreLabel, search, selectedStoreId, stores]);
+
+  useEffect(() => {
+    if (filteredAreas.length === 0) {
+      if (selectedAreaId) setSelectedAreaId("");
+      return;
+    }
+    if (!filteredAreas.some((area) => area.id === selectedAreaId)) {
+      setSelectedAreaId(filteredAreas[0].id);
+    }
+  }, [filteredAreas, selectedAreaId]);
+
+  const selectedArea = filteredAreas.find((area) => area.id === selectedAreaId) || null;
+
+  const selectedStoreLabel = selectedStoreId === "all"
+    ? copy.allStores
+    : stores.find((store) => store.id === selectedStoreId)?.name || copy.allStores;
+
+  const getStoreName = (area: Area) =>
+    getAreaType(area) === "general"
+      ? copy.generalStoreLabel
+      : stores.find((store) => store.id === area.storeId)?.name || area.storeId;
 
   const openCreateModal = () => {
     setEditingArea(null);
@@ -191,7 +221,7 @@ export default function Areas() {
       name: "",
       storeId: selectedStoreId !== "all" ? selectedStoreId : "",
       areaType: "store",
-      color: "blue",
+      color: DEFAULT_COLOR_KEY,
     });
     setModalOpen(true);
   };
@@ -222,6 +252,7 @@ export default function Areas() {
       toast.error(copy.nameRequired);
       return;
     }
+
     if (normalizedAreaType === "store" && !storeIdToSave) {
       toast.error(copy.storeRequired);
       return;
@@ -253,9 +284,10 @@ export default function Areas() {
     };
 
     try {
-      await saveArea(areaToSave, editingArea?.id);
+      const saved = await saveArea(areaToSave, editingArea?.id);
+      setSelectedAreaId(saved.id);
       closeModal();
-      toast.success(locale === "zh" ? "区域已保存" : "Area saved");
+      toast.success(copy.areaSaved);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Area save failed");
     }
@@ -270,7 +302,7 @@ export default function Areas() {
 
     try {
       await deleteArea(area.id);
-      toast.success(locale === "zh" ? "区域已删除" : "Area deleted");
+      toast.success(copy.areaDeleted);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Area delete failed");
     }
@@ -278,154 +310,218 @@ export default function Areas() {
 
   return (
     <div data-cmp="Areas" className="flex flex-col gap-4">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <div className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
-            {copy.title}
-          </div>
-          <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            {copy.subtitle}
-          </div>
+      <div className="flex items-center justify-between gap-4 px-1">
+        <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          {copy.count(filteredAreas.length)}
         </div>
         <Button type="primary" icon={<Plus size={14} />} onClick={openCreateModal}>
           {copy.addArea}
         </Button>
       </div>
 
-      <div
-        className="rounded-xl p-4 flex items-center gap-3"
-        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-      >
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={copy.searchPlaceholder}
-          prefix={<Search size={14} style={{ color: "var(--muted-foreground)" }} />}
-          allowClear
-          style={{ maxWidth: 320 }}
-        />
-        <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          {selectedStoreId === "all"
-            ? copy.allStores
-            : stores.find((store) => store.id === selectedStoreId)?.name || copy.allStores}
-        </span>
-      </div>
-
-      {filteredAreas.length === 0 ? (
+      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div
-          className="rounded-xl flex flex-col items-center justify-center gap-2"
-          style={{ minHeight: 260, background: "var(--card)", border: "1px solid var(--border)" }}
+          className="overflow-hidden rounded-2xl"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow)",
+            minHeight: 560,
+          }}
         >
-          <Store size={28} style={{ color: "var(--muted-foreground)", opacity: 0.4 }} />
-          <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-            {copy.noData}
+          <div className="border-b p-4" style={{ borderColor: "var(--border)" }}>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={copy.searchPlaceholder}
+              prefix={<Search size={14} style={{ color: "var(--muted-foreground)" }} />}
+              allowClear
+            />
           </div>
-          <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            {copy.noDataHint}
-          </div>
-        </div>
-      ) : (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-          {filteredAreas.map((area) => {
-            const refs = referenceMap[area.id] || { employees: 0, templates: 0, shifts: 0 };
-            const areaType = getAreaType(area);
-            const storeName = areaType === "general"
-              ? copy.generalStoreLabel
-              : stores.find((store) => store.id === area.storeId)?.name || area.storeId;
-            const inUse = refs.employees > 0 || refs.templates > 0 || refs.shifts > 0;
 
-            return (
-              <div
-                key={area.id}
-                className="rounded-xl p-4 flex flex-col gap-4"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
+          {filteredAreas.length === 0 ? (
+            <div className="flex h-[420px] flex-col items-center justify-center gap-2 px-6 text-center">
+              <Store size={28} style={{ color: "var(--muted-foreground)", opacity: 0.45 }} />
+              <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                {copy.noData}
+              </div>
+              <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {copy.noDataHint}
+              </div>
+            </div>
+          ) : (
+            <div className="max-h-[620px] overflow-auto">
+              {filteredAreas.map((area) => {
+                const areaColor = getAreaColorMeta(area.color);
+                const active = area.id === selectedArea?.id;
+
+                return (
+                  <button
+                    key={area.id}
+                    type="button"
+                    onClick={() => setSelectedAreaId(area.id)}
+                    className="flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-all"
+                    style={{
+                      borderColor: "var(--border)",
+                      background: active ? "rgba(59, 130, 246, 0.08)" : "transparent",
+                      boxShadow: active ? "inset 3px 0 0 var(--primary)" : "none",
+                    }}
+                  >
                     <div
-                      className="rounded-full flex-shrink-0"
-                      style={{ width: 14, height: 14, background: resolveAreaColor(area.color), marginTop: 4 }}
-                    />
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
+                      className="flex h-10 w-10 items-center justify-center rounded-2xl flex-shrink-0"
+                      style={{ background: areaColor.value, color: "white" }}
+                    >
+                      <MapPin size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-base font-semibold" style={{ color: "var(--foreground)" }}>
                         {area.name}
                       </div>
-                      <div className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
-                        {areaType === "general" ? <Globe size={11} /> : <Store size={11} />}
-                        {storeName}
+                      <div className="truncate text-sm" style={{ color: "var(--muted-foreground)" }}>
+                        {getStoreName(area)}
                       </div>
                     </div>
+                    <ChevronRight size={16} style={{ color: "var(--muted-foreground)" }} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div
+          className="overflow-hidden rounded-2xl"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow)",
+            minHeight: 560,
+          }}
+        >
+          {selectedArea ? (
+            <>
+              <div className="flex items-start justify-between gap-4 border-b p-6" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-start gap-4 min-w-0">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl flex-shrink-0"
+                    style={{ background: getAreaColorMeta(selectedArea.color).value, color: "white" }}
+                  >
+                    <MapPin size={18} />
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <Tooltip title={copy.editArea}>
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(area)}
-                        className="rounded-lg flex items-center justify-center"
-                        style={{ width: 30, height: 30, background: "var(--muted)", color: "var(--muted-foreground)" }}
-                      >
-                        <Pencil size={13} />
-                      </button>
-                    </Tooltip>
-                    <Tooltip title={inUse ? copy.cannotDelete : copy.delete}>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(area)}
-                        className="rounded-lg flex items-center justify-center"
-                        style={{
-                          width: 30,
-                          height: 30,
-                          background: inUse ? "var(--muted)" : "rgba(239, 68, 68, 0.1)",
-                          color: inUse ? "var(--muted-foreground)" : "var(--destructive)",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </Tooltip>
+                  <div className="min-w-0">
+                    <div className="truncate text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                      {selectedArea.name}
+                    </div>
+                    <div className="mt-1 text-base" style={{ color: "var(--muted-foreground)" }}>
+                      {`${getStoreName(selectedArea)} · ${copy.orderValue(selectedArea.order)}`}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 flex-wrap">
+                      <Tag style={{ margin: 0, border: "none", background: "var(--secondary)", color: "var(--foreground)" }}>
+                        {getAreaType(selectedArea) === "general" ? copy.general : copy.storeOnly}
+                      </Tag>
+                      <Tag style={{ margin: 0, border: "none", background: "var(--muted)", color: "var(--muted-foreground)" }}>
+                        <Palette size={11} style={{ display: "inline", marginRight: 4 }} />
+                        {getColorLabel(selectedArea.color, locale)}
+                      </Tag>
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Tag style={{ margin: 0, border: "none", background: "var(--secondary)", color: "var(--foreground)" }}>
-                    {areaType === "general" ? copy.general : copy.storeOnly}
-                  </Tag>
-                  <Tag style={{ margin: 0, border: "none", background: "var(--secondary)", color: "var(--primary)" }}>
-                    {copy.order} #{area.order + 1}
-                  </Tag>
-                  <Tag style={{ margin: 0, border: "none", background: "var(--muted)", color: "var(--muted-foreground)" }}>
-                    <Palette size={11} style={{ display: "inline", marginRight: 4 }} />
-                    {area.color}
-                  </Tag>
-                </div>
-
-                <div>
-                  <div className="text-xs mb-2" style={{ color: "var(--muted-foreground)" }}>
-                    {copy.references}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Tag style={{ margin: 0 }}>
-                      <Users size={11} style={{ display: "inline", marginRight: 4 }} />
-                      {copy.employeeRefs} {refs.employees}
-                    </Tag>
-                    <Tag style={{ margin: 0 }}>
-                      <CalendarDays size={11} style={{ display: "inline", marginRight: 4 }} />
-                      {copy.templateRefs} {refs.templates}
-                    </Tag>
-                    <Tag style={{ margin: 0 }}>
-                      <Clock size={11} style={{ display: "inline", marginRight: 4 }} />
-                      {copy.shiftRefs} {refs.shifts}
-                    </Tag>
-                  </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button icon={<Pencil size={14} />} onClick={() => openEditModal(selectedArea)}>
+                    {copy.editArea}
+                  </Button>
+                  <Tooltip title={(() => {
+                    const refs = referenceMap[selectedArea.id] || { employees: 0, templates: 0, shifts: 0 };
+                    return refs.employees > 0 || refs.templates > 0 || refs.shifts > 0 ? copy.cannotDelete : copy.deleteArea;
+                  })()}>
+                    <Button
+                      danger
+                      icon={<Trash2 size={14} />}
+                      onClick={() => handleDelete(selectedArea)}
+                    >
+                      {copy.delete}
+                    </Button>
+                  </Tooltip>
                 </div>
               </div>
-            );
-          })}
+
+              <div className="p-2">
+                {[
+                  {
+                    label: copy.store,
+                    value: getStoreName(selectedArea),
+                  },
+                  {
+                    label: copy.color,
+                    value: (
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-3 w-3 rounded-full"
+                          style={{ background: getAreaColorMeta(selectedArea.color).value }}
+                        />
+                        <span>
+                          {getColorLabel(selectedArea.color, locale)}
+                        </span>
+                      </div>
+                    ),
+                  },
+                  {
+                    label: copy.order,
+                    value: selectedArea.order,
+                  },
+                  {
+                    label: copy.scopeValue,
+                    value: getAreaType(selectedArea) === "general" ? copy.general : copy.storeOnly,
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="grid items-center gap-4 px-4 py-4 md:grid-cols-[120px_minmax(0,1fr)]"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+                      {item.label}
+                    </div>
+                    <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                      {item.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="px-6 pb-6 pt-2">
+                <div className="mb-3 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                  {copy.references}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Tag style={{ margin: 0 }}>
+                    <Users size={11} style={{ display: "inline", marginRight: 4 }} />
+                    {copy.employeeRefs} {(referenceMap[selectedArea.id] || { employees: 0 }).employees || 0}
+                  </Tag>
+                  <Tag style={{ margin: 0 }}>
+                    <CalendarDays size={11} style={{ display: "inline", marginRight: 4 }} />
+                    {copy.templateRefs} {(referenceMap[selectedArea.id] || { templates: 0 }).templates || 0}
+                  </Tag>
+                  <Tag style={{ margin: 0 }}>
+                    <Clock size={11} style={{ display: "inline", marginRight: 4 }} />
+                    {copy.shiftRefs} {(referenceMap[selectedArea.id] || { shifts: 0 }).shifts || 0}
+                  </Tag>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex h-[560px] flex-col items-center justify-center gap-2 px-6 text-center">
+              <MapPin size={30} style={{ color: "var(--muted-foreground)", opacity: 0.45 }} />
+              <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                {copy.detailEmpty}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <Modal
-        title={editingArea ? copy.editArea : copy.addArea}
+        title={editingArea ? copy.editAreaDialog : copy.addAreaDialog}
         open={modalOpen}
         onCancel={closeModal}
         onOk={handleSave}
@@ -435,19 +531,19 @@ export default function Areas() {
       >
         <div className="flex flex-col gap-4 pt-3">
           <div>
-            <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+            <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
               {copy.areaName}
             </div>
             <Input
               value={form.name}
-              onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+              onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
               onPressEnter={handleSave}
               autoFocus
             />
           </div>
 
           <div>
-            <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+            <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
               {copy.areaType}
             </div>
             <div
@@ -476,13 +572,9 @@ export default function Areas() {
                     style={{
                       border: active ? "1px solid var(--primary)" : "1px solid transparent",
                       background: active ? "rgba(59, 130, 246, 0.10)" : "transparent",
-                      cursor: "pointer",
                     }}
                   >
-                    <div
-                      className="text-sm font-semibold"
-                      style={{ color: active ? "var(--primary)" : "var(--foreground)" }}
-                    >
+                    <div className="text-sm font-semibold" style={{ color: active ? "var(--primary)" : "var(--foreground)" }}>
                       {option.label}
                     </div>
                     <div className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
@@ -496,7 +588,7 @@ export default function Areas() {
 
           {form.areaType === "store" && (
             <div>
-              <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+              <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
                 {copy.store}
               </div>
               {selectedStoreId === "all" ? (
@@ -517,7 +609,7 @@ export default function Areas() {
                   className="rounded-xl px-3 py-2.5 text-sm"
                   style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)" }}
                 >
-                  <div className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+                  <div className="mb-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
                     {copy.currentStore}
                   </div>
                   <div>{stores.find((store) => store.id === selectedStoreId)?.name || selectedStoreId}</div>
@@ -527,26 +619,10 @@ export default function Areas() {
           )}
 
           <div>
-            <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+            <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
               {copy.color}
             </div>
-            <div className="flex items-center gap-2">
-              {AREA_COLOR_OPTIONS.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, color: option.key }))}
-                  className="rounded-full transition-all"
-                  style={{
-                    width: 26,
-                    height: 26,
-                    background: option.value,
-                    border: form.color === option.key ? "3px solid var(--foreground)" : "2px solid var(--border)",
-                    transform: form.color === option.key ? "scale(1.08)" : "scale(1)",
-                  }}
-                />
-              ))}
-            </div>
+            <ColorSwatchPicker value={form.color} onChange={(color) => setForm((prev) => ({ ...prev, color }))} locale={locale} />
           </div>
         </div>
       </Modal>

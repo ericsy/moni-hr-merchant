@@ -523,7 +523,7 @@ export const merchantApi = {
   listEmployees: async (storeId: string, params: { page?: number; size?: number; status?: string; q?: string } = {}) => {
     const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("employees"), {
       storeId,
-      query: { page: params.page || 1, size: params.size || 1000, status: params.status, q: params.q },
+      query: { page: params.page || 1, size: params.size || 100, status: params.status, q: params.q },
     });
     return (data?.items || []).map(mapApiEmployee);
   },

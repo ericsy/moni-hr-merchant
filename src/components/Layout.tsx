@@ -174,7 +174,11 @@ export default function AppLayout({
   };
 
   return (
-    <div data-cmp="AppLayout" className="min-h-screen flex" style={{ width: "100%", minWidth: 0 }}>
+    <div
+      data-cmp="AppLayout"
+      className="min-h-screen flex"
+      style={{ width: "100%", minWidth: 0 }}
+    >
       <AntLayout style={{ minHeight: "100vh", width: "100%" }}>
         {/* Sidebar */}
         <Sider
@@ -213,8 +217,11 @@ export default function AppLayout({
             </div>
             {!collapsed && (
               <div className="ml-3 overflow-hidden">
-                <div className="font-bold text-base leading-tight" style={{ color: "var(--foreground)" }}>
-                  MONI-HR
+                <div
+                  className="font-bold text-base leading-tight"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  MONI-MERCHANT
                 </div>
               </div>
             )}
@@ -247,7 +254,9 @@ export default function AppLayout({
                 gap: 4,
               }}
             >
-              {collapsed ? <ChevronRight size={16} /> : (
+              {collapsed ? (
+                <ChevronRight size={16} />
+              ) : (
                 <span className="flex items-center gap-1">
                   <ChevronLeft size={16} />
                   {locale === "zh" ? "收起" : "Collapse"}
@@ -258,7 +267,12 @@ export default function AppLayout({
         </Sider>
 
         {/* Main area */}
-        <AntLayout style={{ marginLeft: collapsed ? 72 : 240, transition: "margin 0.2s" }}>
+        <AntLayout
+          style={{
+            marginLeft: collapsed ? 72 : 240,
+            transition: "margin 0.2s",
+          }}
+        >
           {/* Header */}
           <Header
             style={{
@@ -277,7 +291,10 @@ export default function AppLayout({
               margin: 0,
             }}
           >
-            <div className="font-semibold text-lg" style={{ color: "var(--foreground)" }}>
+            <div
+              className="font-semibold text-lg"
+              style={{ color: "var(--foreground)" }}
+            >
               {t.nav[currentPage as keyof typeof t.nav] ?? currentPage}
             </div>
 
@@ -298,7 +315,9 @@ export default function AppLayout({
                   </span>
                 </Option>
                 {stores.map((s) => (
-                  <Option key={s.id} value={s.id}>{s.name}</Option>
+                  <Option key={s.id} value={s.id}>
+                    {s.name}
+                  </Option>
                 ))}
               </Select>
 
@@ -324,7 +343,11 @@ export default function AppLayout({
                 <Button
                   type="text"
                   icon={<Bell size={18} />}
-                  style={{ display: "flex", alignItems: "center", color: "var(--muted-foreground)" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    color: "var(--muted-foreground)",
+                  }}
                 />
               </Badge>
 
@@ -342,7 +365,10 @@ export default function AppLayout({
                     {user?.name?.[0]?.toUpperCase() ?? "A"}
                   </Avatar>
                   {!collapsed && (
-                    <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: "var(--foreground)" }}
+                    >
                       {user?.name ?? "Admin"}
                     </span>
                   )}

@@ -11,7 +11,6 @@ import {
   InputNumber,
   Popconfirm,
   Modal,
-  Tooltip,
   Upload,
   type UploadFile,
   type UploadProps,
@@ -49,16 +48,10 @@ import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { toast } from "sonner";
 import WorkDaysCalendar from "../components/WorkDaysCalendar";
+import { ColorSwatchPicker, DEFAULT_COLOR_VALUE } from "../components/ColorSwatchPicker";
 import { merchantApi } from "../lib/merchantApi";
 
 const { Option } = Select;
-
-// ─── Color palette for employee color picker ───
-const COLOR_PALETTE = [
-  "#60a5fa", "#a78bfa", "#34d399", "#fb923c",
-  "#f472b6", "#38bdf8", "#facc15", "#4ade80",
-  "#f87171", "#c084fc",
-];
 
 const defaultWorkDayPattern: WorkDayPattern[] = [
   { dayIndex: 0, state: "on", hours: 7.5 },
@@ -166,37 +159,6 @@ function WorkDayEditor({
 }
 
 // ─── ColorDot picker ───
-function ColorPicker({
-  value = "#60a5fa",
-  onChange = () => {},
-}: {
-  value?: string;
-  onChange?: (c: string) => void;
-}) {
-  return (
-    <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
-      {COLOR_PALETTE.map((c) => (
-        <Tooltip key={c} title={c}>
-          <button
-            type="button"
-            onClick={() => onChange(c)}
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: "50%",
-              border: value === c ? "3px solid var(--foreground)" : "2px solid var(--border)",
-              background: c,
-              cursor: "pointer",
-              transition: "transform 0.15s",
-              transform: value === c ? "scale(1.2)" : "scale(1)",
-            }}
-          />
-        </Tooltip>
-      ))}
-    </div>
-  );
-}
-
 function InfoRow({
   icon,
   label,
@@ -239,6 +201,7 @@ export function EmployeeModal({
 }) {
   const [form] = Form.useForm();
   const isEdit = !!employee;
+  const [activeTabKey, setActiveTabKey] = useState("general");
   const [uploadingContract, setUploadingContract] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const buildContractFileList = (targetEmployee: Employee | null): UploadFile[] => {
@@ -263,6 +226,10 @@ export function EmployeeModal({
   useEffect(() => {
     setContractFileList(buildContractFileList(employee));
   }, [employee]);
+
+  useEffect(() => {
+    if (open) setActiveTabKey("general");
+  }, [open, employee?.id]);
 
   const buildAvatarFileList = (targetEmployee: Employee | null): UploadFile[] => {
     const avatarUrl = getEmployeeAvatarUrl(targetEmployee);
@@ -291,9 +258,24 @@ export function EmployeeModal({
     form.setFieldValue("avatar", uploaded?.response?.key || uploaded?.uid || "");
   };
 
+  const et = t.employee as Record<string, unknown>;
+  const contractRequiredMessage = et.contractUploadRequired as string;
+
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
+      const contractDocumentKey = String(values.contractDocumentKey || "").trim();
+
+      if (uploadingContract || !contractDocumentKey) {
+        const message = uploadingContract
+          ? et.contractUploading as string
+          : contractRequiredMessage;
+        setActiveTabKey("employment");
+        form.setFields([{ name: "contractDocumentKey", errors: [message] }]);
+        toast.error(message);
+        return;
+      }
+
       const saved: Employee = {
         id: employee?.id ?? `e${Date.now()}`,
         password: values.password || undefined,
@@ -311,7 +293,7 @@ export function EmployeeModal({
         notes: values.notes ?? "",
         avatar: values.avatar ?? employee?.avatar ?? "",
         avatarPreviewUrl: avatarFileList[0]?.url ?? employee?.avatarPreviewUrl ?? employee?.avatar ?? "",
-        employeeColor: values.employeeColor ?? "#60a5fa",
+        employeeColor: values.employeeColor ?? DEFAULT_COLOR_VALUE,
         address: values.address ?? "",
         dateOfBirth: values.dateOfBirth ? dayjs(values.dateOfBirth).format("YYYY-MM-DD") : "",
         irdNumber: values.irdNumber ?? "",
@@ -327,7 +309,7 @@ export function EmployeeModal({
         paidHoursPerDay: values.paidHoursPerDay ?? 8,
         workDayPattern: values.workDayPattern ?? defaultWorkDayPattern,
         contractType: values.contractType ?? "permanent",
-        contractDocumentKey: values.contractDocumentKey ?? employee?.contractDocumentKey ?? "",
+        contractDocumentKey,
         contractDocumentUrl: contractFileList[0]?.url ?? employee?.contractDocumentUrl ?? "",
         endDate: values.endDate ? dayjs(values.endDate).format("YYYY-MM-DD") : "",
         contractedHours: values.contractedHours ?? "",
@@ -337,6 +319,12 @@ export function EmployeeModal({
       await onSave(saved);
     } catch (err) {
       console.log("[EmployeeModal] save failed:", err);
+      const errorFields = (err as { errorFields?: Array<{ name?: Array<string | number> }> })?.errorFields ?? [];
+      const hasContractError = errorFields.some((field) => field.name?.includes("contractDocumentKey"));
+      if (hasContractError) {
+        setActiveTabKey("employment");
+        toast.error(contractRequiredMessage);
+      }
     }
   };
 
@@ -348,14 +336,14 @@ export function EmployeeModal({
         endDate: employee.endDate ? dayjs(employee.endDate) : undefined,
         workDayPattern: employee.workDayPattern ?? defaultWorkDayPattern,
         avatar: employee.avatar ?? "",
-        contractDocumentKey: employee.contractDocumentKey ?? "",
+        contractDocumentKey: employee.contractDocumentKey || employee.contractDocumentUrl || "",
       }
     : {
         status: "active",
         role: "staff",
         storeIds: defaultStoreIds,
         avatar: "",
-        employeeColor: "#60a5fa",
+        employeeColor: DEFAULT_COLOR_VALUE,
         employeeContributionRate: "3%",
         employerContributionRate: "3",
         kiwiSaverStatus: "Enrolled",
@@ -365,7 +353,6 @@ export function EmployeeModal({
         contractDocumentKey: "",
       };
 
-  const et = t.employee as Record<string, unknown>;
   const contractUploadText = uploadingContract
     ? et.contractUploading as string
     : (contractFileList.length > 0 ? et.contractUploadReplace as string : et.contractUploadButton as string);
@@ -445,7 +432,7 @@ export function EmployeeModal({
                 size={64}
                 src={avatarFileList[0]?.url}
                 style={{
-                  background: (form.getFieldValue("employeeColor") || employee?.employeeColor || "#60a5fa"),
+                  background: (form.getFieldValue("employeeColor") || employee?.employeeColor || DEFAULT_COLOR_VALUE),
                   fontSize: 22,
                   fontWeight: 700,
                   flexShrink: 0,
@@ -542,7 +529,7 @@ export function EmployeeModal({
           </div>
           <Form.Item name="employeeColor" label={et.employeeColor as string}>
             <Form.Item name="employeeColor" noStyle>
-              <ColorPicker />
+              <ColorSwatchPicker valueMode="value" locale={locale} />
             </Form.Item>
           </Form.Item>
           <Form.Item name="notes" label={et.notes as string}>
@@ -635,6 +622,7 @@ export function EmployeeModal({
     {
       key: "employment",
       label: et.tabEmployment as string,
+      forceRender: true,
       children: (
         <div className="flex flex-col gap-0">
           <div className="flex gap-4">
@@ -663,7 +651,7 @@ export function EmployeeModal({
           <Form.Item
             name="contractDocumentKey"
             label={et.contractFile as string}
-            rules={[{ required: true, message: et.contractUploadRequired as string }]}
+            rules={[{ required: true, message: contractRequiredMessage }]}
             extra={et.contractUploadHint as string}
           >
             <div className="flex flex-col gap-3">
@@ -725,7 +713,7 @@ export function EmployeeModal({
         preserve={false}
         size="small"
       >
-        <Tabs defaultActiveKey="general" items={tabItems} />
+        <Tabs activeKey={activeTabKey} onChange={setActiveTabKey} items={tabItems} />
       </Form>
     </Modal>
   );

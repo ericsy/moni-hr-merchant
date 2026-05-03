@@ -33,6 +33,7 @@ import { useData, type Area, type ScheduleShift, type RosterTemplate } from "../
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { calcShiftHours, datedShiftsOverlap } from "../lib/shift";
+import { ColorSwatchPicker, DEFAULT_COLOR_KEY, getSoftColorStyle } from "../components/ColorSwatchPicker";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import weekOfYear from "dayjs/plugin/weekOfYear";
@@ -58,46 +59,7 @@ const calcHours = (start: string, end: string, brk = 0) => calcShiftHours(start,
 const getShiftEmployeeIds = (shift: Pick<ScheduleShift, "employeeId" | "employeeIds">) =>
   shift.employeeIds?.length ? shift.employeeIds : shift.employeeId ? [shift.employeeId] : [];
 
-const COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
-  blue: { bg: "var(--secondary)", border: "var(--primary)", text: "var(--primary)" },
-  green: { bg: "var(--shift-afternoon)", border: "var(--shift-afternoon-border)", text: "var(--shift-afternoon-border)" },
-  purple: { bg: "var(--shift-evening)", border: "var(--shift-evening-border)", text: "var(--shift-evening-border)" },
-  orange: { bg: "var(--workday-holiday-bg)", border: "var(--workday-holiday-hours-bg)", text: "var(--workday-holiday-text)" },
-  red: { bg: "var(--workday-weekend-bg)", border: "var(--destructive)", text: "var(--destructive)" },
-};
-const isHexColor = (value: string) => /^#(?:[0-9A-Fa-f]{3}){1,2}$/.test(value);
-
-const hexToRgba = (hex: string, alpha: number) => {
-  const normalized = hex.replace("#", "");
-  const safeHex = normalized.length === 3
-    ? normalized.split("").map((char) => char + char).join("")
-    : normalized;
-  const int = Number.parseInt(safeHex, 16);
-  const r = (int >> 16) & 255;
-  const g = (int >> 8) & 255;
-  const b = int & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
-const getColorStyle = (color: string) => {
-  if (COLOR_MAP[color]) return COLOR_MAP[color];
-  if (isHexColor(color)) {
-    return {
-      bg: hexToRgba(color, 0.12),
-      border: color,
-      text: color,
-    };
-  }
-  return COLOR_MAP.blue;
-};
-
-const AREA_COLOR_MAP: Record<string, string> = {
-  blue: "var(--primary)",
-  green: "var(--shift-afternoon-border)",
-  purple: "var(--shift-evening-border)",
-  orange: "var(--workday-holiday-hours-bg)",
-  red: "var(--destructive)",
-};
+const getColorStyle = (color: string) => getSoftColorStyle(color);
 
 const WEEK_DAY_LABELS_ZH = ["一", "二", "三", "四", "五", "六", "日"];
 const WEEK_DAY_LABELS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -209,7 +171,7 @@ function toTemplateCard(t: RosterTemplate): RosterTemplateCard {
       shifts.push({ name: cell.label || cell.startTime, startTime: cell.startTime, endTime: cell.endTime, color: cell.color });
     }
   }
-  const firstColor = t.cells[0]?.color || "blue";
+  const firstColor = t.cells[0]?.color || DEFAULT_COLOR_KEY;
   return { id: t.id, name: t.name, storeId: t.storeId, type: typeLabel, color: firstColor, shifts };
 }
 
@@ -722,7 +684,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     endTime: "17:00",
     breakMinutes: 30,
     shiftName: "",
-    color: "blue",
+    color: DEFAULT_COLOR_KEY,
     note: "",
     storeId: "",
   });
@@ -1114,7 +1076,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       endTime: "17:00",
       breakMinutes: 30,
       shiftName: "",
-      color: "blue",
+      color: DEFAULT_COLOR_KEY,
       note: "",
       storeId: selectedStoreId !== "all"
         ? selectedStoreId
@@ -1847,25 +1809,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
             <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
               {isZh ? "颜色标识" : "Color"}
             </div>
-            <div className="flex items-center gap-2">
-              {(["blue", "green", "purple", "orange", "red"] as const).map((c) => {
-                const cs = getColorStyle(c);
-                return (
-                  <button
-                    key={c}
-                    onClick={() => setShiftForm((f) => ({ ...f, color: c }))}
-                    className="rounded-full transition-all"
-                    style={{
-                      width: 26,
-                      height: 26,
-                      background: cs.border,
-                      border: shiftForm.color === c ? `3px solid var(--foreground)` : `3px solid transparent`,
-                      outline: shiftForm.color === c ? `2px solid ${cs.border}` : "none",
-                    }}
-                  />
-                );
-              })}
-            </div>
+            <ColorSwatchPicker value={shiftForm.color} onChange={(color) => setShiftForm((f) => ({ ...f, color }))} locale={locale} />
           </div>
 
           {/* Multi-employee assignment */}

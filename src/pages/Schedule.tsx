@@ -1,220 +1,208 @@
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Button, InputNumber, Modal, Select, Tag } from "antd";
 import {
-  Button,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-} from "antd";
-import {
-  CalendarX,
+  ChevronRight,
   Clock,
-  Edit2,
-  LayoutTemplate,
+  Pencil,
   Plus,
-  Send,
+  Store,
   Trash2,
   X,
 } from "lucide-react";
-import dayjs from "dayjs";
-import isoWeek from "dayjs/plugin/isoWeek";
 import { toast } from "sonner";
-import { useData, type RosterTemplate, type ScheduleShift } from "../context/DataContext";
+import { useData, type ScheduleShift } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
-import { calcShiftHours } from "../lib/shift";
-
-dayjs.extend(isoWeek);
+import { calcShiftHours, getClockRange } from "../lib/shift";
+import { ColorSwatchPicker, DEFAULT_COLOR_KEY, DEFAULT_COLOR_SWATCHES, getColorLabel, resolveColorValue } from "../components/ColorSwatchPicker";
 
 const { Option } = Select;
 
-const SHIFT_COLORS = [
-  { key: "blue", label: "蓝色" },
-  { key: "green", label: "绿色" },
-  { key: "purple", label: "紫色" },
-  { key: "orange", label: "橙色" },
-  { key: "red", label: "红色" },
-];
+const getShiftColorMeta = (color: string) =>
+  DEFAULT_COLOR_SWATCHES.find((item) => item.key === color) || {
+    key: color,
+    value: resolveColorValue(color),
+    labelZh: color || "蓝色",
+    labelEn: color || "Blue",
+  };
 
-const DEFAULT_SHIFT_COLOR_MAP: Record<string, string> = {
-  blue: "var(--primary)",
-  green: "var(--chart-2)",
-  purple: "var(--chart-5)",
-  orange: "var(--chart-3)",
-  red: "var(--destructive)",
+const formatShiftDurationText = (startTime: string, endTime: string, breakMinutes: number) => {
+  const { startMinutes, endMinutes } = getClockRange({ startTime, endTime });
+  const totalMinutes = Math.max(0, endMinutes - startMinutes - breakMinutes);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 };
 
-const WEEKDAY_LABELS_ZH = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-const WEEKDAY_LABELS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-const isHexColor = (value: string) => /^#(?:[0-9A-Fa-f]{3}){1,2}$/.test(value);
-
-const resolveShiftColor = (
-  color: string,
-  colorMap: Record<string, string> = DEFAULT_SHIFT_COLOR_MAP
-) => {
-  if (isHexColor(color)) return color;
-  return colorMap[color] || DEFAULT_SHIFT_COLOR_MAP.blue;
-};
-
-interface TemplateShiftSummary {
-  key: string;
-  name: string;
+interface ScheduleFormState {
+  shiftName: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
   color: string;
-  days: number[];
+  shiftType: "store" | "general";
+  storeId: string;
 }
 
-const getTemplateShiftSummaries = (template: RosterTemplate): TemplateShiftSummary[] => {
-  const shiftMap: Record<string, TemplateShiftSummary> = {};
+const buildDefaultForm = (selectedStoreId: string, fallbackStoreId = ""): ScheduleFormState => ({
+  shiftName: "",
+  startTime: "09:00",
+  endTime: "17:00",
+  breakMinutes: 30,
+  color: DEFAULT_COLOR_KEY,
+  shiftType: selectedStoreId !== "all" ? "store" : "general",
+  storeId: selectedStoreId !== "all" ? selectedStoreId : fallbackStoreId,
+});
 
-  template.cells.forEach((cell) => {
-    const weekday = ((cell.dayIndex % 7) + 7) % 7;
-    const key = `${cell.label || cell.startTime}|${cell.startTime}|${cell.endTime}|${cell.color}`;
-    const existing = shiftMap[key];
-
-    if (existing) {
-      if (!existing.days.includes(weekday)) {
-        existing.days.push(weekday);
-      }
-      return;
-    }
-
-    shiftMap[key] = {
-      key,
-      name: cell.label || cell.startTime,
-      startTime: cell.startTime,
-      endTime: cell.endTime,
-      color: cell.color,
-      days: [weekday],
-    };
-  });
-
-  return Object.values(shiftMap).map((shift) => ({
-    ...shift,
-    days: [...shift.days].sort((a, b) => a - b),
-  }));
-};
-
-const getTemplateWeekCells = (template: RosterTemplate) =>
-  template.cells.filter((cell) => cell.dayIndex >= 0 && cell.dayIndex < 7);
-
-interface ScheduleProps {
-  initialTemplateId?: string;
-}
-
-export default function Schedule({ initialTemplateId = "" }: ScheduleProps) {
-  const { t, locale } = useLocale();
-  const { stores, scheduleShifts, setScheduleShifts, saveGlobalShift, deleteGlobalShift, templates } = useData();
+export default function Schedule() {
+  const { locale } = useLocale();
+  const { stores, scheduleShifts, saveGlobalShift, deleteGlobalShift } = useData();
   const { selectedStoreId } = useStore();
 
-  const [selectedDate, setSelectedDate] = useState(dayjs().format("YYYY-MM-DD"));
+  const copy = locale === "zh"
+    ? {
+        addShift: "添加班次",
+        editShift: "编辑",
+        addShiftDialog: "添加班次",
+        editShiftDialog: "编辑班次",
+        noData: "暂无班次数据",
+        noDataHint: "先创建班次定义，供后续排班引用",
+        detailEmpty: "请选择左侧班次查看详情",
+        titleCount: (value: number) => `共 ${value} 条`,
+        nameRequired: "请输入班次名称",
+        timeRequired: "请填写开始和结束时间",
+        storeRequired: "请选择所属店面",
+        saved: "班次已保存",
+        deleted: "班次已删除",
+        allStores: "所有店面通用",
+        storeOnly: "门店专属",
+        general: "通用班次",
+        shiftName: "班次名称",
+        startTime: "开始时间",
+        endTime: "结束时间",
+        breakMinutes: "休息时长（分钟）",
+        duration: "工时",
+        color: "颜色",
+        store: "所属店面",
+        shiftType: "班次类型",
+        colorTag: "颜色标识",
+        save: "保存",
+        cancel: "取消",
+        delete: "删除",
+        currentStore: "当前店面",
+        generalDesc: "可供全部店面统一使用",
+        storeOnlyDesc: "只在选定门店内使用",
+      }
+    : {
+        addShift: "Add Shift",
+        editShift: "Edit",
+        addShiftDialog: "Add Shift",
+        editShiftDialog: "Edit Shift",
+        noData: "No shifts yet",
+        noDataHint: "Create shift definitions first so rosters can reference them",
+        detailEmpty: "Select a shift from the left to view details",
+        titleCount: (value: number) => `${value} total`,
+        nameRequired: "Please enter a shift name",
+        timeRequired: "Please fill in start and end time",
+        storeRequired: "Please select a store",
+        saved: "Shift saved",
+        deleted: "Shift deleted",
+        allStores: "Available to all stores",
+        storeOnly: "Store Only",
+        general: "General Shift",
+        shiftName: "Shift Name",
+        startTime: "Start Time",
+        endTime: "End Time",
+        breakMinutes: "Break Minutes",
+        duration: "Duration",
+        color: "Color",
+        store: "Store",
+        shiftType: "Shift Type",
+        colorTag: "Color Label",
+        save: "Save",
+        cancel: "Cancel",
+        delete: "Delete",
+        currentStore: "Current Store",
+        generalDesc: "Reusable across all stores",
+        storeOnlyDesc: "Used only in the selected store",
+      };
+
+  const enabledStores = stores.filter((store) => store.status === "enabled");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<ScheduleShift | null>(null);
-  const [templateModalOpen, setTemplateModalOpen] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>(initialTemplateId || "");
-  const [shiftName, setShiftName] = useState("");
-  const [shiftStartTime, setShiftStartTime] = useState("09:00");
-  const [shiftEndTime, setShiftEndTime] = useState("17:00");
-  const [shiftColor, setShiftColor] = useState("blue");
-  const [shiftType, setShiftType] = useState<"store" | "general">("store");
-  const [shiftDate, setShiftDate] = useState(dayjs().format("YYYY-MM-DD"));
+  const [selectedShiftId, setSelectedShiftId] = useState("");
+  const [form, setForm] = useState<ScheduleFormState>(() => buildDefaultForm(selectedStoreId));
 
-  const currentDate = dayjs(selectedDate);
-  const currentDateStr = currentDate.format("YYYY-MM-DD");
-  const selectedWeekStart = currentDate.startOf("isoWeek");
+  const getStoreLabel = (shift: Pick<ScheduleShift, "shiftType" | "storeId">) => {
+    if ((shift.shiftType || "store") === "general") return copy.allStores;
+    return stores.find((store) => store.id === shift.storeId)?.name || shift.storeId || copy.allStores;
+  };
 
-  const storeNameMap = Object.fromEntries(stores.map((store) => [store.id, store.name]));
-
-  const enabledTemplates = templates.filter(
-    (template) => template.status === "enabled" && (selectedStoreId === "all" || template.storeId === selectedStoreId)
+  const globalShifts = useMemo(
+    () => scheduleShifts.filter((shift) => shift.isGlobalPreset),
+    [scheduleShifts]
   );
-  const selectedTemplateValue = enabledTemplates.some((template) => template.id === selectedTemplate)
-    ? selectedTemplate
-    : "";
-  const selectedTemplateData = enabledTemplates.find((template) => template.id === selectedTemplateValue);
-  const selectedTemplateShifts = selectedTemplateData ? getTemplateShiftSummaries(selectedTemplateData) : [];
 
-  const visibleDayShifts = scheduleShifts
-    .filter((shift) => {
-      const matchDate = shift.isGlobalPreset || shift.date === currentDateStr;
-      const matchStore = selectedStoreId === "all" || shift.shiftType === "general" || shift.storeId === selectedStoreId;
-      return matchDate && matchStore;
-    })
-    .sort((a, b) => {
-      return (
-        a.startTime.localeCompare(b.startTime) ||
-        a.endTime.localeCompare(b.endTime) ||
-        a.shiftName.localeCompare(b.shiftName)
-      );
-    });
+  const filteredShifts = useMemo(() => {
+    return globalShifts
+      .filter((shift) => selectedStoreId === "all" || (shift.shiftType || "store") === "general" || shift.storeId === selectedStoreId)
+      .sort((a, b) => {
+        if (a.startTime !== b.startTime) return a.startTime.localeCompare(b.startTime);
+        if (a.endTime !== b.endTime) return a.endTime.localeCompare(b.endTime);
+        return (a.shiftName || "").localeCompare(b.shiftName || "");
+      });
+  }, [globalShifts, selectedStoreId]);
 
-  const draftCount = visibleDayShifts.filter((shift) => shift.status === "draft").length;
-  const publishedCount = visibleDayShifts.filter((shift) => shift.status === "published").length;
-  const storeCount = new Set(visibleDayShifts.map((shift) => shift.storeId).filter(Boolean)).size;
-  const colorMap: Record<string, string> = DEFAULT_SHIFT_COLOR_MAP;
-
-  const calcHours = (start: string, end: string, breakMinutes: number) => {
-    return calcShiftHours(start, end, breakMinutes);
-  };
-
-  const resetShiftForm = (date = currentDateStr) => {
-    setShiftName("");
-    setShiftStartTime("09:00");
-    setShiftEndTime("17:00");
-    setShiftColor("blue");
-    setShiftType("store");
-    setShiftDate(date);
-  };
-
-  const handleAddShift = (date = currentDateStr) => {
-    setEditingShift(null);
-    resetShiftForm(date);
-    setModalOpen(true);
-  };
-
-  const handleEditShift = (shift: ScheduleShift) => {
-    setEditingShift(shift);
-    setShiftName(shift.shiftName || "");
-    setShiftStartTime(shift.startTime || "09:00");
-    setShiftEndTime(shift.endTime || "17:00");
-    setShiftColor(shift.color || "blue");
-    setShiftType(shift.shiftType || "store");
-    setShiftDate(shift.date || currentDateStr);
-    setModalOpen(true);
-  };
-
-  const handleDeleteShift = async (shift: ScheduleShift) => {
-    try {
-      if (shift.isGlobalPreset && shift.shiftId) {
-        await deleteGlobalShift(shift.shiftId);
-      } else {
-        setScheduleShifts((prev) => prev.filter((item) => item.id !== shift.id));
-      }
-      toast.success(t.schedule.deleteSuccess);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Delete failed");
+  useEffect(() => {
+    if (filteredShifts.length === 0) {
+      if (selectedShiftId) setSelectedShiftId("");
+      return;
     }
+    if (!filteredShifts.some((shift) => shift.id === selectedShiftId)) {
+      setSelectedShiftId(filteredShifts[0].id);
+    }
+  }, [filteredShifts, selectedShiftId]);
+
+  const selectedShift = filteredShifts.find((shift) => shift.id === selectedShiftId) || null;
+
+  const openCreateModal = () => {
+    setEditingShift(null);
+    setForm(buildDefaultForm(selectedStoreId, enabledStores[0]?.id || ""));
+    setModalOpen(true);
+  };
+
+  const openEditModal = (shift: ScheduleShift) => {
+    setEditingShift(shift);
+    setForm({
+      shiftName: shift.shiftName || "",
+      startTime: shift.startTime || "09:00",
+      endTime: shift.endTime || "17:00",
+      breakMinutes: shift.breakMinutes ?? 30,
+      color: shift.color || DEFAULT_COLOR_KEY,
+      shiftType: shift.shiftType || ((shift.storeId || "") ? "store" : "general"),
+      storeId: shift.storeId || (selectedStoreId !== "all" ? selectedStoreId : ""),
+    });
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingShift(null);
   };
 
   const handleSaveShift = async () => {
-    if (!shiftDate) {
-      toast.error(locale === "zh" ? "请选择班次日期" : "Please select a date");
+    if (!form.shiftName.trim()) {
+      toast.error(copy.nameRequired);
       return;
     }
 
-    if (!shiftStartTime || !shiftEndTime) {
-      toast.error(locale === "zh" ? "请填写开始和结束时间" : "Please fill in start and end time");
+    if (!form.startTime || !form.endTime) {
+      toast.error(copy.timeRequired);
       return;
     }
 
-    const storeIdToUse =
-      editingShift?.storeId ||
-      (selectedStoreId !== "all" ? selectedStoreId : "");
-
-    if (shiftType === "store" && !storeIdToUse) {
-      toast.error(locale === "zh" ? "请先选择具体门店后再创建班次" : "Please choose a store before creating a shift");
+    if (form.shiftType === "store" && !form.storeId) {
+      toast.error(copy.storeRequired);
       return;
     }
 
@@ -225,845 +213,434 @@ export default function Schedule({ initialTemplateId = "" }: ScheduleProps) {
       employeeId: "",
       employeeIds: [],
       areaId: "",
-      storeId: shiftType === "general" ? "" : storeIdToUse,
-      shiftType,
-      date: shiftDate,
-      startTime: shiftStartTime,
-      endTime: shiftEndTime,
-      breakMinutes: editingShift?.breakMinutes ?? 30,
-      shiftName: shiftName.trim() || (locale === "zh" ? "未命名班次" : "Untitled Shift"),
-      color: shiftColor,
+      storeId: form.shiftType === "general" ? "" : form.storeId,
+      shiftType: form.shiftType,
+      date: "",
+      startTime: form.startTime,
+      endTime: form.endTime,
+      breakMinutes: Number(form.breakMinutes) || 0,
+      shiftName: form.shiftName.trim(),
+      color: form.color,
       note: editingShift?.note || "",
-      status: editingShift?.status || "draft",
+      status: "published",
     };
 
     try {
       const saved = await saveGlobalShift(shiftData, editingShift?.shiftId);
-      setSelectedDate(shiftData.date || currentDateStr);
-      toast.success(t.schedule.saveSuccess);
-      setModalOpen(false);
-      if (!editingShift && saved.id) {
-        setEditingShift(null);
-      }
+      setSelectedShiftId(saved.id);
+      closeModal();
+      toast.success(copy.saved);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Save failed");
     }
   };
 
-  const handlePublishDay = () => {
-    const draftIds = visibleDayShifts
-      .filter((shift) => shift.status === "draft")
-      .map((shift) => shift.id);
-
-    setScheduleShifts((prev) =>
-      prev.map((shift) => (
-        draftIds.includes(shift.id)
-          ? { ...shift, status: "published" as const }
-          : shift
-      ))
-    );
-
-    toast.success(t.schedule.publishSuccess);
-  };
-
-  const handleApplyTemplate = () => {
-    const template = enabledTemplates.find((item) => item.id === selectedTemplate);
-    if (!template) {
-      toast.error(locale === "zh" ? "请先选择模版" : "Please select a template first");
-      return;
+  const handleDeleteShift = async (shift: ScheduleShift) => {
+    try {
+      await deleteGlobalShift(shift.shiftId || shift.id);
+      toast.success(copy.deleted);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Delete failed");
     }
-
-    const templateCells = getTemplateWeekCells(template);
-    if (templateCells.length === 0) {
-      toast.error(locale === "zh" ? "当前模版本周没有可应用的班次" : "This template has no shifts to apply for the current week");
-      return;
-    }
-
-    const targetStoreId = template.storeId || (selectedStoreId !== "all" ? selectedStoreId : "");
-    if (!targetStoreId) {
-      toast.error(locale === "zh" ? "请先选择具体门店后再应用模版" : "Please choose a store before applying a template");
-      return;
-    }
-
-    const coveredDates: Record<string, true> = {};
-    templateCells.forEach((cell) => {
-      coveredDates[selectedWeekStart.add(cell.dayIndex, "day").format("YYYY-MM-DD")] = true;
-    });
-
-    const newShifts: ScheduleShift[] = templateCells.map((cell, index) => ({
-      id: `sh${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
-      employeeId: "",
-      employeeIds: [],
-      areaId: "",
-      storeId: targetStoreId,
-      shiftType: "store",
-      date: selectedWeekStart.add(cell.dayIndex, "day").format("YYYY-MM-DD"),
-      startTime: cell.startTime,
-      endTime: cell.endTime,
-      breakMinutes: 30,
-      shiftName: cell.label || cell.startTime,
-      color: cell.color,
-      note: locale === "zh" ? `来自模版: ${template.name}` : `From template: ${template.name}`,
-      status: "draft",
-    }));
-
-    setScheduleShifts((prev) => {
-      const preservedShifts = prev.filter(
-        (shift) => shift.storeId !== targetStoreId || !coveredDates[shift.date]
-      );
-      return [...preservedShifts, ...newShifts];
-    });
-
-    setTemplateModalOpen(false);
-    toast.success(
-      `${locale === "zh" ? "已覆盖应用，生成" : "Overwritten — generated"} ${newShifts.length} ${locale === "zh" ? "个班次" : "shifts"}`
-    );
-  };
-
-  const handleDeleteSelectedDay = () => {
-    const count = visibleDayShifts.length;
-    setScheduleShifts((prev) =>
-      prev.filter((shift) => {
-        const matchDate = shift.date === currentDateStr;
-        const matchStore = selectedStoreId === "all" || shift.storeId === selectedStoreId;
-        return !(matchDate && matchStore);
-      })
-    );
-
-    toast.success(
-      locale === "zh"
-        ? `已删除 ${currentDateStr} 的 ${count} 个班次`
-        : `Deleted ${count} shifts on ${currentDateStr}`
-    );
   };
 
   return (
-    <div data-cmp="Schedule" className="flex flex-col gap-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
-            {t.schedule.title}
-          </div>
+    <div data-cmp="Schedule" className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-4 px-1">
+        <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          {copy.titleCount(filteredShifts.length)}
         </div>
-
-        <Space wrap>
-          <Button
-            icon={<LayoutTemplate size={15} />}
-            onClick={() => setTemplateModalOpen(true)}
-            style={{ display: "flex", alignItems: "center", gap: 4, borderColor: "var(--border)", color: "var(--foreground)" }}
-          >
-            {t.schedule.applyTemplate}
-          </Button>
-          <Button
-            type="primary"
-            icon={<Plus size={16} />}
-            onClick={() => handleAddShift()}
-            style={{ display: "flex", alignItems: "center", gap: 4 }}
-          >
-            {t.schedule.addShift}
-          </Button>
-          <Button
-            type="primary"
-            icon={<Send size={15} />}
-            disabled={draftCount === 0}
-            onClick={handlePublishDay}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              background: draftCount > 0 ? "var(--chart-2)" : undefined,
-              borderColor: draftCount > 0 ? "var(--chart-2)" : undefined,
-              opacity: draftCount === 0 ? 0.5 : 1,
-            }}
-          >
-            {locale === "zh"
-              ? `发布排班${draftCount > 0 ? ` (${draftCount})` : ""}`
-              : `Publish${draftCount > 0 ? ` (${draftCount})` : ""}`}
-          </Button>
-        </Space>
+        <Button type="primary" icon={<Plus size={14} />} onClick={openCreateModal}>
+          {copy.addShift}
+        </Button>
       </div>
 
-      <div
-        className="rounded-3xl p-4 md:p-5"
-        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
-              {locale === "zh" ? "班次卡片" : "Shift Cards"}
-            </div>
-            <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-              {locale === "zh"
-                ? "班次独立维护，不再与员工和区域关联"
-                : "Shifts are managed independently without employee or area links"}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs" style={{ color: "var(--muted-foreground)" }}>
-            <span>
-              <Clock size={12} style={{ display: "inline", marginRight: 4 }} />
-              {visibleDayShifts.length} {locale === "zh" ? "个班次" : "shifts"}
-            </span>
-            <span>
-              {selectedStoreId === "all"
-                ? locale === "zh"
-                  ? `${storeCount} 个门店`
-                  : `${storeCount} stores`
-                : storeNameMap[selectedStoreId] || selectedStoreId}
-            </span>
-            <div
-              className="rounded-full px-3 py-1 text-xs font-semibold"
-              style={{
-                background: "var(--secondary)",
-                color: "var(--primary)",
-              }}
-            >
-              {publishedCount} {locale === "zh" ? "已发布" : "published"}
-            </div>
-            {visibleDayShifts.length > 0 && (
-              <Button
-                size="small"
-                danger
-                icon={<CalendarX size={14} />}
-                onClick={handleDeleteSelectedDay}
-              >
-                {locale === "zh" ? "删除当日班次" : "Delete Day"}
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {visibleDayShifts.length === 0 ? (
-          <div
-            className="mt-5 flex min-h-[260px] flex-col items-center justify-center rounded-3xl border border-dashed"
-            style={{ borderColor: "var(--border)", background: "rgba(148, 163, 184, 0.04)" }}
-          >
-            <CalendarX size={34} style={{ color: "var(--muted-foreground)", opacity: 0.45 }} />
-            <div className="mt-4 text-base font-semibold" style={{ color: "var(--foreground)" }}>
-              {locale === "zh" ? "这一天还没有班次" : "No shifts for this day"}
-            </div>
-            <div className="mt-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
-              {locale === "zh" ? "点击右上角“添加班次”开始创建卡片" : "Use Add Shift to create the first card"}
-            </div>
-            <Button
-              type="primary"
-              icon={<Plus size={16} />}
-              className="mt-5"
-              onClick={() => handleAddShift()}
-            >
-              {t.schedule.addShift}
-            </Button>
-          </div>
-        ) : (
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {visibleDayShifts.map((shift) => (
-              <ShiftCard
-                key={shift.id}
-                shift={shift}
-                locale={locale}
-                colorMap={colorMap}
-                storeName={selectedStoreId === "all" ? storeNameMap[shift.storeId] || shift.storeId : ""}
-                calcHours={calcHours}
-                onEdit={() => handleEditShift(shift)}
-                onDelete={() => handleDeleteShift(shift)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {modalOpen && (
-        <AddShiftModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onSave={handleSaveShift}
-          isEdit={!!editingShift}
-          shiftName={shiftName}
-          onShiftNameChange={setShiftName}
-          startTime={shiftStartTime}
-          onStartTimeChange={setShiftStartTime}
-          endTime={shiftEndTime}
-          onEndTimeChange={setShiftEndTime}
-          selectedType={shiftType}
-          onTypeChange={setShiftType}
-          selectedColor={shiftColor}
-          onColorChange={setShiftColor}
-          colorMap={colorMap}
-          calcHours={calcHours}
-          locale={locale}
-        />
-      )}
-
-      <Modal
-        title={t.schedule.applyTemplate}
-        open={templateModalOpen}
-        onCancel={() => setTemplateModalOpen(false)}
-        onOk={handleApplyTemplate}
-        okText={locale === "zh" ? "覆盖应用" : "Overwrite & Apply"}
-        cancelText={t.cancel}
-        width={520}
-        destroyOnClose
-      >
-        <div className="mt-4 flex flex-col gap-3">
-          <div
-            className="rounded-2xl px-4 py-3"
-            style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
-          >
-            <div className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
-              {locale === "zh" ? "覆盖范围" : "Overwrite scope"}
-            </div>
-            <div className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-              {locale === "zh"
-                ? `将覆盖所选日期所在周 (${selectedWeekStart.format("MM/DD")} – ${selectedWeekStart.add(6, "day").format("MM/DD")}) 的现有班次`
-                : `Will overwrite shifts in the selected week (${selectedWeekStart.format("MM/DD")} – ${selectedWeekStart.add(6, "day").format("MM/DD")})`}
-            </div>
-          </div>
-
-          <Select
-            value={selectedTemplateValue || undefined}
-            onChange={setSelectedTemplate}
-            placeholder={t.schedule.selectTemplate}
-            style={{ width: "100%" }}
-          >
-            {enabledTemplates.map((template) => {
-              const templateShifts = getTemplateShiftSummaries(template);
-              return (
-                <Option key={template.id} value={template.id}>
-                  {template.name} ({templateShifts.length} {locale === "zh" ? "班次" : "shifts"})
-                </Option>
-              );
-            })}
-          </Select>
-
-          {selectedTemplateData && (
-            <div
-              className="rounded-2xl p-4"
-              style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
-            >
-              <div className="mb-3 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                {selectedTemplateData.name}
+      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div
+          className="overflow-hidden rounded-2xl"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow)",
+            minHeight: 560,
+          }}
+        >
+          {filteredShifts.length === 0 ? (
+            <div className="flex h-[560px] flex-col items-center justify-center gap-2 px-6 text-center">
+              <Clock size={28} style={{ color: "var(--muted-foreground)", opacity: 0.45 }} />
+              <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                {copy.noData}
               </div>
-              <div className="flex flex-col gap-2">
-                {selectedTemplateShifts.map((shift) => (
-                  <div
-                    key={shift.key}
-                    className="flex items-center justify-between gap-3 rounded-xl px-3 py-2"
-                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="rounded-full"
-                        style={{
-                          width: 10,
-                          height: 10,
-                          background: resolveShiftColor(shift.color, colorMap),
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                        {shift.name}
-                      </span>
-                    </div>
-                    <div className="text-right text-xs" style={{ color: "var(--muted-foreground)" }}>
-                      <div>{shift.startTime} – {shift.endTime}</div>
-                      <div>
-                        {shift.days.map((day) => (locale === "zh" ? WEEKDAY_LABELS_ZH[day] : WEEKDAY_LABELS_EN[day])).join(" / ")}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {copy.noDataHint}
               </div>
             </div>
-          )}
-        </div>
-      </Modal>
-    </div>
-  );
-}
+          ) : (
+            <div className="max-h-[620px] overflow-auto">
+              {filteredShifts.map((shift) => {
+                const active = shift.id === selectedShift?.id;
+                const colorMeta = getShiftColorMeta(shift.color);
 
-interface ShiftCardProps {
-  shift: ScheduleShift;
-  colorMap: Record<string, string>;
-  calcHours: (start: string, end: string, breakMinutes: number) => string;
-  locale: string;
-  storeName?: string;
-  onEdit: () => void;
-  onDelete: () => void;
-}
-
-function ShiftCard({
-  shift,
-  colorMap,
-  calcHours,
-  locale,
-  storeName = "",
-  onEdit,
-  onDelete,
-}: ShiftCardProps) {
-  const color = resolveShiftColor(shift.color, colorMap);
-  const hours = calcHours(shift.startTime, shift.endTime, shift.breakMinutes);
-  const isOvernight = shift.endTime <= shift.startTime;
-  const shiftTypeLabel = shift.shiftType === "general"
-    ? (locale === "zh" ? "通用" : "General")
-    : (locale === "zh" ? "门店专属" : "Store");
-  const statusLabel = shift.status === "published"
-    ? (locale === "zh" ? "已发布" : "Published")
-    : (locale === "zh" ? "草稿" : "Draft");
-
-  return (
-    <div
-      className="group relative overflow-hidden rounded-[24px] p-4"
-      style={{
-        background: "var(--card)",
-        border: `1.5px solid color-mix(in srgb, ${color} 68%, white)`,
-        boxShadow: `
-          0 16px 36px color-mix(in srgb, ${color} 14%, transparent),
-          0 8px 18px rgba(15, 23, 42, 0.06)
-        `,
-      }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div
-              className="rounded-full"
-              style={{ width: 12, height: 12, background: color, flexShrink: 0 }}
-            />
-            <span
-              className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-              style={{
-                background: shift.shiftType === "general" ? "rgba(59, 130, 246, 0.14)" : "rgba(100, 116, 139, 0.14)",
-                color: shift.shiftType === "general" ? "rgb(29, 78, 216)" : "rgb(71, 85, 105)",
-              }}
-            >
-              {shiftTypeLabel}
-            </span>
-            <span
-              className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-              style={{
-                background: shift.status === "published" ? "rgba(34, 197, 94, 0.14)" : "rgba(245, 158, 11, 0.16)",
-                color: shift.status === "published" ? "rgb(21, 128, 61)" : "rgb(180, 83, 9)",
-              }}
-            >
-              {statusLabel}
-            </span>
-          </div>
-
-          <div className="mt-3 text-lg font-bold" style={{ color: "var(--foreground)" }}>
-            {shift.shiftName || (locale === "zh" ? "未命名班次" : "Untitled Shift")}
-          </div>
-
-          <div className="mt-1.5 flex items-center gap-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
-            <Clock size={13} />
-            <span>{shift.startTime} – {shift.endTime}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-          <button
-            type="button"
-            className="flex items-center justify-center rounded-full"
-            style={{
-              width: 30,
-              height: 30,
-              border: "1px solid var(--border)",
-              background: "var(--card)",
-              cursor: "pointer",
-              color: "var(--muted-foreground)",
-            }}
-            onClick={onEdit}
-          >
-            <Edit2 size={14} />
-          </button>
-
-          <Popconfirm
-            title={locale === "zh" ? "删除此班次？" : "Delete this shift?"}
-            onConfirm={onDelete}
-            okText={locale === "zh" ? "删除" : "Delete"}
-            cancelText={locale === "zh" ? "取消" : "Cancel"}
-            placement="topRight"
-          >
-            <button
-              type="button"
-              className="flex items-center justify-center rounded-full"
-              style={{
-                width: 30,
-                height: 30,
-                border: "1px solid var(--border)",
-                background: "var(--card)",
-                cursor: "pointer",
-                color: "var(--destructive)",
-              }}
-            >
-              <Trash2 size={14} />
-            </button>
-          </Popconfirm>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2.5">
-        <div
-          className="rounded-2xl px-3 py-2.5"
-          style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
-        >
-          <div className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-            {locale === "zh" ? "时长" : "Duration"}
-          </div>
-          <div className="mt-1.5 text-base font-bold" style={{ color }}>
-            {hours}h
-          </div>
-        </div>
-
-        <div
-          className="rounded-2xl px-3 py-2.5"
-          style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
-        >
-          <div className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-            {locale === "zh" ? "类型" : "Type"}
-          </div>
-          <div className="mt-1.5 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-            {isOvernight ? (locale === "zh" ? "跨天班次" : "Overnight") : (locale === "zh" ? "当日班次" : "Same day")}
-          </div>
-        </div>
-      </div>
-
-      {(storeName || shift.note) && (
-        <div className="mt-3 flex flex-col gap-1.5">
-          {storeName && (
-            <div
-              className="rounded-2xl px-3 py-1.5 text-xs"
-              style={{ background: "var(--secondary)", color: "var(--foreground)" }}
-            >
-              {locale === "zh" ? "门店" : "Store"}: {storeName}
-            </div>
-          )}
-          {shift.note && (
-            <div
-              className="rounded-2xl px-3 py-1.5 text-xs"
-              style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-            >
-              {shift.note}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface AddShiftModalProps {
-  open?: boolean;
-  onClose?: () => void;
-  onSave?: () => void;
-  isEdit?: boolean;
-  shiftName?: string;
-  onShiftNameChange?: (value: string) => void;
-  startTime?: string;
-  onStartTimeChange?: (value: string) => void;
-  endTime?: string;
-  onEndTimeChange?: (value: string) => void;
-  selectedType?: "store" | "general";
-  onTypeChange?: (value: "store" | "general") => void;
-  selectedColor?: string;
-  onColorChange?: (value: string) => void;
-  colorMap?: Record<string, string>;
-  calcHours?: (start: string, end: string, breakMinutes: number) => string;
-  locale?: string;
-}
-
-function ModalTimeInput({
-  value = "09:00",
-  onChange = () => {},
-  label = "",
-}: {
-  value?: string;
-  onChange?: (value: string) => void;
-  label?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5" style={{ flex: 1 }}>
-      <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-        {label}
-      </label>
-      <div
-        className="flex items-center justify-between rounded-xl px-3"
-        style={{
-          height: 46,
-          border: "1px solid var(--border)",
-          background: "var(--card)",
-        }}
-      >
-        <input
-          type="time"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="flex-1 bg-transparent text-sm font-medium outline-none"
-          style={{ color: "var(--foreground)", border: "none" }}
-        />
-        <Clock size={16} style={{ color: "var(--muted-foreground)", flexShrink: 0 }} />
-      </div>
-    </div>
-  );
-}
-
-function AddShiftModal({
-  open = false,
-  onClose = () => {},
-  onSave = () => {},
-  isEdit = false,
-  shiftName = "",
-  onShiftNameChange = () => {},
-  startTime = "09:00",
-  onStartTimeChange = () => {},
-  endTime = "17:00",
-  onEndTimeChange = () => {},
-  selectedType = "store",
-  onTypeChange = () => {},
-  selectedColor = "blue",
-  onColorChange = () => {},
-  colorMap = DEFAULT_SHIFT_COLOR_MAP,
-  calcHours = (start: string, end: string, breakMinutes: number) => calcShiftHours(start, end, breakMinutes),
-  locale = "zh",
-}: AddShiftModalProps) {
-  const colorInputRef = useRef<HTMLInputElement>(null);
-  const durationHours = calcHours(startTime, endTime, 0);
-  const mergedColorMap = { ...DEFAULT_SHIFT_COLOR_MAP, ...colorMap };
-  const isCustomColorSelected = isHexColor(selectedColor);
-  const customColorValue = isCustomColorSelected ? selectedColor : "#ffffff";
-
-  if (!open) return null;
-
-  return (
-    <div
-      data-cmp="AddShiftModal"
-      className="fixed inset-0 flex items-center justify-center"
-      style={{ zIndex: 1050, background: "rgba(15, 23, 42, 0.45)" }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="flex max-h-[90vh] flex-col overflow-y-auto rounded-[28px]"
-        style={{
-          width: 520,
-          maxWidth: "95vw",
-          background: "var(--card)",
-        }}
-      >
-        <div
-          className="flex items-center justify-between px-6 pt-6 pb-4"
-          style={{ borderBottom: "1px solid var(--border)" }}
-        >
-          <span className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-            {isEdit
-              ? locale === "zh" ? "编辑班次" : "Edit Shift"
-              : locale === "zh" ? "添加班次" : "Add Shift"}
-          </span>
-          <button
-            type="button"
-            className="flex items-center justify-center rounded-full transition-opacity hover:opacity-70"
-            style={{
-              width: 32,
-              height: 32,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--muted-foreground)",
-              padding: 0,
-            }}
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-5 px-6 py-5">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-              {locale === "zh" ? "班次名称" : "Shift Name"}
-            </label>
-            <input
-              type="text"
-              value={shiftName}
-              onChange={(event) => onShiftNameChange(event.target.value)}
-              placeholder={locale === "zh" ? "例：早班、晚班..." : "e.g. Morning, Evening..."}
-              className="rounded-xl px-4 text-sm outline-none"
-              style={{
-                height: 46,
-                border: "1px solid var(--border)",
-                background: "var(--card)",
-                color: "var(--foreground)",
-                width: "100%",
-              }}
-            />
-          </div>
-
-          <div className="flex gap-4">
-            <ModalTimeInput
-              label={locale === "zh" ? "开始时间" : "Start Time"}
-              value={startTime}
-              onChange={onStartTimeChange}
-            />
-            <ModalTimeInput
-              label={locale === "zh" ? "结束时间" : "End Time"}
-              value={endTime}
-              onChange={onEndTimeChange}
-            />
-          </div>
-
-          <div
-            className="flex items-center gap-2 rounded-2xl px-4"
-            style={{
-              height: 52,
-              background: "var(--secondary)",
-              border: "1px solid var(--ring)",
-            }}
-          >
-            <Clock size={16} style={{ color: "var(--primary)", flexShrink: 0 }} />
-            <span className="text-sm font-semibold" style={{ color: "var(--primary)" }}>
-              {durationHours} {locale === "zh" ? "小时" : "hours"}
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-              {locale === "zh" ? "班次类型" : "Shift Type"}
-            </label>
-            <div
-              className="grid grid-cols-2 gap-2 rounded-2xl p-2"
-              style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
-            >
-              {[
-                {
-                  key: "store" as const,
-                  label: locale === "zh" ? "门店专属" : "Store Only",
-                  desc: locale === "zh" ? "仅用于当前门店" : "Only for this store",
-                },
-                {
-                  key: "general" as const,
-                  label: locale === "zh" ? "通用" : "General",
-                  desc: locale === "zh" ? "作为通用班次类型" : "Use as a general type",
-                },
-              ].map((option) => {
-                const active = selectedType === option.key;
                 return (
                   <button
-                    key={option.key}
+                    key={shift.id}
                     type="button"
-                    className="rounded-2xl px-4 py-3 text-left transition-all"
+                    onClick={() => setSelectedShiftId(shift.id)}
+                    className="flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-all"
                     style={{
-                      border: active ? "1px solid var(--primary)" : "1px solid transparent",
-                      background: active ? "rgba(59, 130, 246, 0.10)" : "transparent",
-                      cursor: "pointer",
+                      borderColor: "var(--border)",
+                      background: active ? "rgba(59, 130, 246, 0.08)" : "transparent",
+                      boxShadow: active ? "inset 3px 0 0 var(--primary)" : "none",
                     }}
-                    onClick={() => onTypeChange(option.key)}
                   >
                     <div
-                      className="text-sm font-semibold"
-                      style={{ color: active ? "var(--primary)" : "var(--foreground)" }}
+                      className="flex h-9 w-9 items-center justify-center rounded-2xl flex-shrink-0"
+                      style={{ background: colorMeta.value, color: "white" }}
                     >
-                      {option.label}
+                      <Clock size={16} />
                     </div>
-                    <div className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                      {option.desc}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-base font-semibold" style={{ color: "var(--foreground)" }}>
+                        {shift.shiftName || (locale === "zh" ? "未命名班次" : "Untitled Shift")}
+                      </div>
+                      <div className="truncate text-sm" style={{ color: "var(--muted-foreground)" }}>
+                        {shift.startTime} – {shift.endTime}
+                      </div>
+                      <div className="truncate text-sm" style={{ color: "var(--muted-foreground)" }}>
+                        {getStoreLabel(shift)}
+                      </div>
                     </div>
+                    <ChevronRight size={16} style={{ color: "var(--muted-foreground)" }} />
                   </button>
                 );
               })}
             </div>
+          )}
+        </div>
+
+        <div
+          className="overflow-hidden rounded-2xl"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow)",
+            minHeight: 560,
+          }}
+        >
+          {selectedShift ? (
+            <>
+              <div className="flex items-start justify-between gap-4 border-b p-6" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-start gap-4 min-w-0">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl flex-shrink-0"
+                    style={{ background: getShiftColorMeta(selectedShift.color).value, color: "white" }}
+                  >
+                    <Clock size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                      {selectedShift.shiftName || (locale === "zh" ? "未命名班次" : "Untitled Shift")}
+                    </div>
+                    <div className="mt-1 text-base" style={{ color: "var(--muted-foreground)" }}>
+                      {selectedShift.startTime} – {selectedShift.endTime}
+                    </div>
+                    <div className="mt-3">
+                      <Tag style={{ margin: 0, border: "none", background: "rgba(59, 130, 246, 0.12)", color: "var(--primary)" }}>
+                        {getColorLabel(selectedShift.color, locale)}
+                      </Tag>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button icon={<Pencil size={14} />} onClick={() => openEditModal(selectedShift)}>
+                    {copy.editShift}
+                  </Button>
+                  <Button danger icon={<Trash2 size={14} />} onClick={() => handleDeleteShift(selectedShift)}>
+                    {copy.delete}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="p-2">
+                {[
+                  { label: copy.store, value: getStoreLabel(selectedShift) },
+                  { label: copy.startTime, value: selectedShift.startTime },
+                  { label: copy.endTime, value: selectedShift.endTime },
+                  { label: copy.breakMinutes, value: `${selectedShift.breakMinutes || 0} min` },
+                  { label: copy.duration, value: formatShiftDurationText(selectedShift.startTime, selectedShift.endTime, selectedShift.breakMinutes || 0) },
+                  {
+                    label: copy.color,
+                    value: (
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-3 w-3 rounded-full" style={{ background: getShiftColorMeta(selectedShift.color).value }} />
+                        <span>{getColorLabel(selectedShift.color, locale)}</span>
+                      </div>
+                    ),
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="grid items-center gap-4 px-4 py-4 md:grid-cols-[120px_minmax(0,1fr)]"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+                      {item.label}
+                    </div>
+                    <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                      {item.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex h-[560px] flex-col items-center justify-center gap-2 px-6 text-center">
+              <Clock size={30} style={{ color: "var(--muted-foreground)", opacity: 0.45 }} />
+              <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                {copy.detailEmpty}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ShiftModal
+        open={modalOpen}
+        isEdit={!!editingShift}
+        form={form}
+        setForm={setForm}
+        stores={enabledStores.map((store) => ({ id: store.id, name: store.name }))}
+        currentStoreId={selectedStoreId}
+        onClose={closeModal}
+        onSave={handleSaveShift}
+        locale={locale}
+        copy={copy}
+      />
+    </div>
+  );
+}
+
+interface ShiftModalProps {
+  open: boolean;
+  isEdit: boolean;
+  form: ScheduleFormState;
+  setForm: React.Dispatch<React.SetStateAction<ScheduleFormState>>;
+  stores: Array<{ id: string; name: string }>;
+  currentStoreId: string;
+  onClose: () => void;
+  onSave: () => void;
+  locale: string;
+  copy: {
+    addShiftDialog: string;
+    editShiftDialog: string;
+    shiftName: string;
+    startTime: string;
+    endTime: string;
+    breakMinutes: string;
+    store: string;
+    shiftType: string;
+    colorTag: string;
+    duration: string;
+    save: string;
+    cancel: string;
+    currentStore: string;
+    general: string;
+    storeOnly: string;
+    generalDesc: string;
+    storeOnlyDesc: string;
+  };
+}
+
+function ShiftModal({
+  open,
+  isEdit,
+  form,
+  setForm,
+  stores,
+  currentStoreId,
+  onClose,
+  onSave,
+  locale,
+  copy,
+}: ShiftModalProps) {
+  const durationText = formatShiftDurationText(form.startTime, form.endTime, Number(form.breakMinutes) || 0);
+
+  return (
+    <Modal
+      title={isEdit ? copy.editShiftDialog : copy.addShiftDialog}
+      open={open}
+      onCancel={onClose}
+      onOk={onSave}
+      okText={copy.save}
+      cancelText={copy.cancel}
+      destroyOnHidden
+      width={560}
+    >
+      <div className="flex flex-col gap-5 pt-4">
+        <div>
+          <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
+            {copy.shiftName}
           </div>
+          <input
+            type="text"
+            value={form.shiftName}
+            onChange={(event) => setForm((prev) => ({ ...prev, shiftName: event.target.value }))}
+            placeholder={locale === "zh" ? "例如：早班、晚班" : "e.g. Morning, Evening"}
+            className="rounded-xl px-4 text-sm outline-none"
+            style={{
+              height: 44,
+              border: "1px solid var(--border)",
+              background: "var(--card)",
+              color: "var(--foreground)",
+              width: "100%",
+            }}
+          />
+        </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-              {locale === "zh" ? "颜色标识" : "Color Label"}
-            </label>
-            <div className="flex items-center gap-3">
-              {SHIFT_COLORS.map((color) => (
+        <div>
+          <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
+            {copy.shiftType}
+          </div>
+          <div
+            className="grid grid-cols-2 gap-2 rounded-2xl p-2"
+            style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
+          >
+            {[
+              { key: "store" as const, label: copy.storeOnly, desc: copy.storeOnlyDesc },
+              { key: "general" as const, label: copy.general, desc: copy.generalDesc },
+            ].map((option) => {
+              const active = form.shiftType === option.key;
+              return (
                 <button
-                  key={color.key}
+                  key={option.key}
                   type="button"
-                  onClick={() => onColorChange(color.key)}
-                  title={color.label}
-                  className="flex items-center justify-center rounded-full transition-all"
+                  className="rounded-2xl px-4 py-3 text-left transition-all"
                   style={{
-                    width: 42,
-                    height: 42,
-                    background: mergedColorMap[color.key] || DEFAULT_SHIFT_COLOR_MAP[color.key],
-                    border: selectedColor === color.key ? "3px solid var(--foreground)" : "3px solid transparent",
-                    outline: selectedColor === color.key
-                      ? `2.5px solid ${mergedColorMap[color.key] || DEFAULT_SHIFT_COLOR_MAP[color.key]}`
-                      : "none",
-                    outlineOffset: 1,
-                    cursor: "pointer",
-                    padding: 0,
-                    flexShrink: 0,
+                    border: active ? "1px solid var(--primary)" : "1px solid transparent",
+                    background: active ? "rgba(59, 130, 246, 0.10)" : "transparent",
                   }}
-                />
-              ))}
+                  onClick={() => setForm((prev) => ({
+                    ...prev,
+                    shiftType: option.key,
+                    storeId: option.key === "general"
+                      ? ""
+                      : currentStoreId !== "all"
+                      ? currentStoreId
+                      : prev.storeId || stores[0]?.id || "",
+                  }))}
+                >
+                  <div className="text-sm font-semibold" style={{ color: active ? "var(--primary)" : "var(--foreground)" }}>
+                    {option.label}
+                  </div>
+                  <div className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    {option.desc}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-              <button
-                type="button"
-                title={locale === "zh" ? "自定义颜色" : "Custom color"}
-                className="flex items-center justify-center transition-all"
-                style={{
-                  width: 42,
-                  height: 42,
-                  background: isCustomColorSelected ? customColorValue : "var(--card)",
-                  border: "2px solid var(--border)",
-                  outline: isCustomColorSelected ? `2.5px solid ${customColorValue}` : "none",
-                  outlineOffset: 1,
-                  cursor: "pointer",
-                  padding: 0,
-                  flexShrink: 0,
-                }}
-                onClick={() => colorInputRef.current?.click()}
-              />
-              <input
-                ref={colorInputRef}
-                type="color"
-                value={customColorValue}
-                onChange={(event) => onColorChange(event.target.value)}
-                style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 0, height: 0 }}
-                tabIndex={-1}
-                aria-hidden="true"
-              />
+        {form.shiftType === "store" && (
+          <div>
+            <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
+              {copy.store}
+            </div>
+            {currentStoreId === "all" ? (
+              <Select
+                value={form.storeId || undefined}
+                onChange={(value) => setForm((prev) => ({ ...prev, storeId: value }))}
+                style={{ width: "100%" }}
+                placeholder={copy.store}
+              >
+                {stores.map((store) => (
+                  <Option key={store.id} value={store.id}>{store.name}</Option>
+                ))}
+              </Select>
+            ) : (
+              <div
+                className="rounded-xl px-3 py-2.5 text-sm"
+                style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+              >
+                <div className="mb-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  {copy.currentStore}
+                </div>
+                <div>{stores.find((store) => store.id === currentStoreId)?.name || currentStoreId}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
+              {copy.startTime}
+            </div>
+            <input
+              type="time"
+              value={form.startTime}
+              onChange={(event) => setForm((prev) => ({ ...prev, startTime: event.target.value }))}
+              className="w-full rounded-xl px-4 text-sm outline-none"
+              style={{
+                height: 44,
+                border: "1px solid var(--border)",
+                background: "var(--card)",
+                color: "var(--foreground)",
+              }}
+            />
+          </div>
+          <div>
+            <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
+              {copy.endTime}
+            </div>
+            <input
+              type="time"
+              value={form.endTime}
+              onChange={(event) => setForm((prev) => ({ ...prev, endTime: event.target.value }))}
+              className="w-full rounded-xl px-4 text-sm outline-none"
+              style={{
+                height: 44,
+                border: "1px solid var(--border)",
+                background: "var(--card)",
+                color: "var(--foreground)",
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
+          <div>
+            <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
+              {copy.breakMinutes}
+            </div>
+            <InputNumber
+              min={0}
+              step={5}
+              value={form.breakMinutes}
+              onChange={(value) => setForm((prev) => ({ ...prev, breakMinutes: Number(value) || 0 }))}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <div>
+            <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
+              {copy.duration}
+            </div>
+            <div
+              className="flex h-[44px] items-center rounded-xl px-4 text-sm font-semibold"
+              style={{ background: "var(--secondary)", border: "1px solid var(--border)", color: "var(--primary)" }}
+            >
+              {durationText}
             </div>
           </div>
         </div>
 
-        <div
-          className="flex items-center justify-end gap-3 px-6 py-4"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
-          <button
-            type="button"
-            className="rounded-xl px-6 text-sm font-medium transition-opacity hover:opacity-80"
-            style={{
-              height: 44,
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              color: "var(--foreground)",
-              cursor: "pointer",
-            }}
-            onClick={onClose}
-          >
-            {locale === "zh" ? "取消" : "Cancel"}
-          </button>
-          <button
-            type="button"
-            className="rounded-xl px-6 text-sm font-semibold transition-opacity hover:opacity-90"
-            style={{
-              height: 44,
-              background: "var(--primary)",
-              border: "1px solid var(--primary)",
-              color: "var(--primary-foreground)",
-              cursor: "pointer",
-            }}
-            onClick={onSave}
-          >
-            {locale === "zh" ? "保存" : "Save"}
-          </button>
+        <div>
+          <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
+            {copy.colorTag}
+          </div>
+          <ColorSwatchPicker value={form.color} onChange={(color) => setForm((prev) => ({ ...prev, color }))} locale={locale} size={28} />
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

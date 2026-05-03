@@ -29,6 +29,7 @@ import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { EmployeeModal } from "./Employees";
 import { calcShiftHours, indexedShiftsOverlap } from "../lib/shift";
+import { ColorSwatchPicker, DEFAULT_COLOR_KEY, getSoftColorStyle } from "../components/ColorSwatchPicker";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 
@@ -71,15 +72,7 @@ const formatDurationLabel = (days: number, locale: "zh" | "en") => {
   return locale === "zh" ? `${days}天` : `${days} days`;
 };
 
-const SHIFT_COLORS = [
-  { key: "blue", bg: "var(--secondary)", border: "var(--primary)", text: "var(--primary)" },
-  { key: "green", bg: "var(--accent)", border: "var(--chart-2)", text: "var(--chart-2)" },
-  { key: "purple", bg: "var(--accent)", border: "var(--chart-5)", text: "var(--chart-5)" },
-  { key: "orange", bg: "var(--accent)", border: "var(--chart-3)", text: "var(--chart-3)" },
-  { key: "red", bg: "var(--accent)", border: "var(--destructive)", text: "var(--destructive)" },
-];
-
-const getShiftColor = (key: string) => SHIFT_COLORS.find((c) => c.key === key) || SHIFT_COLORS[0];
+const getShiftColor = (key: string) => getSoftColorStyle(key);
 
 const makeShiftPresetKey = ({
   shiftType = "store",
@@ -315,10 +308,11 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
   const [editingDayIndex, setEditingDayIndex] = useState<number>(0);
   const [cellForm, setCellForm] = useState({
     presetKey: "",
+    shiftId: "",
     startTime: "09:00",
     endTime: "17:00",
     label: "",
-    color: "blue",
+    color: DEFAULT_COLOR_KEY,
     employeeIds: [] as string[],
   });
 
@@ -363,6 +357,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   const shiftPresetMap: Record<string, {
     key: string;
+    shiftId?: string;
     shiftName: string;
     startTime: string;
     endTime: string;
@@ -390,6 +385,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     if (!shiftPresetMap[key]) {
       shiftPresetMap[key] = {
         key,
+        shiftId: shift.shiftId,
         shiftName,
         startTime: shift.startTime,
         endTime: shift.endTime,
@@ -423,6 +419,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     if (!modalShiftPresetOptions.some((option) => option.key === currentKey)) {
       modalShiftPresetOptions.unshift({
         key: currentKey,
+        shiftId: cellForm.shiftId,
         shiftName: currentShiftName,
         startTime: cellForm.startTime,
         endTime: cellForm.endTime,
@@ -579,7 +576,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     setEditingCell(null);
     setEditingAreaId(areaId);
     setEditingDayIndex(dayIndex);
-    setCellForm({ presetKey: "", startTime: "09:00", endTime: "17:00", label: "", color: "blue", employeeIds: [] });
+    setCellForm({ presetKey: "", shiftId: "", startTime: "09:00", endTime: "17:00", label: "", color: DEFAULT_COLOR_KEY, employeeIds: [] });
     setCellModalOpen(true);
   };
 
@@ -598,6 +595,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     setEditingDayIndex(cell.dayIndex);
     setCellForm({
       presetKey,
+      shiftId: cell.shiftId || "",
       startTime: cell.startTime,
       endTime: cell.endTime,
       label: cell.label,
@@ -640,6 +638,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
           c.id === editingCell.id
             ? {
                 ...c,
+                shiftId: cellForm.shiftId || undefined,
                 startTime: cellForm.startTime,
                 endTime: cellForm.endTime,
                 label: cellForm.label,
@@ -653,6 +652,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
       nextCreatedCellIdRef.current += 1;
       const newCell: RosterShiftCell = {
         id: `cell-new-${nextCreatedCellIdRef.current}`,
+        shiftId: cellForm.shiftId || undefined,
         areaId: editingAreaId,
         dayIndex: editingDayIndex,
         startTime: cellForm.startTime,
@@ -1249,6 +1249,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                 setCellForm((form) => ({
                   ...form,
                   presetKey: preset.key,
+                  shiftId: preset.shiftId || "",
                   label: preset.shiftName,
                   startTime: preset.startTime,
                   endTime: preset.endTime,
@@ -1314,22 +1315,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
             <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
               {locale === "zh" ? "颜色标识" : "Color"}
             </div>
-            <div className="flex items-center gap-2">
-              {SHIFT_COLORS.map((sc) => (
-                <button
-                  key={sc.key}
-                  onClick={() => setCellForm((f) => ({ ...f, color: sc.key }))}
-                  className="rounded-full transition-all"
-                  style={{
-                    width: 26,
-                    height: 26,
-                    background: sc.border,
-                    border: cellForm.color === sc.key ? `3px solid var(--foreground)` : `3px solid transparent`,
-                    outline: cellForm.color === sc.key ? `2px solid ${sc.border}` : "none",
-                  }}
-                />
-              ))}
-            </div>
+            <ColorSwatchPicker value={cellForm.color} onChange={(color) => setCellForm((f) => ({ ...f, color }))} locale={locale} />
           </div>
 
           {/* Multi-employee assignment */}
