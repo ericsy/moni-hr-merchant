@@ -6,9 +6,10 @@ import fs from "fs";
 import AutoImport from "unplugin-auto-import/vite";
 import checker from "vite-plugin-checker";
 import * as lucideIcons from "lucide-react";
+import { APP_BASE_PATH } from "./src/config/appBase";
 
 // 避免 lucide 图标名覆盖 JavaScript 原生全局对象。
-const lucideAutoImportDenyList = new Set(["Map"]);
+const lucideAutoImportDenyList = new Set(["Map", "Link"]);
 
 // 获取所有 lucide-react 导出的符号名
 const allLucideExports = Object.keys(lucideIcons).filter(
@@ -61,6 +62,7 @@ export default defineConfig(({ mode }) => {
   const proxyTarget = env.VITE_API_PROXY_TARGET?.trim();
 
   return {
+    base: `${APP_BASE_PATH}/`,
     plugins: [
       react(),
       tailwindcss(),

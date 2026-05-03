@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PermissionsProvider, usePermissions } from "./context/PermissionsContext";
 import { useDynamicRoutes } from "./components/DynamicRoutes";
 import AppLayout from "./components/Layout";
+import { APP_BASE_PATH } from "./config/appBase";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Activate from "./pages/Activate";
@@ -94,7 +95,7 @@ const App = () => (
       <PermissionsProvider>
         <DataProvider>
           <StoreProvider>
-            <BrowserRouter>
+            <BrowserRouter basename={APP_BASE_PATH}>
               <ErrorBoundary>
                 <AuthGate />
               </ErrorBoundary>
