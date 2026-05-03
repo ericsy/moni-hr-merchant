@@ -66,6 +66,30 @@ const getDetailedDayLabel = (dayIndex: number, locale: "zh" | "en") => {
 
 const getCycleWeek = (dayIndex: number) => Math.floor(dayIndex / 7) + 1;
 
+const getTemplateWeekdayIndex = (dayIndex: number) => ((dayIndex % 7) + 7) % 7;
+
+const getEmployeeAvailabilityWarning = (
+  employee: Pick<Employee, "firstName" | "lastName" | "workDayPattern">,
+  dayIndex: number,
+  locale: "zh" | "en"
+) => {
+  const weekdayIndex = getTemplateWeekdayIndex(dayIndex);
+  const workDay = employee.workDayPattern?.find((item) => item.dayIndex === weekdayIndex);
+  if (!workDay || (workDay.state === "on" && workDay.hours > 0)) return null;
+
+  const employeeName = `${employee.firstName} ${employee.lastName}`.trim();
+  const dayLabel = getDetailedDayLabel(dayIndex, locale);
+  const stateLabel = workDay.state === "off"
+    ? (locale === "zh" ? "休息" : "off")
+    : workDay.state === "none"
+    ? (locale === "zh" ? "未设置" : "not set")
+    : (locale === "zh" ? `${workDay.hours} 小时` : `${workDay.hours} hours`);
+
+  return locale === "zh"
+    ? `${employeeName} 在 ${dayLabel} 的工作日配置为${stateLabel}，请确认是否需要排班。`
+    : `${employeeName} is marked as ${stateLabel} on ${dayLabel}. Confirm this assignment.`;
+};
+
 const formatDurationLabel = (days: number, locale: "zh" | "en") => {
   if (days % 7 === 0) {
     const weeks = days / 7;
@@ -142,7 +166,7 @@ function EmployeeCard({
 
 interface ShiftCellProps {
   cell?: RosterShiftCell;
-  employees?: { id: string; name: string; color: string }[];
+  employees?: { id: string; name: string; color: string; availabilityWarning?: string | null }[];
   onEdit?: () => void;
   onDelete?: () => void;
   onDrop?: (empId: string) => void;
@@ -189,25 +213,40 @@ function ShiftCell({
           {employees.length > 0 ? (
             <div className="flex items-center gap-0.5 flex-wrap min-w-0">
               {employees.map((emp) => (
-                <div
-                  key={emp.id}
-                  className="flex items-center gap-0.5 rounded-md px-1 py-0.5"
-                  style={{ background: "var(--card)" }}
-                >
-                  <Avatar size={13} style={{ background: emp.color, flexShrink: 0, fontSize: 7 }}>
-                    {emp.name.charAt(0)}
-                  </Avatar>
-                  <span className="text-xs truncate" style={{ color: "var(--foreground)", maxWidth: 80, fontSize: 10 }}>
-                    {emp.name}
-                  </span>
-                  <button
-                    onClick={() => onRemoveEmployee(emp.id)}
-                    className="rounded-full hover:opacity-70"
-                    style={{ color: "var(--muted-foreground)", flexShrink: 0 }}
+                <Tooltip key={emp.id} title={emp.availabilityWarning || undefined}>
+                  <div
+                    className="flex items-center gap-0.5 rounded-md px-1 py-0.5"
+                    style={{
+                      background: "var(--card)",
+                      border: emp.availabilityWarning ? "1px solid var(--destructive)" : "1px solid transparent",
+                    }}
                   >
-                    <X size={9} />
-                  </button>
-                </div>
+                    <Avatar size={13} style={{ background: emp.color, flexShrink: 0, fontSize: 7 }}>
+                      {emp.name.charAt(0)}
+                    </Avatar>
+                    <span
+                      className="text-xs truncate"
+                      style={{
+                        color: emp.availabilityWarning ? "var(--destructive)" : "var(--foreground)",
+                        maxWidth: 80,
+                        fontSize: 10,
+                        fontWeight: emp.availabilityWarning ? 700 : 400,
+                      }}
+                    >
+                      {emp.name}
+                    </span>
+                    {emp.availabilityWarning && (
+                      <AlertTriangle size={9} style={{ color: "var(--destructive)", flexShrink: 0 }} />
+                    )}
+                    <button
+                      onClick={() => onRemoveEmployee(emp.id)}
+                      className="rounded-full hover:opacity-70"
+                      style={{ color: "var(--muted-foreground)", flexShrink: 0 }}
+                    >
+                      <X size={9} />
+                    </button>
+                  </div>
+                </Tooltip>
               ))}
             </div>
           ) : (
@@ -1155,12 +1194,17 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                     >
                       {cellsInSlot.map((cell) => {
                         const cellEmployees = cell.employeeIds
-                          .filter((eid) => empNameMap[eid])
-                          .map((eid) => ({
-                            id: eid,
-                            name: empNameMap[eid],
-                            color: empColorMap[eid] || "var(--primary)",
-                          }));
+                          .map((eid) => {
+                            const emp = activeEmployees.find((employee) => employee.id === eid);
+                            if (!emp) return null;
+                            return {
+                              id: eid,
+                              name: empNameMap[eid],
+                              color: empColorMap[eid] || "var(--primary)",
+                              availabilityWarning: getEmployeeAvailabilityWarning(emp, cell.dayIndex, locale),
+                            };
+                          })
+                          .filter(Boolean) as { id: string; name: string; color: string; availabilityWarning: string | null }[];
                         return (
                           <ShiftCell
                             key={cell.id}
@@ -1388,19 +1432,54 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               placeholder={locale === "zh" ? "选择员工（可多选）..." : "Select employees..."}
               style={{ width: "100%" }}
               maxTagCount="responsive"
+              tagRender={(props) => {
+                const emp = activeEmployees.find((employee) => employee.id === props.value);
+                const warning = emp ? getEmployeeAvailabilityWarning(emp, editingDayIndex, locale) : null;
+                return (
+                  <Tooltip title={warning || undefined}>
+                    <Tag
+                      closable={props.closable}
+                      onClose={props.onClose}
+                      style={{
+                        marginInlineEnd: 4,
+                        color: warning ? "var(--destructive)" : undefined,
+                        borderColor: warning ? "var(--destructive)" : undefined,
+                        fontWeight: warning ? 700 : undefined,
+                      }}
+                    >
+                      {props.label}
+                      {warning && <AlertTriangle size={10} style={{ display: "inline", marginLeft: 4, verticalAlign: -1 }} />}
+                    </Tag>
+                  </Tooltip>
+                );
+              }}
               optionRender={(option) => {
                 const emp = activeEmployees.find((e) => e.id === option.value);
                 if (!emp) return <span>{option.label}</span>;
+                const warning = getEmployeeAvailabilityWarning(emp, editingDayIndex, locale);
                 return (
-                  <div className="flex items-center gap-2">
-                    <Avatar
-                      size={18}
-                      style={{ background: emp.employeeColor || "var(--primary)", fontSize: 9, flexShrink: 0 }}
-                    >
-                      {emp.firstName.charAt(0)}{emp.lastName.charAt(0)}
-                    </Avatar>
-                    <span>{emp.firstName} {emp.lastName}</span>
-                  </div>
+                  <Tooltip title={warning || undefined} placement="right">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Avatar
+                          size={18}
+                          style={{ background: emp.employeeColor || "var(--primary)", fontSize: 9, flexShrink: 0 }}
+                        >
+                          {emp.firstName.charAt(0)}{emp.lastName.charAt(0)}
+                        </Avatar>
+                        <span
+                          className="truncate"
+                          style={{
+                            color: warning ? "var(--destructive)" : "var(--foreground)",
+                            fontWeight: warning ? 700 : 400,
+                          }}
+                        >
+                          {emp.firstName} {emp.lastName}
+                        </span>
+                      </div>
+                      {warning && <AlertTriangle size={13} style={{ color: "var(--destructive)", flexShrink: 0 }} />}
+                    </div>
+                  </Tooltip>
                 );
               }}
             >

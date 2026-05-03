@@ -23,6 +23,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const setSelectedStoreId = (id: string) => {
     if (!id || id === "all") return;
+    previousStoreIdRef.current = selectedStoreId;
     setSelectedStoreIdState(id);
   };
 
@@ -47,6 +48,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!initializedRef.current || !storeIds.has(selectedStoreId)) {
       initializedRef.current = true;
       if (nextStoreId && selectedStoreId !== nextStoreId) {
+        previousStoreIdRef.current = nextStoreId;
         setSelectedStoreIdState(nextStoreId);
       }
     }

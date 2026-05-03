@@ -7,8 +7,6 @@ export type MerchantEndpointKey =
   | "globalShifts"
   | "scheduleTemplates"
   | "schedule"
-  | "positions"
-  | "workAreas"
   | "countries"
   | "billing";
 
@@ -19,8 +17,6 @@ export const DEFAULT_MERCHANT_ENDPOINTS: Record<MerchantEndpointKey, string> = {
   globalShifts: "/api/v1/merchant/global-shifts",
   scheduleTemplates: "/api/v1/merchant/schedule-templates",
   schedule: "/api/v1/merchant/schedule",
-  positions: "/api/v1/merchant/positions",
-  workAreas: "/api/v1/merchant/work-areas",
   countries: "/api/v1/merchant/countries",
   billing: "/api/v1/merchant/billing",
 };
@@ -57,10 +53,6 @@ const endpointKeyAliases: Record<string, MerchantEndpointKey> = {
   rosters: "schedule",
   roster: "schedule",
   rostermanagement: "schedule",
-  positions: "positions",
-  position: "positions",
-  workareas: "workAreas",
-  workarea: "workAreas",
   countries: "countries",
   country: "countries",
   billing: "billing",

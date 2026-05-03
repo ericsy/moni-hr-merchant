@@ -352,9 +352,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [rosterTemplates, setRosterTemplates] = useState<RosterTemplate[]>(initialData.rosterTemplates);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [lastStoreId, setLastStoreId] = useState("");
+  const [lastStoreId, setLastStoreIdState] = useState("");
+  const lastStoreIdRef = useRef("");
   const currentStoreContextRef = useRef("");
   const loadSeqRef = useRef(0);
+  const inFlightLoadRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
+
+  const setLastStoreId = useCallback((nextLastStoreId: string) => {
+    if (lastStoreIdRef.current === nextLastStoreId) return;
+    lastStoreIdRef.current = nextLastStoreId;
+    setLastStoreIdState(nextLastStoreId);
+  }, []);
 
   const loadTemplatesForStore = useCallback(async (storeId: string) => {
     const list = await merchantApi.listScheduleTemplates(storeId);
@@ -370,8 +378,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  const loadData = useCallback(async (storeContext = currentStoreContextRef.current) => {
-    if (permissionsLoading) return;
+  const loadData = useCallback((storeContext = currentStoreContextRef.current) => {
+    if (permissionsLoading) return Promise.resolve();
 
     if (status !== "authenticated") {
       setEmployees([]);
@@ -384,7 +392,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setRosterTemplates([]);
       setLastStoreId("");
       currentStoreContextRef.current = "";
-      return;
+      inFlightLoadRef.current = null;
+      return Promise.resolve();
+    }
+
+    const requestedStoreContext = storeContext || "";
+    const inFlightLoad = inFlightLoadRef.current;
+    if (inFlightLoad?.key === requestedStoreContext) {
+      return inFlightLoad.promise;
     }
 
     const seq = loadSeqRef.current + 1;
@@ -392,24 +407,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError("");
 
+    const promise = (async () => {
     try {
       const [
         nextCountries,
-        nextPositions,
-        nextWorkAreas,
         nextStores,
       ] = await Promise.all([
         merchantApi.listCountries().catch((countryError) => {
           console.warn("[DataContext] failed to load country options:", countryError);
           return defaultCountries;
-        }),
-        merchantApi.listPositions().catch((positionsError) => {
-          console.warn("[DataContext] failed to load position dictionary:", positionsError);
-          return [] as EmployeeDictItem[];
-        }),
-        merchantApi.listWorkAreas().catch((workAreasError) => {
-          console.warn("[DataContext] failed to load work-area dictionary:", workAreasError);
-          return [] as EmployeeDictItem[];
         }),
         merchantApi.listStores(),
       ]);
@@ -425,7 +431,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (currentStoreContextRef.current !== resolvedStoreContext) {
         currentStoreContextRef.current = resolvedStoreContext;
       }
-      if (nextLastStoreId && nextLastStoreId !== lastStoreId) {
+      if (nextLastStoreId) {
         setLastStoreId(nextLastStoreId);
       }
 
@@ -449,8 +455,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       setStores(nextStores);
       setCountries(nextCountries.length > 0 ? nextCountries : defaultCountries);
-      setPositions(nextPositions);
-      setWorkAreas(nextWorkAreas);
       if (employeeResult.ok) setEmployees(dedupeById(employeeResult.value));
       if (areaResult.ok) setAreas(dedupeById(areaResult.value));
       if (templateResult.ok) {
@@ -469,8 +473,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (loadSeqRef.current === seq) setError(message);
     } finally {
       if (loadSeqRef.current === seq) setLoading(false);
+      if (inFlightLoadRef.current?.promise === promise) {
+        inFlightLoadRef.current = null;
+      }
     }
-  }, [lastStoreId, loadTemplatesForStore, permissionsLoading, status]);
+    })();
+
+    inFlightLoadRef.current = { key: requestedStoreContext, promise };
+    return promise;
+  }, [loadTemplatesForStore, permissionsLoading, setLastStoreId, status]);
 
   const refreshData = useCallback(() => loadData(currentStoreContextRef.current), [loadData]);
 

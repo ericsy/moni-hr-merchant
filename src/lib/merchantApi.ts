@@ -4,7 +4,6 @@ import type {
   Area,
   CountryOption,
   Employee,
-  EmployeeDictItem,
   RosterTemplate,
   RosterTemplateCell,
   ScheduleShift,
@@ -247,14 +246,6 @@ export function mapApiCountry(input: unknown): CountryOption {
     nameZh: asString(raw.nameZh),
     nameEn: asString(raw.nameEn),
     dialCode: asString(raw.dialCode),
-  };
-}
-
-export function mapApiDictItem(input: unknown): EmployeeDictItem {
-  const raw = asRecord(input);
-  return {
-    id: asString(raw.id),
-    name: asString(raw.name),
   };
 }
 
@@ -668,14 +659,6 @@ export const merchantApi = {
       method: "POST",
       storeId,
     }),
-  listPositions: async () => {
-    const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("positions"));
-    return ((data || EMPTY_PAGE).items || []).map(mapApiDictItem);
-  },
-  listWorkAreas: async () => {
-    const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("workAreas"));
-    return ((data || EMPTY_PAGE).items || []).map(mapApiDictItem);
-  },
   subscribeBilling: (planId: number, quantity: number) =>
     apiRequest<MerchantCheckoutSession>(appendEndpointPath(getMerchantEndpoint("billing"), "subscribe"), {
       method: "POST",

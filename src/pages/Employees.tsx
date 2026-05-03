@@ -63,6 +63,9 @@ const defaultWorkDayPattern: WorkDayPattern[] = [
   { dayIndex: 6, state: "off", hours: 0 },
 ];
 
+const cloneWorkDayPattern = (pattern: WorkDayPattern[] = defaultWorkDayPattern) =>
+  pattern.map((day) => ({ ...day }));
+
 function getInitials(firstName = "", lastName = "") {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
@@ -204,6 +207,30 @@ export function EmployeeModal({
   const [activeTabKey, setActiveTabKey] = useState("general");
   const [uploadingContract, setUploadingContract] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const formInitialValues = employee
+    ? {
+        ...employee,
+        startDate: employee.startDate ? dayjs(employee.startDate) : undefined,
+        dateOfBirth: employee.dateOfBirth ? dayjs(employee.dateOfBirth) : undefined,
+        endDate: employee.endDate ? dayjs(employee.endDate) : undefined,
+        workDayPattern: cloneWorkDayPattern(employee.workDayPattern ?? defaultWorkDayPattern),
+        avatar: employee.avatar ?? "",
+        contractDocumentKey: employee.contractDocumentKey || employee.contractDocumentUrl || "",
+      }
+    : {
+        status: "active",
+        role: "staff",
+        storeIds: [...defaultStoreIds],
+        avatar: "",
+        employeeColor: DEFAULT_COLOR_VALUE,
+        employeeContributionRate: "3%",
+        employerContributionRate: "3",
+        kiwiSaverStatus: "Enrolled",
+        contractType: "permanent",
+        workDayPattern: cloneWorkDayPattern(defaultWorkDayPattern),
+        paidHoursPerDay: 8,
+        contractDocumentKey: "",
+      };
   const buildContractFileList = (targetEmployee: Employee | null): UploadFile[] => {
     if (!targetEmployee?.contractDocumentKey && !targetEmployee?.contractDocumentUrl) return [];
     return [{
@@ -224,12 +251,14 @@ export function EmployeeModal({
   });
 
   useEffect(() => {
+    if (!open) return;
+    form.resetFields();
+    form.setFieldsValue(formInitialValues);
     setContractFileList(buildContractFileList(employee));
-  }, [employee]);
-
-  useEffect(() => {
-    if (open) setActiveTabKey("general");
-  }, [open, employee?.id]);
+    setUploadingContract(false);
+    setUploadingAvatar(false);
+    setActiveTabKey("general");
+  }, [open, employee?.id, defaultStoreIds.join("|")]);
 
   const buildAvatarFileList = (targetEmployee: Employee | null): UploadFile[] => {
     const avatarUrl = getEmployeeAvatarUrl(targetEmployee);
@@ -245,8 +274,9 @@ export function EmployeeModal({
   const [avatarFileList, setAvatarFileList] = useState<UploadFile[]>(() => buildAvatarFileList(employee));
 
   useEffect(() => {
+    if (!open) return;
     setAvatarFileList(buildAvatarFileList(employee));
-  }, [employee]);
+  }, [open, employee?.id]);
 
   const syncContractFormValue = (fileList: UploadFile[]) => {
     const uploaded = fileList[0];
@@ -327,31 +357,6 @@ export function EmployeeModal({
       }
     }
   };
-
-  const initialValues = employee
-    ? {
-        ...employee,
-        startDate: employee.startDate ? dayjs(employee.startDate) : undefined,
-        dateOfBirth: employee.dateOfBirth ? dayjs(employee.dateOfBirth) : undefined,
-        endDate: employee.endDate ? dayjs(employee.endDate) : undefined,
-        workDayPattern: employee.workDayPattern ?? defaultWorkDayPattern,
-        avatar: employee.avatar ?? "",
-        contractDocumentKey: employee.contractDocumentKey || employee.contractDocumentUrl || "",
-      }
-    : {
-        status: "active",
-        role: "staff",
-        storeIds: defaultStoreIds,
-        avatar: "",
-        employeeColor: DEFAULT_COLOR_VALUE,
-        employeeContributionRate: "3%",
-        employerContributionRate: "3",
-        kiwiSaverStatus: "Enrolled",
-        contractType: "permanent",
-        workDayPattern: defaultWorkDayPattern,
-        paidHoursPerDay: 8,
-        contractDocumentKey: "",
-      };
 
   const contractUploadText = uploadingContract
     ? et.contractUploading as string
@@ -709,7 +714,7 @@ export function EmployeeModal({
       <Form
         form={form}
         layout="vertical"
-        initialValues={initialValues}
+        initialValues={formInitialValues}
         preserve={false}
         size="small"
       >
