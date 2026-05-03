@@ -66,6 +66,42 @@ const defaultWorkDayPattern: WorkDayPattern[] = [
 const cloneWorkDayPattern = (pattern: WorkDayPattern[] = defaultWorkDayPattern) =>
   pattern.map((day) => ({ ...day }));
 
+const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
+  firstName: "",
+  lastName: "",
+  employeeId: "",
+  role: "staff",
+  phone: "",
+  email: "",
+  password: "",
+  startDate: undefined,
+  dateOfBirth: undefined,
+  address: "",
+  status: "active",
+  storeIds: [...defaultStoreIds],
+  avatar: "",
+  employeeColor: DEFAULT_COLOR_VALUE,
+  notes: "",
+  irdNumber: "",
+  taxCode: "",
+  kiwiSaverStatus: "Enrolled",
+  employeeContributionRate: "3%",
+  employerContributionRate: "3",
+  esctRate: undefined,
+  bankAccountNumber: "",
+  payrollEmployeeId: "",
+  hourlyRate: undefined,
+  positionIds: [],
+  paidHoursPerDay: 8,
+  workDayPattern: cloneWorkDayPattern(defaultWorkDayPattern),
+  contractType: "permanent",
+  endDate: undefined,
+  contractedHours: undefined,
+  annualSalary: undefined,
+  defaultHourlyRate: undefined,
+  contractDocumentKey: "",
+});
+
 function getInitials(firstName = "", lastName = "") {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
@@ -209,6 +245,7 @@ export function EmployeeModal({
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const formInitialValues = employee
     ? {
+        ...getEmptyEmployeeFormValues(defaultStoreIds),
         ...employee,
         startDate: employee.startDate ? dayjs(employee.startDate) : undefined,
         dateOfBirth: employee.dateOfBirth ? dayjs(employee.dateOfBirth) : undefined,
@@ -217,20 +254,8 @@ export function EmployeeModal({
         avatar: employee.avatar ?? "",
         contractDocumentKey: employee.contractDocumentKey || employee.contractDocumentUrl || "",
       }
-    : {
-        status: "active",
-        role: "staff",
-        storeIds: [...defaultStoreIds],
-        avatar: "",
-        employeeColor: DEFAULT_COLOR_VALUE,
-        employeeContributionRate: "3%",
-        employerContributionRate: "3",
-        kiwiSaverStatus: "Enrolled",
-        contractType: "permanent",
-        workDayPattern: cloneWorkDayPattern(defaultWorkDayPattern),
-        paidHoursPerDay: 8,
-        contractDocumentKey: "",
-      };
+    : getEmptyEmployeeFormValues(defaultStoreIds);
+  const formInstanceKey = employee ? `edit-${employee.id}` : `new-${defaultStoreIds.join("|") || "none"}`;
   const buildContractFileList = (targetEmployee: Employee | null): UploadFile[] => {
     if (!targetEmployee?.contractDocumentKey && !targetEmployee?.contractDocumentUrl) return [];
     return [{
@@ -252,7 +277,7 @@ export function EmployeeModal({
 
   useEffect(() => {
     if (!open) return;
-    form.resetFields();
+    form.setFieldsValue(getEmptyEmployeeFormValues(defaultStoreIds));
     form.setFieldsValue(formInitialValues);
     setContractFileList(buildContractFileList(employee));
     setUploadingContract(false);
@@ -712,6 +737,7 @@ export function EmployeeModal({
       destroyOnClose
     >
       <Form
+        key={formInstanceKey}
         form={form}
         layout="vertical"
         initialValues={formInitialValues}
