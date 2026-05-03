@@ -64,6 +64,8 @@ const getDetailedDayLabel = (dayIndex: number, locale: "zh" | "en") => {
   return locale === "zh" ? `第${weekNumber}周 ${weekdayLabel}` : `Week ${weekNumber} ${weekdayLabel}`;
 };
 
+const getCycleWeek = (dayIndex: number) => Math.floor(dayIndex / 7) + 1;
+
 const formatDurationLabel = (days: number, locale: "zh" | "en") => {
   if (days % 7 === 0) {
     const weeks = days / 7;
@@ -519,7 +521,13 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   const handleSetDays = (days: number) => {
     const normalizedDays = Math.max(7, Math.floor(days));
-    updateTemplate((t) => ({ ...t, totalDays: normalizedDays }));
+    updateTemplate((t) => ({
+      ...t,
+      totalDays: normalizedDays,
+      cells: t.cells
+        .filter((cell) => cell.dayIndex >= 0 && cell.dayIndex < normalizedDays)
+        .map((cell) => ({ ...cell, cycleWeek: getCycleWeek(cell.dayIndex) })),
+    }));
     toast.success(
       locale === "zh"
         ? `已设置为 ${formatDurationLabel(normalizedDays, locale)}`
@@ -656,6 +664,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         shiftId: cellForm.shiftId || undefined,
         areaId: editingAreaId,
         dayIndex: editingDayIndex,
+        cycleWeek: getCycleWeek(editingDayIndex),
         startTime: cellForm.startTime,
         endTime: cellForm.endTime,
         label: cellForm.label,

@@ -126,6 +126,7 @@ export interface RosterTemplateCell {
   shiftId?: string;
   areaId: string;
   dayIndex: number;
+  cycleWeek?: number;
   startTime: string;
   endTime: string;
   employeeIds: string[];
@@ -663,11 +664,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     for (const cell of template.cells) {
       if (cell.dayIndex < 0 || cell.dayIndex >= template.totalDays) continue;
       const shiftId = requireNumericId(cell.shiftId || "", "班次");
+      const cycleWeek = Math.floor(cell.dayIndex / 7) + 1;
       cells.push({
         areaId: requireNumericId(cell.areaId, "区域"),
         shiftsId: shiftId,
         dayIndex: cell.dayIndex,
         weekDay: ((cell.dayIndex % 7) + 7) % 7 + 1,
+        ...(template.totalDays > 7 ? { cycleWeek } : {}),
         startTime: cell.startTime,
         endTime: cell.endTime,
         employeeIds: (cell.employeeIds || []).map((id) => requireNumericId(id, "员工")),
