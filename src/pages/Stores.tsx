@@ -42,15 +42,6 @@ interface GeoFenceValue {
   geofenceRadius: number;
 }
 
-const TIMEZONE_OPTIONS = [
-  { value: "Pacific/Auckland", label: "Pacific/Auckland (NZT)" },
-  { value: "Australia/Sydney", label: "Australia/Sydney (AEST)" },
-  { value: "Australia/Melbourne", label: "Australia/Melbourne (AEST)" },
-  { value: "Australia/Brisbane", label: "Australia/Brisbane (AEST)" },
-  { value: "Australia/Perth", label: "Australia/Perth (AWST)" },
-  { value: "Australia/Adelaide", label: "Australia/Adelaide (ACST)" },
-];
-
 const FALLBACK_COUNTRIES: CountryOption[] = [
   { code: "nz", nameZh: "新西兰", nameEn: "New Zealand", dialCode: "64" },
   { code: "au", nameZh: "澳大利亚", nameEn: "Australia", dialCode: "61" },
@@ -120,7 +111,7 @@ function StoreModal({
         manager: values.manager || "",
         openTime: values.openTime ? values.openTime.format("HH:mm") : "09:00",
         closeTime: values.closeTime ? values.closeTime.format("HH:mm") : "22:00",
-        timezone: values.timezone,
+        timezone: store?.timezone || "Pacific/Auckland",
         status: values.status,
         ...(geofenceValue
           ? {
@@ -201,13 +192,6 @@ function StoreModal({
             </Form.Item>
           </div>
           <div className="flex gap-4">
-            <Form.Item name="timezone" label={st.timezone} rules={[{ required: true, message: t.required }]} style={{ flex: 1 }}>
-              <Select placeholder={t.selectPlaceholder}>
-                {TIMEZONE_OPTIONS.map((tz) => (
-                  <Option key={tz.value} value={tz.value}>{tz.label}</Option>
-                ))}
-              </Select>
-            </Form.Item>
             <Form.Item name="manager" label={st.manager} style={{ flex: 1 }}>
               <Input placeholder={locale === "zh" ? `负责人姓名` : `Manager name`} />
             </Form.Item>
@@ -335,7 +319,6 @@ function StoreDetailPanel({
             label={`${st.openTime} / ${st.closeTime}`}
             value={`${store.openTime} – ${store.closeTime}`}
           />
-          <StoreInfoRow icon={<Globe size={13} />} label={st.timezone} value={store.timezone} />
           <StoreInfoRow
             icon={<Users size={13} />}
             label={st.employeeCount}

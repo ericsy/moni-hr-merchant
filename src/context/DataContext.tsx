@@ -33,6 +33,18 @@ export interface Employee {
   employeeColor?: string;
   address?: string;
   dateOfBirth?: string;
+  gender?: "male" | "female" | string;
+  maritalStatus?: "single" | "married" | string;
+  identityDocumentType?: "id" | "passport" | string;
+  identityDocumentNumber?: string;
+  idDocumentFrontKey?: string;
+  idDocumentFrontUrl?: string;
+  idDocumentBackKey?: string;
+  idDocumentBackUrl?: string;
+  visaDocumentKey?: string;
+  visaDocumentUrl?: string;
+  passportDocumentKey?: string;
+  passportDocumentUrl?: string;
   // Payroll & Tax
   irdNumber?: string;
   taxCode?: string;

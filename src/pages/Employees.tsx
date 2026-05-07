@@ -32,7 +32,6 @@ import {
   Banknote,
   MapPin,
   Cake,
-  ClipboardList,
   Briefcase,
   Clock,
   X,
@@ -41,9 +40,10 @@ import {
   Upload as UploadIcon,
   ExternalLink,
   Paperclip,
+  IdCard,
 } from "lucide-react";
 import dayjs from "dayjs";
-import { useData, type Employee, type WorkDayPattern, type EmployeeDictItem } from "../context/DataContext";
+import { useData, type Employee, type WorkDayPattern } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { toast } from "sonner";
@@ -82,6 +82,14 @@ const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   avatar: "",
   employeeColor: DEFAULT_COLOR_VALUE,
   notes: "",
+  gender: undefined,
+  maritalStatus: undefined,
+  identityDocumentType: undefined,
+  identityDocumentNumber: "",
+  idDocumentFrontKey: "",
+  idDocumentBackKey: "",
+  visaDocumentKey: "",
+  passportDocumentKey: "",
   irdNumber: "",
   taxCode: "",
   kiwiSaverStatus: "Enrolled",
@@ -114,6 +122,55 @@ function getEmployeeAvatarUrl(employee?: Pick<Employee, "avatar" | "avatarPrevie
   if (avatar.startsWith("http://") || avatar.startsWith("https://")) return avatar;
   return previewUrl;
 }
+
+type EmployeeDocumentField =
+  | "idDocumentFront"
+  | "idDocumentBack"
+  | "visaDocument"
+  | "passportDocument";
+
+type EmployeeDocumentUploadKind = "id-front" | "id-back" | "visa" | "passport";
+type EmployeeIdentityDocumentType = "id" | "passport";
+
+const EMPLOYEE_DOCUMENT_FIELDS: Record<EmployeeDocumentField, {
+  keyField: keyof Employee;
+  urlField: keyof Employee;
+  uploadKind: EmployeeDocumentUploadKind;
+  labelKey: string;
+}> = {
+  idDocumentFront: {
+    keyField: "idDocumentFrontKey",
+    urlField: "idDocumentFrontUrl",
+    uploadKind: "id-front",
+    labelKey: "idDocumentFront",
+  },
+  idDocumentBack: {
+    keyField: "idDocumentBackKey",
+    urlField: "idDocumentBackUrl",
+    uploadKind: "id-back",
+    labelKey: "idDocumentBack",
+  },
+  visaDocument: {
+    keyField: "visaDocumentKey",
+    urlField: "visaDocumentUrl",
+    uploadKind: "visa",
+    labelKey: "visaDocument",
+  },
+  passportDocument: {
+    keyField: "passportDocumentKey",
+    urlField: "passportDocumentUrl",
+    uploadKind: "passport",
+    labelKey: "passportDocument",
+  },
+};
+
+const EMPLOYEE_DOCUMENT_FIELDS_BY_TYPE: Record<EmployeeIdentityDocumentType, EmployeeDocumentField[]> = {
+  id: ["idDocumentFront", "idDocumentBack"],
+  passport: ["passportDocument", "visaDocument"],
+};
+
+const getEmployeeDocumentFieldsByType = (type?: string): EmployeeDocumentField[] =>
+  type === "id" || type === "passport" ? EMPLOYEE_DOCUMENT_FIELDS_BY_TYPE[type] : [];
 
 // ─── WorkDayEditor component ───
 function WorkDayEditor({
@@ -221,7 +278,6 @@ export function EmployeeModal({
   open = false,
   employee = null,
   stores = [],
-  positions = [],
   defaultStoreIds = [],
   onSave = () => {},
   onCancel = () => {},
@@ -231,7 +287,6 @@ export function EmployeeModal({
   open?: boolean;
   employee?: Employee | null;
   stores?: { id: string; name: string }[];
-  positions?: EmployeeDictItem[];
   defaultStoreIds?: string[];
   onSave?: (emp: Employee) => void | Promise<void>;
   onCancel?: () => void;
@@ -243,6 +298,14 @@ export function EmployeeModal({
   const [activeTabKey, setActiveTabKey] = useState("general");
   const [uploadingContract, setUploadingContract] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingDocuments, setUploadingDocuments] = useState<Record<EmployeeDocumentField, boolean>>({
+    idDocumentFront: false,
+    idDocumentBack: false,
+    visaDocument: false,
+    passportDocument: false,
+  });
+  const identityDocumentType = Form.useWatch("identityDocumentType", form);
+  const visibleDocumentFields = getEmployeeDocumentFieldsByType(identityDocumentType);
   const formInitialValues = employee
     ? {
         ...getEmptyEmployeeFormValues(defaultStoreIds),
@@ -253,6 +316,10 @@ export function EmployeeModal({
         workDayPattern: cloneWorkDayPattern(employee.workDayPattern ?? defaultWorkDayPattern),
         avatar: employee.avatar ?? "",
         contractDocumentKey: employee.contractDocumentKey || employee.contractDocumentUrl || "",
+        idDocumentFrontKey: employee.idDocumentFrontKey || employee.idDocumentFrontUrl || "",
+        idDocumentBackKey: employee.idDocumentBackKey || employee.idDocumentBackUrl || "",
+        visaDocumentKey: employee.visaDocumentKey || employee.visaDocumentUrl || "",
+        passportDocumentKey: employee.passportDocumentKey || employee.passportDocumentUrl || "",
       }
     : getEmptyEmployeeFormValues(defaultStoreIds);
   const formInstanceKey = employee ? `edit-${employee.id}` : `new-${defaultStoreIds.join("|") || "none"}`;
@@ -265,6 +332,18 @@ export function EmployeeModal({
       url: targetEmployee.contractDocumentUrl || undefined,
     }];
   };
+  const buildDocumentFileList = (targetEmployee: Employee | null, field: EmployeeDocumentField): UploadFile[] => {
+    const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
+    const key = String(targetEmployee?.[meta.keyField] || "");
+    const url = String(targetEmployee?.[meta.urlField] || "");
+    if (!key && !url) return [];
+    return [{
+      uid: key || url || `${field}-file`,
+      name: key.split("/").pop() || url.split("/").pop() || field,
+      status: "done",
+      url: url || undefined,
+    }];
+  };
   const [contractFileList, setContractFileList] = useState<UploadFile[]>(() => {
     if (!employee?.contractDocumentKey && !employee?.contractDocumentUrl) return [];
     return [{
@@ -274,14 +353,32 @@ export function EmployeeModal({
       url: employee.contractDocumentUrl || undefined,
     }];
   });
+  const [documentFileLists, setDocumentFileLists] = useState<Record<EmployeeDocumentField, UploadFile[]>>(() => ({
+    idDocumentFront: buildDocumentFileList(employee, "idDocumentFront"),
+    idDocumentBack: buildDocumentFileList(employee, "idDocumentBack"),
+    visaDocument: buildDocumentFileList(employee, "visaDocument"),
+    passportDocument: buildDocumentFileList(employee, "passportDocument"),
+  }));
 
   useEffect(() => {
     if (!open) return;
     form.setFieldsValue(getEmptyEmployeeFormValues(defaultStoreIds));
     form.setFieldsValue(formInitialValues);
     setContractFileList(buildContractFileList(employee));
+    setDocumentFileLists({
+      idDocumentFront: buildDocumentFileList(employee, "idDocumentFront"),
+      idDocumentBack: buildDocumentFileList(employee, "idDocumentBack"),
+      visaDocument: buildDocumentFileList(employee, "visaDocument"),
+      passportDocument: buildDocumentFileList(employee, "passportDocument"),
+    });
     setUploadingContract(false);
     setUploadingAvatar(false);
+    setUploadingDocuments({
+      idDocumentFront: false,
+      idDocumentBack: false,
+      visaDocument: false,
+      passportDocument: false,
+    });
     setActiveTabKey("general");
   }, [open, employee?.id, defaultStoreIds.join("|")]);
 
@@ -313,6 +410,11 @@ export function EmployeeModal({
     form.setFieldValue("avatar", uploaded?.response?.key || uploaded?.uid || "");
   };
 
+  const syncDocumentFormValue = (field: EmployeeDocumentField, fileList: UploadFile[]) => {
+    const uploaded = fileList[0];
+    form.setFieldValue(EMPLOYEE_DOCUMENT_FIELDS[field].keyField, uploaded?.response?.key || uploaded?.uid || "");
+  };
+
   const et = t.employee as Record<string, unknown>;
   const contractRequiredMessage = et.contractUploadRequired as string;
 
@@ -320,6 +422,9 @@ export function EmployeeModal({
     try {
       const values = await form.validateFields();
       const contractDocumentKey = String(values.contractDocumentKey || "").trim();
+      const selectedDocumentType = String(values.identityDocumentType || "");
+      const shouldUseIdDocuments = selectedDocumentType === "id";
+      const shouldUsePassportDocuments = selectedDocumentType === "passport";
 
       if (uploadingContract || !contractDocumentKey) {
         const message = uploadingContract
@@ -351,6 +456,18 @@ export function EmployeeModal({
         employeeColor: values.employeeColor ?? DEFAULT_COLOR_VALUE,
         address: values.address ?? "",
         dateOfBirth: values.dateOfBirth ? dayjs(values.dateOfBirth).format("YYYY-MM-DD") : "",
+        gender: values.gender ?? "",
+        maritalStatus: values.maritalStatus ?? "",
+        identityDocumentType: selectedDocumentType,
+        identityDocumentNumber: values.identityDocumentNumber ?? "",
+        idDocumentFrontKey: shouldUseIdDocuments ? values.idDocumentFrontKey ?? "" : "",
+        idDocumentFrontUrl: shouldUseIdDocuments && values.idDocumentFrontKey ? documentFileLists.idDocumentFront[0]?.url ?? employee?.idDocumentFrontUrl ?? "" : "",
+        idDocumentBackKey: shouldUseIdDocuments ? values.idDocumentBackKey ?? "" : "",
+        idDocumentBackUrl: shouldUseIdDocuments && values.idDocumentBackKey ? documentFileLists.idDocumentBack[0]?.url ?? employee?.idDocumentBackUrl ?? "" : "",
+        visaDocumentKey: shouldUsePassportDocuments ? values.visaDocumentKey ?? "" : "",
+        visaDocumentUrl: shouldUsePassportDocuments && values.visaDocumentKey ? documentFileLists.visaDocument[0]?.url ?? employee?.visaDocumentUrl ?? "" : "",
+        passportDocumentKey: shouldUsePassportDocuments ? values.passportDocumentKey ?? "" : "",
+        passportDocumentUrl: shouldUsePassportDocuments && values.passportDocumentKey ? documentFileLists.passportDocument[0]?.url ?? employee?.passportDocumentUrl ?? "" : "",
         irdNumber: values.irdNumber ?? "",
         taxCode: values.taxCode ?? "",
         kiwiSaverStatus: values.kiwiSaverStatus ?? "",
@@ -360,7 +477,7 @@ export function EmployeeModal({
         bankAccountNumber: values.bankAccountNumber ?? "",
         payrollEmployeeId: values.payrollEmployeeId ?? "",
         areaIds: employee?.areaIds ?? [],
-        positionIds: values.positionIds ?? [],
+        positionIds: employee?.positionIds ?? [],
         paidHoursPerDay: values.paidHoursPerDay ?? 8,
         workDayPattern: values.workDayPattern ?? defaultWorkDayPattern,
         contractType: values.contractType ?? "permanent",
@@ -445,6 +562,83 @@ export function EmployeeModal({
   const handleRemoveAvatar = () => {
     setAvatarFileList([]);
     syncAvatarFormValue([]);
+  };
+
+  const handleDocumentUpload = (field: EmployeeDocumentField): UploadProps["beforeUpload"] => async (file) => {
+    const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
+    try {
+      setUploadingDocuments((prev) => ({ ...prev, [field]: true }));
+      const uploaded = await merchantApi.uploadEmployeeDocument(meta.uploadKind, file);
+      const nextFile: UploadFile = {
+        uid: uploaded.key || `${file.name}-${Date.now()}`,
+        name: file.name,
+        status: "done",
+        url: uploaded.downloadUrl || undefined,
+        response: uploaded,
+      };
+      const nextFileList = [nextFile];
+      setDocumentFileLists((prev) => ({ ...prev, [field]: nextFileList }));
+      syncDocumentFormValue(field, nextFileList);
+      toast.success(et.documentUploadSuccess as string);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : et.documentUploadFailed as string);
+    } finally {
+      setUploadingDocuments((prev) => ({ ...prev, [field]: false }));
+    }
+    return Upload.LIST_IGNORE;
+  };
+
+  const handleRemoveDocument = (field: EmployeeDocumentField) => {
+    setDocumentFileLists((prev) => ({ ...prev, [field]: [] }));
+    syncDocumentFormValue(field, []);
+  };
+
+  const renderDocumentUpload = (field: EmployeeDocumentField) => {
+    const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
+    const fileList = documentFileLists[field];
+    return (
+      <Form.Item
+        name={meta.keyField}
+        label={et[meta.labelKey] as string}
+        extra={et.documentUploadHint as string}
+      >
+        <div className="flex flex-col gap-3">
+          <Upload
+            fileList={fileList}
+            maxCount={1}
+            beforeUpload={handleDocumentUpload(field)}
+            onRemove={() => {
+              handleRemoveDocument(field);
+              return true;
+            }}
+            accept=".pdf,image/*"
+            showUploadList={{
+              showPreviewIcon: !!fileList[0]?.url,
+              showRemoveIcon: true,
+            }}
+            onPreview={(file) => {
+              if (file.url) window.open(file.url, "_blank", "noopener,noreferrer");
+            }}
+          >
+            <Button icon={<UploadIcon size={14} />} loading={uploadingDocuments[field]}>
+              {fileList.length > 0 ? et.documentUploadReplace as string : et.documentUploadButton as string}
+            </Button>
+          </Upload>
+          {fileList[0]?.url && (
+            <a
+              href={fileList[0].url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs"
+              style={{ color: "var(--primary)" }}
+            >
+              <ExternalLink size={12} />
+              {et.documentView as string}
+            </a>
+          )}
+        </div>
+      </Form.Item>
+    );
   };
 
   const tabItems = [
@@ -539,6 +733,22 @@ export function EmployeeModal({
               <DatePicker style={{ width: "100%" }} />
             </Form.Item>
           </div>
+          <div className="flex gap-4">
+            <Form.Item name="gender" label={et.gender as string} style={{ flex: 1 }}>
+              <Select allowClear placeholder={t.selectPlaceholder}>
+                {Object.entries(et.genderOptions as Record<string, string>).map(([key, label]) => (
+                  <Option key={key} value={key}>{label}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+            <Form.Item name="maritalStatus" label={et.maritalStatus as string} style={{ flex: 1 }}>
+              <Select allowClear placeholder={t.selectPlaceholder}>
+                {Object.entries(et.maritalStatusOptions as Record<string, string>).map(([key, label]) => (
+                  <Option key={key} value={key}>{label}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </div>
           <Form.Item name="address" label={et.address as string}>
             <Input prefix={<MapPin size={13} />} />
           </Form.Item>
@@ -621,21 +831,6 @@ export function EmployeeModal({
       ),
     },
     {
-      key: "assignments",
-      label: et.tabAssignments as string,
-      children: (
-        <div className="flex flex-col gap-0">
-          <Form.Item name="positionIds" label={et.positions as string}>
-            <Select mode="multiple" placeholder={t.selectPlaceholder}>
-              {positions.map((p) => (
-                <Option key={p.id} value={p.id}>{p.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-        </div>
-      ),
-    },
-    {
       key: "workdays",
       label: et.tabWorkDays as string,
       children: (
@@ -678,6 +873,23 @@ export function EmployeeModal({
           <Form.Item name="defaultHourlyRate" label={et.defaultHourlyRate as string}>
             <InputNumber min={0} step={0.5} style={{ width: "100%" }} addonAfter={et.nzd as string} />
           </Form.Item>
+          <div className="flex gap-4">
+            <Form.Item name="identityDocumentType" label={et.identityDocumentType as string} style={{ flex: 1 }}>
+              <Select allowClear placeholder={t.selectPlaceholder}>
+                {Object.entries(et.identityDocumentTypeOptions as Record<string, string>).map(([key, label]) => (
+                  <Option key={key} value={key}>{label}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+            <Form.Item name="identityDocumentNumber" label={et.identityDocumentNumber as string} style={{ flex: 1 }}>
+              <Input />
+            </Form.Item>
+          </div>
+          {visibleDocumentFields.length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2">
+              {visibleDocumentFields.map((field) => renderDocumentUpload(field))}
+            </div>
+          )}
           <Form.Item
             name="contractDocumentKey"
             label={et.contractFile as string}
@@ -754,14 +966,12 @@ export function EmployeeModal({
 function DetailPanel({
   employee,
   stores = [],
-  positions = [],
   onEdit = () => {},
   onDelete = () => {},
   t,
 }: {
   employee: Employee;
   stores?: { id: string; name: string }[];
-  positions?: EmployeeDictItem[];
   onEdit?: () => void;
   onDelete?: () => void;
   t: ReturnType<typeof useLocale>["t"];
@@ -770,10 +980,6 @@ function DetailPanel({
 
   const assignedStoreNames = (employee.storeIds ?? [])
     .map((id) => stores.find((s) => s.id === id)?.name)
-    .filter(Boolean) as string[];
-
-  const positionNames = (employee.positionIds ?? [])
-    .map((id) => positions.find((p) => p.id === id)?.name)
     .filter(Boolean) as string[];
 
   const workDays = employee.workDayPattern ?? defaultWorkDayPattern;
@@ -788,6 +994,27 @@ function DetailPanel({
       : "-";
   const contractFileName = employee.contractDocumentKey?.split("/").pop() || "";
   const avatarUrl = getEmployeeAvatarUrl(employee);
+  const visibleDocumentFields = getEmployeeDocumentFieldsByType(employee.identityDocumentType);
+  const getOptionLabel = (optionsKey: string, value?: string) => {
+    if (!value) return "";
+    return ((et[optionsKey] as Record<string, string> | undefined)?.[value] ?? value);
+  };
+  const documentLink = (url?: string, key?: string) => {
+    if (!url) return "-";
+    const fileName = key?.split("/").pop();
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1"
+        style={{ color: "var(--primary)" }}
+      >
+        <ExternalLink size={12} />
+        {fileName || et.documentView as string}
+      </a>
+    );
+  };
 
   const tabItems = [
     {
@@ -802,6 +1029,8 @@ function DetailPanel({
           <InfoRow icon={<Mail size={13} />} label={et.email as string} value={employee.email} />
           <InfoRow icon={<CalendarDays size={13} />} label={et.startDate as string} value={employee.startDate} />
           <InfoRow icon={<Cake size={13} />} label={et.dateOfBirth as string} value={employee.dateOfBirth ?? ""} />
+          <InfoRow icon={<User size={13} />} label={et.gender as string} value={getOptionLabel("genderOptions", employee.gender)} />
+          <InfoRow icon={<BadgeCheck size={13} />} label={et.maritalStatus as string} value={getOptionLabel("maritalStatusOptions", employee.maritalStatus)} />
           <InfoRow icon={<MapPin size={13} />} label={et.address as string} value={employee.address ?? ""} />
           <InfoRow
             icon={<Building2 size={13} />}
@@ -840,25 +1069,6 @@ function DetailPanel({
       ),
     },
     {
-      key: "assignments",
-      label: et.tabAssignments as string,
-      children: (
-        <div className="flex flex-col">
-          <InfoRow
-            icon={<ClipboardList size={13} />}
-            label={et.positions as string}
-            value={
-              positionNames.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {positionNames.map((n) => <Tag key={n} color="blue" style={{ fontSize: 11, margin: 0 }}>{n}</Tag>)}
-                </div>
-              ) : "-"
-            }
-          />
-        </div>
-      ),
-    },
-    {
       key: "workdays",
       label: et.tabWorkDays as string,
       children: (
@@ -883,6 +1093,22 @@ function DetailPanel({
           <InfoRow icon={<Clock size={13} />} label={et.contractedHours as string} value={employee.contractedHours ? `${employee.contractedHours} ${t.hours}` : ""} />
           <InfoRow icon={<DollarSign size={13} />} label={et.annualSalary as string} value={employee.annualSalary ? `$${employee.annualSalary}` : ""} />
           <InfoRow icon={<DollarSign size={13} />} label={et.defaultHourlyRate as string} value={employee.defaultHourlyRate ? `$${employee.defaultHourlyRate} ${et.nzd as string}` : ""} />
+          <InfoRow icon={<IdCard size={13} />} label={et.identityDocumentType as string} value={getOptionLabel("identityDocumentTypeOptions", employee.identityDocumentType)} />
+          <InfoRow icon={<BadgeCheck size={13} />} label={et.identityDocumentNumber as string} value={employee.identityDocumentNumber ?? ""} />
+          {visibleDocumentFields.map((field) => {
+            const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
+            return (
+              <InfoRow
+                key={field}
+                icon={<Paperclip size={13} />}
+                label={et[meta.labelKey] as string}
+                value={documentLink(
+                  String(employee[meta.urlField] || ""),
+                  String(employee[meta.keyField] || ""),
+                )}
+              />
+            );
+          })}
           <InfoRow
             icon={<Paperclip size={13} />}
             label={et.contractFile as string}
@@ -972,7 +1198,7 @@ function DetailPanel({
 
 // ─── Main Employees Page ───
 export default function Employees() {
-  const { employees, saveEmployee, deleteEmployee, stores, positions } = useData();
+  const { employees, saveEmployee, deleteEmployee, stores } = useData();
   const { t, locale } = useLocale();
   const { selectedStoreId } = useStore();
   const et = t.employee as Record<string, unknown>;
@@ -1165,7 +1391,6 @@ export default function Employees() {
             <DetailPanel
               employee={selectedEmployee}
               stores={stores}
-              positions={positions}
               onEdit={handleEdit}
               onDelete={handleDelete}
               t={t}
@@ -1183,7 +1408,6 @@ export default function Employees() {
         open={modalOpen}
         employee={editingEmployee}
         stores={stores}
-        positions={positions}
         defaultStoreIds={selectedStoreId ? [selectedStoreId] : []}
         onSave={handleSave}
         onCancel={() => setModalOpen(false)}

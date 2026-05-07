@@ -6,7 +6,6 @@ import {
   Select,
   Avatar,
   TimePicker,
-  Badge,
   Popconfirm,
   Radio,
 } from "antd";
@@ -1421,22 +1420,20 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         {/* Right */}
         <div className="flex items-center gap-2">
           {draftCount > 0 && (
-            <Badge count={draftCount} size="small">
-              <Button
-                onClick={handlePublish}
-                style={{
-                  background: "var(--chart-2)",
-                  color: "var(--primary-foreground)",
-                  border: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                }}
-                icon={<Send size={12} style={{ display: "inline" }} />}
-              >
-                {isZh ? "发布本周" : "Publish Week"}
-              </Button>
-            </Badge>
+            <Button
+              onClick={handlePublish}
+              style={{
+                background: "var(--chart-2)",
+                color: "var(--primary-foreground)",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+              icon={<Send size={12} style={{ display: "inline" }} />}
+            >
+              {isZh ? "发布" : "Publish"}
+            </Button>
           )}
           <Button
             type="primary"

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Input, Modal, Select, Tag, Tooltip } from "antd";
 import {
-  CalendarDays,
   ChevronRight,
-  Clock,
   Globe,
   MapPin,
   Palette,
@@ -12,7 +10,6 @@ import {
   Search,
   Store,
   Trash2,
-  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useData, type Area } from "../context/DataContext";
@@ -77,10 +74,6 @@ export default function Areas() {
         storeRequired: "请先选择店面",
         nameRequired: "请输入区域名称",
         order: "排序",
-        references: "引用情况",
-        employeeRefs: "员工",
-        templateRefs: "模版",
-        shiftRefs: "班次",
         allStores: "全部店面",
         count: (value: number) => `共 ${value} 条`,
         orderValue: (value: number) => `排序 ${value}`,
@@ -120,10 +113,6 @@ export default function Areas() {
         storeRequired: "Please select a store",
         nameRequired: "Please enter an area name",
         order: "Order",
-        references: "References",
-        employeeRefs: "Employees",
-        templateRefs: "Templates",
-        shiftRefs: "Shifts",
         allStores: "All Stores",
         count: (value: number) => `${value} total`,
         orderValue: (value: number) => `Order ${value}`,
@@ -317,7 +306,7 @@ export default function Areas() {
         </Button>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid min-w-[960px] grid-cols-[320px_minmax(0,1fr)] gap-4">
         <div
           className="overflow-hidden rounded-2xl"
           style={{
@@ -487,25 +476,6 @@ export default function Areas() {
                 ))}
               </div>
 
-              <div className="px-6 pb-6 pt-2">
-                <div className="mb-3 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                  {copy.references}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Tag style={{ margin: 0 }}>
-                    <Users size={11} style={{ display: "inline", marginRight: 4 }} />
-                    {copy.employeeRefs} {(referenceMap[selectedArea.id] || { employees: 0 }).employees || 0}
-                  </Tag>
-                  <Tag style={{ margin: 0 }}>
-                    <CalendarDays size={11} style={{ display: "inline", marginRight: 4 }} />
-                    {copy.templateRefs} {(referenceMap[selectedArea.id] || { templates: 0 }).templates || 0}
-                  </Tag>
-                  <Tag style={{ margin: 0 }}>
-                    <Clock size={11} style={{ display: "inline", marginRight: 4 }} />
-                    {copy.shiftRefs} {(referenceMap[selectedArea.id] || { shifts: 0 }).shifts || 0}
-                  </Tag>
-                </div>
-              </div>
             </>
           ) : (
             <div className="flex h-[560px] flex-col items-center justify-center gap-2 px-6 text-center">

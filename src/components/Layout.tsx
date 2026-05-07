@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Badge, Space, Select, type MenuProps } from "antd";
+import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Space, Select, type MenuProps } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
   House,
@@ -335,17 +335,15 @@ export default function AppLayout({
               </Button>
 
               {/* Notification */}
-              <Badge count={3} size="small">
-                <Button
-                  type="text"
-                  icon={<Bell size={18} />}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    color: "var(--muted-foreground)",
-                  }}
-                />
-              </Badge>
+              <Button
+                type="text"
+                icon={<Bell size={18} />}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  color: "var(--muted-foreground)",
+                }}
+              />
 
               {/* User */}
               <Dropdown

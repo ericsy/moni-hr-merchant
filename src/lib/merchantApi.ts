@@ -106,6 +106,14 @@ export interface MerchantUploadResult {
 
 const EMPTY_PAGE = { items: [] as unknown[] };
 type ApiRecord = Record<string, unknown>;
+type EmployeeUploadKind = "id-front" | "id-back" | "visa" | "passport";
+
+const EMPLOYEE_DOCUMENT_UPLOAD_PATHS: Record<EmployeeUploadKind, string> = {
+  "id-front": "/api/v1/merchant/uploads/employee-id-document-front",
+  "id-back": "/api/v1/merchant/uploads/employee-id-document-back",
+  visa: "/api/v1/merchant/uploads/employee-visa-document",
+  passport: "/api/v1/merchant/uploads/employee-passport-document",
+};
 
 function asRecord(value: unknown): ApiRecord {
   return value && typeof value === "object" ? value as ApiRecord : {};
@@ -134,6 +142,40 @@ function compact<T extends Record<string, unknown>>(payload: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined)
   ) as Partial<T>;
+}
+
+function employeeDocumentPayload(employee: Employee) {
+  if (employee.identityDocumentType === "id") {
+    return {
+      idDocumentFrontKey: employee.idDocumentFrontKey,
+      idDocumentBackKey: employee.idDocumentBackKey,
+      visaDocumentKey: undefined,
+      passportDocumentKey: undefined,
+    };
+  }
+  if (employee.identityDocumentType === "passport") {
+    return {
+      idDocumentFrontKey: undefined,
+      idDocumentBackKey: undefined,
+      visaDocumentKey: employee.visaDocumentKey,
+      passportDocumentKey: employee.passportDocumentKey,
+    };
+  }
+  return {
+    idDocumentFrontKey: undefined,
+    idDocumentBackKey: undefined,
+    visaDocumentKey: undefined,
+    passportDocumentKey: undefined,
+  };
+}
+
+function uploadMerchantFile(path: string, file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiRequest<MerchantUploadResult>(path, {
+    method: "POST",
+    body: formData,
+  });
 }
 
 function normalizeWorkDayState(state: unknown): WorkDayPattern["state"] {
@@ -288,6 +330,18 @@ export function mapApiEmployee(input: unknown): Employee {
     employeeColor: asString(raw.employeeColor, "#60a5fa"),
     address: asString(raw.address),
     dateOfBirth: asString(raw.dateOfBirth),
+    gender: asString(raw.gender),
+    maritalStatus: asString(raw.maritalStatus),
+    identityDocumentType: asString(raw.identityDocumentType),
+    identityDocumentNumber: asString(raw.identityDocumentNumber),
+    idDocumentFrontKey: asString(raw.idDocumentFrontKey),
+    idDocumentFrontUrl: asString(raw.idDocumentFrontUrl),
+    idDocumentBackKey: asString(raw.idDocumentBackKey),
+    idDocumentBackUrl: asString(raw.idDocumentBackUrl),
+    visaDocumentKey: asString(raw.visaDocumentKey),
+    visaDocumentUrl: asString(raw.visaDocumentUrl),
+    passportDocumentKey: asString(raw.passportDocumentKey),
+    passportDocumentUrl: asString(raw.passportDocumentUrl),
     irdNumber: asString(raw.irdNumber),
     taxCode: asString(raw.taxCode),
     kiwiSaverStatus: asString(raw.kiwiSaverStatus),
@@ -311,6 +365,8 @@ export function mapApiEmployee(input: unknown): Employee {
 }
 
 export function employeeToApiPayload(employee: Employee & { password?: string }, includePassword: boolean) {
+  const documentPayload = employeeDocumentPayload(employee);
+
   return compact({
     firstName: employee.firstName,
     lastName: employee.lastName,
@@ -328,6 +384,14 @@ export function employeeToApiPayload(employee: Employee & { password?: string },
     employeeColor: employee.employeeColor,
     address: employee.address,
     dateOfBirth: employee.dateOfBirth,
+    gender: employee.gender,
+    maritalStatus: employee.maritalStatus,
+    identityDocumentType: employee.identityDocumentType,
+    identityDocumentNumber: employee.identityDocumentNumber,
+    idDocumentFrontKey: documentPayload.idDocumentFrontKey,
+    idDocumentBackKey: documentPayload.idDocumentBackKey,
+    visaDocumentKey: documentPayload.visaDocumentKey,
+    passportDocumentKey: documentPayload.passportDocumentKey,
     irdNumber: employee.irdNumber,
     taxCode: employee.taxCode,
     kiwiSaverStatus: employee.kiwiSaverStatus,
@@ -675,20 +739,10 @@ export const merchantApi = {
     apiRequest<MerchantInvoiceList>(appendEndpointPath(getMerchantEndpoint("billing"), "invoices"), {
       query: params,
     }),
-  uploadEmployeeContract: async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    return apiRequest<MerchantUploadResult>("/api/v1/merchant/uploads/employee-contract", {
-      method: "POST",
-      body: formData,
-    });
-  },
-  uploadEmployeeAvatar: async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    return apiRequest<MerchantUploadResult>("/api/v1/merchant/uploads/employee-avatar", {
-      method: "POST",
-      body: formData,
-    });
-  },
+  uploadEmployeeContract: (file: File) =>
+    uploadMerchantFile("/api/v1/merchant/uploads/employee-contract", file),
+  uploadEmployeeAvatar: (file: File) =>
+    uploadMerchantFile("/api/v1/merchant/uploads/employee-avatar", file),
+  uploadEmployeeDocument: (kind: EmployeeUploadKind, file: File) =>
+    uploadMerchantFile(EMPLOYEE_DOCUMENT_UPLOAD_PATHS[kind], file),
 };

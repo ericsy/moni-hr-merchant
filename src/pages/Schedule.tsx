@@ -255,7 +255,7 @@ export default function Schedule() {
         </Button>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid min-w-[960px] grid-cols-[320px_minmax(0,1fr)] gap-4">
         <div
           className="overflow-hidden rounded-2xl"
           style={{

@@ -323,7 +323,6 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     saveEmployee,
     stores,
     areas,
-    positions,
     workAreas,
     scheduleShifts,
     rosterTemplates: allTemplates,
@@ -1271,7 +1270,6 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         open={addEmployeeOpen}
         employee={null}
         stores={stores}
-        positions={positions}
         defaultStoreIds={activeTemplateStoreId ? [activeTemplateStoreId] : []}
         onSave={handleAddEmployee}
         onCancel={() => setAddEmployeeOpen(false)}
