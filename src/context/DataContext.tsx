@@ -14,7 +14,6 @@ export interface WorkDayPattern {
 
 export interface Employee {
   id: string;
-  password?: string;
   firstName: string;
   lastName: string;
   employeeId: string;
@@ -307,6 +306,8 @@ const buildEmptyScheduleDraft = () => ({
     startTime: string;
     endTime: string;
     employeesIds: number[];
+    shiftsName?: string;
+    breakMinutes?: number;
     color?: string;
   }[],
 });
@@ -557,10 +558,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const saveEmployee = useCallback(async (employee: Employee, existingId?: string) => {
-    if (!existingId && !employee.password) {
-      throw new Error("创建员工需要设置初始密码");
-    }
-
     if (employee.email) {
       const isEmailAvailable = await merchantApi.checkEmployeeEmailAvailable(employee.email, existingId);
       if (!isEmailAvailable) {
@@ -653,6 +650,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         startTime: shift.startTime,
         endTime: shift.endTime,
         employeesIds: (shift.employeeIds || []).map((id) => requireNumericId(id, "员工")),
+        shiftsName: shift.shiftName,
+        breakMinutes: shift.breakMinutes,
         color: shift.color,
       });
     }

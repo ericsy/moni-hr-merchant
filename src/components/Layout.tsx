@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Space, Select, type MenuProps } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
@@ -35,6 +35,15 @@ const { Option } = Select;
 
 const { Sider, Header, Content } = AntLayout;
 type MenuItem = NonNullable<MenuProps["items"]>[number];
+const dataReloadPages = new Set<string>([
+  "dashboard",
+  "employees",
+  "stores",
+  "areas",
+  "schedule",
+  "rosters",
+  "rosterTemplate",
+]);
 
 export type { PageKey } from "../config/routes";
 
@@ -51,14 +60,29 @@ export default function AppLayout({
 }: LayoutProps) {
   const navigate = useNavigate();
   const { locale, setLocale, t } = useLocale();
-  const { stores, storesLoaded } = useData();
+  const { stores, storesLoaded, refreshData, reloadForStore } = useData();
   const { selectedStoreId, setSelectedStoreId } = useStore();
   const { logout, user } = useAuth();
   const { permissions } = usePermissions();
   const [collapsed, setCollapsed] = useState(false);
+  const lastDataReloadKeyRef = useRef("");
   const requiresFirstStore = storesLoaded && stores.length === 0;
 
   console.log("[Layout] currentPage:", currentPage, "collapsed:", collapsed, "selectedStoreId:", selectedStoreId);
+
+  useEffect(() => {
+    if (requiresFirstStore || !dataReloadPages.has(currentPage)) return;
+
+    const reloadKey = `${currentPage}:${selectedStoreId || "__default__"}`;
+    if (lastDataReloadKeyRef.current === reloadKey) return;
+    lastDataReloadKeyRef.current = reloadKey;
+
+    const reload = selectedStoreId ? reloadForStore(selectedStoreId) : refreshData();
+    reload.catch((error) => {
+      console.log("[Layout] failed to reload page data:", currentPage, error);
+      lastDataReloadKeyRef.current = "";
+    });
+  }, [currentPage, refreshData, reloadForStore, requiresFirstStore, selectedStoreId]);
 
   const routePathByPageKey = useMemo(() => {
     const map = new Map<PageKey, string>();

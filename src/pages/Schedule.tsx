@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { useData, type ScheduleShift } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
-import { calcShiftHours, getClockRange } from "../lib/shift";
+import { getClockRange, toMinutes } from "../lib/shift";
 import { ColorSwatchPicker, DEFAULT_COLOR_KEY, DEFAULT_COLOR_SWATCHES, getColorLabel, resolveColorValue } from "../components/ColorSwatchPicker";
 
 const { Option } = Select;
@@ -71,6 +71,7 @@ export default function Schedule() {
         titleCount: (value: number) => `共 ${value} 条`,
         nameRequired: "请输入班次名称",
         timeRequired: "请填写开始和结束时间",
+        timeOrderInvalid: "结束时间必须大于开始时间",
         storeRequired: "请选择所属店面",
         saved: "班次已保存",
         deleted: "班次已删除",
@@ -104,6 +105,7 @@ export default function Schedule() {
         titleCount: (value: number) => `${value} total`,
         nameRequired: "Please enter a shift name",
         timeRequired: "Please fill in start and end time",
+        timeOrderInvalid: "End time must be later than start time",
         storeRequired: "Please select a store",
         saved: "Shift saved",
         deleted: "Shift deleted",
@@ -198,6 +200,11 @@ export default function Schedule() {
 
     if (!form.startTime || !form.endTime) {
       toast.error(copy.timeRequired);
+      return;
+    }
+
+    if (toMinutes(form.endTime) <= toMinutes(form.startTime)) {
+      toast.error(copy.timeOrderInvalid);
       return;
     }
 
@@ -436,6 +443,7 @@ interface ShiftModalProps {
     shiftName: string;
     startTime: string;
     endTime: string;
+    timeOrderInvalid: string;
     breakMinutes: string;
     store: string;
     shiftType: string;
@@ -464,6 +472,10 @@ function ShiftModal({
   copy,
 }: ShiftModalProps) {
   const durationText = formatShiftDurationText(form.startTime, form.endTime, Number(form.breakMinutes) || 0);
+  const isTimeOrderInvalid =
+    !!form.startTime &&
+    !!form.endTime &&
+    toMinutes(form.endTime) <= toMinutes(form.startTime);
 
   return (
     <Modal
@@ -592,6 +604,11 @@ function ShiftModal({
             />
           </div>
         </div>
+        {isTimeOrderInvalid && (
+          <div className="-mt-3 text-xs" style={{ color: "var(--destructive)" }}>
+            {copy.timeOrderInvalid}
+          </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
           <div>

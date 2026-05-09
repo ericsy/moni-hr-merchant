@@ -49,7 +49,7 @@ import { useStore } from "../context/StoreContext";
 import { toast } from "sonner";
 import WorkDaysCalendar from "../components/WorkDaysCalendar";
 import { ColorSwatchPicker, DEFAULT_COLOR_VALUE } from "../components/ColorSwatchPicker";
-import { merchantApi } from "../lib/merchantApi";
+import { extractUploadKey, merchantApi } from "../lib/merchantApi";
 
 const { Option } = Select;
 
@@ -73,7 +73,6 @@ const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   role: "staff",
   phone: "",
   email: "",
-  password: "",
   startDate: undefined,
   dateOfBirth: undefined,
   address: "",
@@ -98,7 +97,6 @@ const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   esctRate: undefined,
   bankAccountNumber: "",
   payrollEmployeeId: "",
-  hourlyRate: undefined,
   positionIds: [],
   paidHoursPerDay: 8,
   workDayPattern: cloneWorkDayPattern(defaultWorkDayPattern),
@@ -114,13 +112,21 @@ function getInitials(firstName = "", lastName = "") {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
+function isHttpUrl(value = "") {
+  return /^https?:\/\//i.test(value.trim());
+}
+
+function getEmployeeAvatarKey(employee?: Pick<Employee, "avatar"> | null) {
+  return extractUploadKey(employee?.avatar);
+}
+
 function getEmployeeAvatarUrl(employee?: Pick<Employee, "avatar" | "avatarPreviewUrl"> | null) {
   if (!employee) return "";
   const previewUrl = employee.avatarPreviewUrl || "";
-  if (previewUrl.startsWith("http://") || previewUrl.startsWith("https://")) return previewUrl;
+  if (isHttpUrl(previewUrl)) return previewUrl;
   const avatar = employee.avatar || "";
-  if (avatar.startsWith("http://") || avatar.startsWith("https://")) return avatar;
-  return previewUrl;
+  if (isHttpUrl(avatar)) return avatar;
+  return "";
 }
 
 type EmployeeDocumentField =
@@ -314,7 +320,7 @@ export function EmployeeModal({
         dateOfBirth: employee.dateOfBirth ? dayjs(employee.dateOfBirth) : undefined,
         endDate: employee.endDate ? dayjs(employee.endDate) : undefined,
         workDayPattern: cloneWorkDayPattern(employee.workDayPattern ?? defaultWorkDayPattern),
-        avatar: employee.avatar ?? "",
+        avatar: getEmployeeAvatarKey(employee),
         contractDocumentKey: employee.contractDocumentKey || employee.contractDocumentUrl || "",
         idDocumentFrontKey: employee.idDocumentFrontKey || employee.idDocumentFrontUrl || "",
         idDocumentBackKey: employee.idDocumentBackKey || employee.idDocumentBackUrl || "",
@@ -384,13 +390,14 @@ export function EmployeeModal({
 
   const buildAvatarFileList = (targetEmployee: Employee | null): UploadFile[] => {
     const avatarUrl = getEmployeeAvatarUrl(targetEmployee);
-    const avatarValue = targetEmployee?.avatar || "";
-    if (!avatarUrl && !avatarValue) return [];
+    const avatarKey = getEmployeeAvatarKey(targetEmployee);
+    if (!avatarUrl && !avatarKey) return [];
     return [{
-      uid: avatarValue || avatarUrl || "avatar-file",
-      name: avatarValue.split("/").pop() || avatarUrl.split("/").pop() || "avatar",
+      uid: avatarKey || "avatar-file",
+      name: avatarKey.split("/").pop() || avatarUrl.split("/").pop() || "avatar",
       status: "done",
       url: avatarUrl || undefined,
+      response: avatarKey ? { key: avatarKey, downloadUrl: avatarUrl } : undefined,
     }];
   };
   const [avatarFileList, setAvatarFileList] = useState<UploadFile[]>(() => buildAvatarFileList(employee));
@@ -407,7 +414,7 @@ export function EmployeeModal({
 
   const syncAvatarFormValue = (fileList: UploadFile[]) => {
     const uploaded = fileList[0];
-    form.setFieldValue("avatar", uploaded?.response?.key || uploaded?.uid || "");
+    form.setFieldValue("avatar", uploaded?.response?.key || extractUploadKey(uploaded?.uid));
   };
 
   const syncDocumentFormValue = (field: EmployeeDocumentField, fileList: UploadFile[]) => {
@@ -436,9 +443,12 @@ export function EmployeeModal({
         return;
       }
 
+      const avatarKey = extractUploadKey(values.avatar);
+      const fallbackAvatarPreviewUrl =
+        employee?.avatarPreviewUrl ||
+        (isHttpUrl(employee?.avatar) ? employee?.avatar : "");
       const saved: Employee = {
         id: employee?.id ?? `e${Date.now()}`,
-        password: values.password || undefined,
         firstName: values.firstName ?? "",
         lastName: values.lastName ?? "",
         employeeId: values.employeeId ?? "",
@@ -449,10 +459,10 @@ export function EmployeeModal({
         startDate: values.startDate ? dayjs(values.startDate).format("YYYY-MM-DD") : "",
         storeIds: values.storeIds ?? [],
         assignedStores: values.storeIds ?? [],
-        hourlyRate: values.hourlyRate ?? 0,
+        hourlyRate: employee?.hourlyRate ?? 0,
         notes: values.notes ?? "",
-        avatar: values.avatar ?? employee?.avatar ?? "",
-        avatarPreviewUrl: avatarFileList[0]?.url ?? employee?.avatarPreviewUrl ?? employee?.avatar ?? "",
+        avatar: avatarKey,
+        avatarPreviewUrl: avatarKey ? avatarFileList[0]?.url ?? fallbackAvatarPreviewUrl : "",
         employeeColor: values.employeeColor ?? DEFAULT_COLOR_VALUE,
         address: values.address ?? "",
         dateOfBirth: values.dateOfBirth ? dayjs(values.dateOfBirth).format("YYYY-MM-DD") : "",
@@ -716,15 +726,6 @@ export function EmployeeModal({
               <Input prefix={<Mail size={13} />} />
             </Form.Item>
           </div>
-          {!isEdit && (
-            <Form.Item
-              name="password"
-              label={et.initialPassword as string}
-              rules={[{ required: true, message: t.required }, { min: 8, message: et.passwordMinLength as string }]}
-            >
-              <Input.Password />
-            </Form.Item>
-          )}
           <div className="flex gap-4">
             <Form.Item name="startDate" label={et.startDate as string} style={{ flex: 1 }}>
               <DatePicker style={{ width: "100%" }} />
@@ -822,11 +823,6 @@ export function EmployeeModal({
           <Form.Item name="payrollEmployeeId" label={et.payrollEmployeeId as string}>
             <Input />
           </Form.Item>
-          <div className="flex gap-4">
-            <Form.Item name="hourlyRate" label={et.hourlyRate as string} style={{ flex: 1 }}>
-              <InputNumber min={0} step={0.5} style={{ width: "100%" }} addonAfter={et.nzd as string} />
-            </Form.Item>
-          </div>
         </div>
       ),
     },
@@ -1064,7 +1060,6 @@ function DetailPanel({
           <InfoRow icon={<DollarSign size={13} />} label={et.esctRate as string} value={employee.esctRate ? `${employee.esctRate}%` : ""} />
           <InfoRow icon={<Banknote size={13} />} label={et.bankAccountNumber as string} value={employee.bankAccountNumber ?? ""} />
           <InfoRow icon={<BadgeCheck size={13} />} label={et.payrollEmployeeId as string} value={employee.payrollEmployeeId ?? ""} />
-          <InfoRow icon={<DollarSign size={13} />} label={et.hourlyRate as string} value={employee.hourlyRate ? `$${employee.hourlyRate} ${et.nzd as string}` : ""} />
         </div>
       ),
     },

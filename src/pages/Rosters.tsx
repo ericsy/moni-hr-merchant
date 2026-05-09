@@ -133,8 +133,15 @@ const shiftConflictsWithTemplateCandidate = (
   shift: Pick<ScheduleShift, "areaId" | "date" | "startTime" | "endTime" | "employeeId" | "employeeIds">,
   candidate: TemplateCandidateShift
 ) => {
+  const candidateEmployeeIds = candidate.employeeIds.length > 0
+    ? candidate.employeeIds
+    : candidate.employeeId
+    ? [candidate.employeeId]
+    : [];
+  const shiftEmployeeIds = getShiftEmployeeIds(shift);
   const sameEmployeeOverlap =
-    getShiftEmployeeIds(shift).includes(candidate.employeeId) && datedShiftsOverlap(candidate, shift);
+    candidateEmployeeIds.some((employeeId) => shiftEmployeeIds.includes(employeeId)) &&
+    datedShiftsOverlap(candidate, shift);
   const sameAreaOverlap =
     shift.areaId === candidate.areaId &&
     shift.date === candidate.date &&
@@ -830,8 +837,16 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     return s.status === "draft" && d >= weekStart && d <= weekStart.add(6, "day");
   }).length;
 
-  const resolveTemplateCellShiftId = (cell: RosterTemplate["cells"][number], storeId: string) => {
-    if (cell.shiftId) return cell.shiftId;
+  const resolveTemplateCellPreset = (cell: RosterTemplate["cells"][number], storeId: string) => {
+    if (cell.shiftId) {
+      const matchedById = scheduleShifts.find((shift) => shift.isGlobalPreset && shift.shiftId === cell.shiftId);
+      return {
+        shiftId: cell.shiftId,
+        breakMinutes: matchedById?.breakMinutes ?? 30,
+        shiftName: matchedById?.shiftName || cell.label || cell.startTime,
+        color: cell.color || matchedById?.color || DEFAULT_COLOR_KEY,
+      };
+    }
 
     const cellLabel = (cell.label || cell.startTime).trim();
     const matchedPreset = scheduleShifts.find((shift) => {
@@ -846,7 +861,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       );
     });
 
-    return matchedPreset?.shiftId;
+    return {
+      shiftId: matchedPreset?.shiftId,
+      breakMinutes: matchedPreset?.breakMinutes ?? 30,
+      shiftName: matchedPreset?.shiftName || cell.label || cell.startTime,
+      color: cell.color || matchedPreset?.color || DEFAULT_COLOR_KEY,
+    };
   };
 
   const buildTemplateApplyPlan = (templateId: string, startDate: string, targetAreaId: string | null) => {
@@ -878,38 +898,25 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
       const targetDate = dayjs(startDate).add(cell.dayIndex, "day").format("YYYY-MM-DD");
 
-      let empsToAssign = cell.employeeIds.length > 0
-        ? activeEmployees.filter((employee) => cell.employeeIds.includes(employee.id))
-        : [];
+      const employeeIds = Array.from(new Set(cell.employeeIds || [])).filter(Boolean);
+      const preset = resolveTemplateCellPreset(cell, storeId);
 
-      if (empsToAssign.length === 0) {
-        const areaEmps = activeEmployees.filter(
-          (employee) => !employee.areaIds || employee.areaIds.length === 0 || employee.areaIds.includes(mappedAreaId)
-        );
-        const pool = areaEmps.length > 0 ? areaEmps : activeEmployees;
-        if (pool.length > 0) {
-          empsToAssign = [pool[cellIdx % pool.length]];
-        }
-      }
-
-      empsToAssign.forEach((emp, empIdx) => {
-        candidateShifts.push({
-          candidateKey: `${templateId}_${cell.id}_${emp.id}_${cellIdx}_${empIdx}`,
-          slotKey: makeAreaDateKey(mappedAreaId, targetDate),
-          shiftId: resolveTemplateCellShiftId(cell, storeId),
-          employeeId: emp.id,
-          employeeIds: [emp.id],
-          areaId: mappedAreaId,
-          storeId,
-          shiftType: "store",
-          date: targetDate,
-          startTime: cell.startTime,
-          endTime: cell.endTime,
-          breakMinutes: 30,
-          shiftName: cell.label || cell.startTime,
-          color: cell.color,
-          note: locale === "zh" ? `来自模版: ${rawTmpl.name}` : `From template: ${rawTmpl.name}`,
-        });
+      candidateShifts.push({
+        candidateKey: `${templateId}_${cell.id}_${cellIdx}`,
+        slotKey: makeAreaDateKey(mappedAreaId, targetDate),
+        shiftId: preset.shiftId,
+        employeeId: employeeIds[0] || "",
+        employeeIds,
+        areaId: mappedAreaId,
+        storeId,
+        shiftType: "store",
+        date: targetDate,
+        startTime: cell.startTime,
+        endTime: cell.endTime,
+        breakMinutes: preset.breakMinutes,
+        shiftName: preset.shiftName,
+        color: preset.color,
+        note: locale === "zh" ? `来自模版: ${rawTmpl.name}` : `From template: ${rawTmpl.name}`,
       });
     });
 

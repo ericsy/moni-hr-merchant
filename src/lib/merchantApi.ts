@@ -133,6 +133,28 @@ function asString(value: unknown, fallback = "") {
   return String(value);
 }
 
+function isHttpUrl(value: string) {
+  return /^https?:\/\//i.test(value.trim());
+}
+
+export function extractUploadKey(value: unknown) {
+  const raw = asString(value).trim();
+  if (!raw) return "";
+  if (!isHttpUrl(raw)) return raw;
+
+  try {
+    const url = new URL(raw);
+    const keyFromQuery =
+      url.searchParams.get("key") ||
+      url.searchParams.get("fileKey") ||
+      url.searchParams.get("objectKey");
+    if (keyFromQuery) return keyFromQuery;
+    return decodeURIComponent(url.pathname.replace(/^\/+/, ""));
+  } catch {
+    return "";
+  }
+}
+
 function asNumber(value: unknown, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
@@ -297,6 +319,24 @@ export function mapApiCountry(input: unknown): CountryOption {
 
 export function mapApiEmployee(input: unknown): Employee {
   const raw = asRecord(input);
+  const rawAvatar = asString(raw.avatar);
+  const avatarKey = extractUploadKey(
+    raw.avatarKey ||
+    raw.avatarObjectKey ||
+    raw.avatarFileKey ||
+    raw.avatarStorageKey ||
+    rawAvatar
+  );
+  const avatarPreviewUrl =
+    [
+      raw.avatarPreviewUrl,
+      raw.avatarUrl,
+      raw.avatarDownloadUrl,
+      raw.avatarFileUrl,
+      rawAvatar,
+    ]
+      .map((value) => asString(value))
+      .find((value) => isHttpUrl(value)) || "";
   const rawStoreIds = asArray(raw.storeIds).map((id) => asString(id));
   const storeDetails = asArray(raw.storeDetails)
     .map((item) => {
@@ -329,8 +369,8 @@ export function mapApiEmployee(input: unknown): Employee {
       : storeIds,
     hourlyRate: asNumber(raw.hourlyRate),
     notes: asString(raw.notes),
-    avatar: asString(raw.avatar),
-    avatarPreviewUrl: asString(raw.avatar),
+    avatar: avatarKey,
+    avatarPreviewUrl,
     employeeColor: asString(raw.employeeColor, "#60a5fa"),
     address: asString(raw.address),
     dateOfBirth: asString(raw.dateOfBirth),
@@ -384,7 +424,7 @@ export function employeeToApiPayload(employee: Employee & { password?: string },
     storeIds: (employee.storeIds || []).map(toNumberOrString),
     hourlyRate: employee.hourlyRate,
     notes: employee.notes,
-    avatar: employee.avatar,
+    avatar: extractUploadKey(employee.avatar),
     employeeColor: employee.employeeColor,
     address: employee.address,
     dateOfBirth: employee.dateOfBirth,
@@ -490,10 +530,10 @@ export function mapApiScheduleCell(input: unknown, storeId: string): ScheduleShi
     date,
     startTime: asString(raw.startTime, "09:00"),
     endTime: asString(raw.endTime, "17:00"),
-    breakMinutes: 0,
+    breakMinutes: asNumber(raw.breakMinutes, 0),
     shiftName: asString(raw.shiftsName || raw.shiftsname || raw.shiftName),
     color: asString(raw.color, "blue"),
-    note: "",
+    note: asString(raw.note),
     status: "draft",
   };
 }

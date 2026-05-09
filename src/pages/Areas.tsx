@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Input, Modal, Select, Tag, Tooltip } from "antd";
+import { Button, Input, InputNumber, Modal, Tag, Tooltip } from "antd";
 import {
   ChevronRight,
   Globe,
@@ -16,8 +16,6 @@ import { useData, type Area } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { ColorSwatchPicker, DEFAULT_COLOR_KEY, DEFAULT_COLOR_SWATCHES, getColorLabel, resolveColorValue } from "../components/ColorSwatchPicker";
-
-const { Option } = Select;
 
 const normalizeName = (value: string) => value.trim().toLowerCase();
 
@@ -129,6 +127,7 @@ export default function Areas() {
     storeId: selectedStoreId,
     areaType: "store" as "store" | "general",
     color: DEFAULT_COLOR_KEY,
+    order: 0,
   });
 
   const referenceMap = useMemo(() => {
@@ -201,13 +200,22 @@ export default function Areas() {
       ? copy.generalStoreLabel
       : stores.find((store) => store.id === area.storeId)?.name || area.storeId;
 
+  const getNextOrder = (areaType: "store" | "general", storeId: string, editingId?: string) => {
+    const scopeKey = areaType === "general" ? "__general__" : storeId;
+    return areas
+      .filter((area) => area.id !== editingId && getAreaScopeKey(area) === scopeKey)
+      .reduce((max, area) => Math.max(max, area.order), -1) + 1;
+  };
+
   const openCreateModal = () => {
+    const areaType = "store";
     setEditingArea(null);
     setForm({
       name: "",
       storeId: selectedStoreId,
-      areaType: "store",
+      areaType,
       color: DEFAULT_COLOR_KEY,
+      order: getNextOrder(areaType, selectedStoreId),
     });
     setModalOpen(true);
   };
@@ -219,6 +227,7 @@ export default function Areas() {
       storeId: area.storeId,
       areaType: getAreaType(area),
       color: area.color,
+      order: area.order,
     });
     setModalOpen(true);
   };
@@ -254,11 +263,8 @@ export default function Areas() {
       return;
     }
 
-    const nextOrder = editingArea && getAreaScopeKey(editingArea) === nextScopeKey
-      ? editingArea.order
-      : areas
-        .filter((area) => getAreaScopeKey(area) === nextScopeKey)
-        .reduce((max, area) => Math.max(max, area.order), -1) + 1;
+    const fallbackOrder = getNextOrder(normalizedAreaType, storeIdToSave, editingArea?.id);
+    const nextOrder = Number.isFinite(form.order) ? form.order : fallbackOrder;
 
     const areaToSave: Area = {
       ...(editingArea || { id: `area-${Date.now()}` }),
@@ -266,7 +272,7 @@ export default function Areas() {
       storeId: storeIdToSave,
       areaType: normalizedAreaType,
       color: form.color,
-      order: nextOrder,
+      order: Math.max(0, nextOrder),
     };
 
     try {
@@ -532,6 +538,9 @@ export default function Areas() {
                       storeId: option.key === "general"
                         ? ""
                         : selectedStoreId || prev.storeId,
+                      order: editingArea
+                        ? prev.order
+                        : getNextOrder(option.key, option.key === "general" ? "" : selectedStoreId || prev.storeId),
                     }))}
                     className="rounded-2xl px-4 py-3 text-left transition-all"
                     style={{
@@ -567,6 +576,20 @@ export default function Areas() {
               </div>
             </div>
           )}
+
+          <div>
+            <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
+              {copy.order}
+            </div>
+            <InputNumber
+              min={0}
+              step={1}
+              precision={0}
+              value={form.order}
+              onChange={(value) => setForm((prev) => ({ ...prev, order: value ?? 0 }))}
+              style={{ width: "100%" }}
+            />
+          </div>
 
           <div>
             <div className="mb-1.5 text-sm" style={{ color: "var(--foreground)" }}>
