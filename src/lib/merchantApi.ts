@@ -21,6 +21,11 @@ export interface MerchantLoginResult {
   status?: string | null;
 }
 
+export interface MerchantActivationEmail {
+  email?: string | null;
+  adminName?: string | null;
+}
+
 export interface MerchantPrincipal {
   merchantAdminId?: number;
   merchantId?: number;
@@ -256,7 +261,6 @@ export function mapApiStore(input: unknown): Store {
     openTime: asString(raw.openTime, "09:00"),
     closeTime: asString(raw.closeTime, "22:00"),
     timezone: asString(raw.timezone, "Pacific/Auckland"),
-    status: normalizeStatus(raw.status, "enabled", "disabled"),
     latitude: raw.latitude === undefined || raw.latitude === null ? undefined : asNumber(raw.latitude),
     longitude: raw.longitude === undefined || raw.longitude === null ? undefined : asNumber(raw.longitude),
     geofenceRadius: raw.geofenceRadius === undefined || raw.geofenceRadius === null ? undefined : asNumber(raw.geofenceRadius),
@@ -551,6 +555,11 @@ export const merchantApi = {
       method: "POST",
       auth: false,
       body: { token, newPassword },
+    }),
+  getActivationEmail: (token: string) =>
+    apiRequest<MerchantActivationEmail>("/api/v1/merchant/auth/activation-email", {
+      auth: false,
+      query: { token },
     }),
   logout: () =>
     apiRequest<null>("/api/v1/merchant/auth/logout", {

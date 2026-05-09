@@ -83,7 +83,6 @@ export interface Store {
   openTime: string;
   closeTime: string;
   timezone: string;
-  status: "enabled" | "disabled";
   // Geofence
   latitude?: number;
   longitude?: number;
@@ -169,6 +168,7 @@ export interface RosterTemplate {
 
 interface DataContextType {
   loading: boolean;
+  storesLoaded: boolean;
   error: string;
   lastStoreId: string;
   refreshData: () => Promise<void>;
@@ -257,7 +257,7 @@ const resolveStoreContext = (requestedStoreId: string, storeItems: Store[], last
   const matched = candidateIds.find((id) => storeIds.has(id));
   if (matched) return matched;
 
-  return storeItems.find((store) => store.status === "enabled")?.id || storeItems[0]?.id || "";
+  return storeItems[0]?.id || "";
 };
 
 async function loadByStoreContext<T extends { id: string }>(
@@ -313,6 +313,7 @@ const buildEmptyScheduleDraft = () => ({
 
 const DataContext = createContext<DataContextType>({
   loading: false,
+  storesLoaded: false,
   error: "",
   lastStoreId: "",
   refreshData: async () => {},
@@ -363,6 +364,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [areas, setAreas] = useState<Area[]>(initialData.areas);
   const [rosterTemplates, setRosterTemplates] = useState<RosterTemplate[]>(initialData.rosterTemplates);
   const [loading, setLoading] = useState(false);
+  const [storesLoaded, setStoresLoaded] = useState(false);
   const [error, setError] = useState("");
   const [lastStoreId, setLastStoreIdState] = useState("");
   const lastStoreIdRef = useRef("");
@@ -403,6 +405,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setAreas([]);
       setRosterTemplates([]);
       setLastStoreId("");
+      setStoresLoaded(false);
       currentStoreContextRef.current = "";
       inFlightLoadRef.current = null;
       return Promise.resolve();
@@ -447,6 +450,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setLastStoreId(nextLastStoreId);
       }
 
+      if (nextStores.length === 0) {
+        if (loadSeqRef.current !== seq) return;
+
+        setStores([]);
+        setCountries(nextCountries.length > 0 ? nextCountries : defaultCountries);
+        setStoresLoaded(true);
+        setEmployees([]);
+        setAreas([]);
+        setScheduleShifts([]);
+        setRosterTemplates([]);
+        setLastStoreId("");
+        currentStoreContextRef.current = "";
+        return;
+      }
+
       const scheduleStoreIds = getContextStoreIds(resolvedStoreContext, nextStores);
 
       const [
@@ -467,6 +485,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       setStores(nextStores);
       setCountries(nextCountries.length > 0 ? nextCountries : defaultCountries);
+      setStoresLoaded(true);
       if (employeeResult.ok) setEmployees(dedupeById(employeeResult.value));
       if (areaResult.ok) setAreas(dedupeById(areaResult.value));
       if (templateResult.ok) {
@@ -516,6 +535,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setAreas([]);
         setRosterTemplates([]);
         setLastStoreId("");
+        setStoresLoaded(false);
         currentStoreContextRef.current = "";
       });
     }
@@ -736,7 +756,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <DataContext.Provider value={{
-      loading, error, refreshData, reloadForStore,
+      loading, storesLoaded, error, refreshData, reloadForStore,
       lastStoreId,
       employees, setEmployees,
       saveEmployee, deleteEmployee,

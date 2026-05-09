@@ -11,7 +11,9 @@ import { DataProvider } from "./context/DataContext";
 import { StoreProvider } from "./context/StoreContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PermissionsProvider, usePermissions } from "./context/PermissionsContext";
+import { useData } from "./context/DataContext";
 import { useDynamicRoutes } from "./components/DynamicRoutes";
+import { getPagePath } from "./config/routes";
 import AppLayout from "./components/Layout";
 import { APP_BASE_PATH } from "./config/appBase";
 import Home from "./pages/Home";
@@ -45,10 +47,13 @@ class ErrorBoundary extends React.Component<
 function AuthenticatedRoutes() {
   const location = useLocation();
   const { loading } = usePermissions();
+  const { loading: dataLoading, stores, storesLoaded } = useData();
   const dynamicRoutes = useDynamicRoutes();
   const isDefaultPage = location.pathname === "/" || location.pathname === "/home";
   const isAuthPage = location.pathname === "/login" || location.pathname === "/activate";
   const shouldWaitForPermissions = loading && !isDefaultPage && !isAuthPage;
+  const requiresFirstStore = storesLoaded && !dataLoading && stores.length === 0;
+  const storesPath = getPagePath("stores") || "/stores";
 
   if (shouldWaitForPermissions) {
     return (
@@ -56,6 +61,10 @@ function AuthenticatedRoutes() {
         <Spin size="large" />
       </div>
     );
+  }
+
+  if (requiresFirstStore && location.pathname !== storesPath) {
+    return <Navigate to={storesPath} replace />;
   }
 
   return (
@@ -79,7 +88,12 @@ function AuthenticatedRoutes() {
 
 function AuthGate() {
   const { status } = useAuth();
+  const location = useLocation();
   console.log("[AuthGate] status:", status);
+
+  if (location.pathname === "/activate") {
+    return <Activate />;
+  }
 
   if (status === "unauthenticated") {
     return <Login />;

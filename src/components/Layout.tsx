@@ -51,11 +51,12 @@ export default function AppLayout({
 }: LayoutProps) {
   const navigate = useNavigate();
   const { locale, setLocale, t } = useLocale();
-  const { stores } = useData();
+  const { stores, storesLoaded } = useData();
   const { selectedStoreId, setSelectedStoreId } = useStore();
   const { logout, user } = useAuth();
   const { permissions } = usePermissions();
   const [collapsed, setCollapsed] = useState(false);
+  const requiresFirstStore = storesLoaded && stores.length === 0;
 
   console.log("[Layout] currentPage:", currentPage, "collapsed:", collapsed, "selectedStoreId:", selectedStoreId);
 
@@ -144,10 +145,13 @@ export default function AppLayout({
       label: t.nav.home,
     };
 
-    return [homeMenuItem, ...buildMenuItems(permissions)];
-  }, [permissions, locale, t]);
+    const items = [homeMenuItem, ...buildMenuItems(permissions)];
+    return requiresFirstStore ? items.filter((item) => item?.key === "stores") : items;
+  }, [permissions, locale, t, requiresFirstStore]);
 
   const handlePageChange = (page: PageKey) => {
+    if (requiresFirstStore && page !== "stores") return;
+
     if (onPageChange) {
       onPageChange(page);
       return;
@@ -300,22 +304,24 @@ export default function AppLayout({
 
             <Space size={12}>
               {/* Store Selector */}
-              <Select
-                value={selectedStoreId}
-                onChange={(v) => {
-                  console.log("[Layout] store changed:", v);
-                  setSelectedStoreId(v);
-                }}
-                style={{ width: 160 }}
-                size="small"
-                placeholder={locale === "zh" ? "选择店面" : "Select Store"}
-              >
-                {stores.map((s) => (
-                  <Option key={s.id} value={s.id}>
-                    {s.name}
-                  </Option>
-                ))}
-              </Select>
+              {!requiresFirstStore && (
+                <Select
+                  value={selectedStoreId}
+                  onChange={(v) => {
+                    console.log("[Layout] store changed:", v);
+                    setSelectedStoreId(v);
+                  }}
+                  style={{ width: 160 }}
+                  size="small"
+                  placeholder={locale === "zh" ? "选择店面" : "Select Store"}
+                >
+                  {stores.map((s) => (
+                    <Option key={s.id} value={s.id}>
+                      {s.name}
+                    </Option>
+                  ))}
+                </Select>
+              )}
 
               {/* Language switch */}
               <Button

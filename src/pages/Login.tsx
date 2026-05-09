@@ -1,29 +1,73 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, CalendarDays, LogIn } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { CalendarDays, Eye, EyeOff, Globe, Lock, LogIn, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+
+const T = {
+  en: {
+    welcomeBack: "Welcome back",
+    subtitle: "Sign in to your account",
+    emailLabel: "Email address",
+    emailPlaceholder: "Enter email address",
+    passwordLabel: "Password",
+    passwordPlaceholder: "Enter password",
+    forgotPassword: "Forgot password?",
+    submitBtn: "Sign In",
+    signingIn: "Signing in...",
+    toastError: "Sign in failed",
+    demoTitle: "Demo accounts:",
+    demoActive: "Activated: admin@moni-hr.com / admin123",
+    demoPending: "Pending: new@moni-hr.com (set password before first sign-in)",
+    errEmailRequired: "Please enter your email address",
+    errEmailInvalid: "Please enter a valid email address",
+    errPasswordRequired: "Please enter your password",
+  },
+  zh: {
+    welcomeBack: "欢迎回来",
+    subtitle: "请登录您的账户",
+    emailLabel: "邮箱地址",
+    emailPlaceholder: "请输入邮箱地址",
+    passwordLabel: "密码",
+    passwordPlaceholder: "请输入密码",
+    forgotPassword: "忘记密码？",
+    submitBtn: "登录",
+    signingIn: "登录中...",
+    toastError: "登录失败",
+    demoTitle: "演示账户：",
+    demoActive: "已激活：admin@moni-hr.com / admin123",
+    demoPending: "待激活：new@moni-hr.com（首次登录需设置密码）",
+    errEmailRequired: "请输入邮箱地址",
+    errEmailInvalid: "请输入有效的邮箱地址",
+    errPasswordRequired: "请输入密码",
+  },
+} as const;
+
+type Lang = keyof typeof T;
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  const [lang, setLang] = useState<Lang>("en");
+  const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const t = T[lang];
 
-  console.log("[Login] render, loading:", loading);
+  console.log("[Login] render, loading:", loading, "lang:", lang);
 
   const validate = () => {
     const errs: { email?: string; password?: string } = {};
     if (!email.trim()) {
-      errs.email = "请输入邮箱地址";
+      errs.email = t.errEmailRequired;
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errs.email = "请输入有效的邮箱地址";
+      errs.email = t.errEmailInvalid;
     }
     if (!password) {
-      errs.password = "请输入密码";
+      errs.password = t.errPasswordRequired;
     }
     return errs;
   };
@@ -40,7 +84,7 @@ export default function Login() {
     try {
       const result = await login(email.trim(), password);
       if (!result.success) {
-        toast.error(result.message ?? "登录失败");
+        toast.error(result.message ?? t.toastError);
       } else {
         navigate("/", { replace: true });
       }
@@ -52,7 +96,7 @@ export default function Login() {
   return (
     <div
       data-cmp="Login"
-      className="min-h-screen flex items-center justify-center bg-background"
+      className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden"
     >
       {/* Background decoration */}
       <div
@@ -83,6 +127,42 @@ export default function Login() {
         />
       </div>
 
+      <div className="absolute top-5 right-6 flex items-center gap-2" style={{ zIndex: 10 }}>
+        <Globe size={14} style={{ color: "var(--muted-foreground)" }} />
+        <div
+          className="flex items-center rounded-full p-0.5 select-none"
+          style={{
+            background: "var(--muted)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setLang("en")}
+            className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
+            style={{
+              background: lang === "en" ? "var(--primary)" : "transparent",
+              color: lang === "en" ? "var(--primary-foreground)" : "var(--muted-foreground)",
+              cursor: lang === "en" ? "default" : "pointer",
+            }}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => setLang("zh")}
+            className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
+            style={{
+              background: lang === "zh" ? "var(--primary)" : "transparent",
+              color: lang === "zh" ? "var(--primary-foreground)" : "var(--muted-foreground)",
+              cursor: lang === "zh" ? "default" : "pointer",
+            }}
+          >
+            中文
+          </button>
+        </div>
+      </div>
+
       {/* Card */}
       <div
         className="relative bg-card rounded-2xl shadow-custom w-full mx-4 overflow-hidden"
@@ -105,14 +185,16 @@ export default function Login() {
               <CalendarDays size={28} color="var(--primary-foreground)" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">MONI-HR</h1>
-            <p className="text-sm text-muted-foreground mt-1">欢迎回来，请登录您的账户</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {t.welcomeBack}, {t.subtitle}
+            </p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {/* Email */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">邮箱地址</label>
+              <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
               <div className="relative flex items-center">
                 <span
                   className="absolute left-3 flex items-center pointer-events-none"
@@ -127,7 +209,7 @@ export default function Login() {
                     setEmail(e.target.value);
                     if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
                   }}
-                  placeholder="请输入邮箱地址"
+                  placeholder={t.emailPlaceholder}
                   autoComplete="email"
                   className="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm outline-none transition-all"
                   style={{
@@ -155,14 +237,14 @@ export default function Login() {
             {/* Password */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground">密码</label>
+                <label className="text-sm font-medium text-foreground">{t.passwordLabel}</label>
                 <button
                   type="button"
                   className="text-xs font-medium transition-opacity hover:opacity-70"
                   style={{ color: "var(--primary)" }}
                   tabIndex={-1}
                 >
-                  忘记密码？
+                  {t.forgotPassword}
                 </button>
               </div>
               <div className="relative flex items-center">
@@ -179,7 +261,7 @@ export default function Login() {
                     setPassword(e.target.value);
                     if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }));
                   }}
-                  placeholder="请输入密码"
+                  placeholder={t.passwordPlaceholder}
                   autoComplete="current-password"
                   className="w-full rounded-lg pl-9 pr-10 py-2.5 text-sm outline-none transition-all"
                   style={{
@@ -235,12 +317,12 @@ export default function Login() {
                       borderColor: "var(--muted-foreground) transparent var(--muted-foreground) transparent",
                     }}
                   />
-                  登录中…
+                  {t.signingIn}
                 </span>
               ) : (
                 <>
                   <LogIn size={16} />
-                  登录
+                  {t.submitBtn}
                 </>
               )}
             </button>
@@ -256,12 +338,12 @@ export default function Login() {
             }}
           >
             <span className="font-semibold" style={{ color: "var(--accent-foreground)" }}>
-              演示账户：
+              {t.demoTitle}
             </span>
             <br />
-            已激活：admin@moni-hr.com / admin123
+            {t.demoActive}
             <br />
-            待激活：new@moni-hr.com（首次登录需设置密码）
+            {t.demoPending}
           </div>
         </div>
       </div>

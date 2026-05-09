@@ -5,7 +5,6 @@
  * - 支持地址搜索（Geocoding API）
  * - 可拖拽标记调整围栏中心
  * - 圆形围栏半径滑块（50–2000 米）
- * - 使用浏览器定位快速定位
  *
  * ⚠️  请将下方 GOOGLE_MAPS_API_KEY 替换为您自己的 API Key
  *     需开启：Maps JavaScript API + Geocoding API + Places API
@@ -56,7 +55,7 @@ declare namespace google {
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button, Slider, Input, Spin } from "antd";
-import { Search, Navigation, MapPin, Info } from "lucide-react";
+import { Search, MapPin, Info } from "lucide-react";
 import { useLocale } from "../context/LocaleContext";
 import { toast } from "sonner";
 
@@ -79,6 +78,7 @@ interface GeoFenceMapPickerProps {
   value?: GeoFenceValue;
   onChange?: (val: GeoFenceValue) => void;
   storeName?: string;
+  defaultLocationQuery?: string;
 }
 
 // Declare google maps types for window
@@ -118,6 +118,7 @@ export default function GeoFenceMapPicker({
   value,
   onChange = () => {},
   storeName = "",
+  defaultLocationQuery = "",
 }: GeoFenceMapPickerProps) {
   const { t } = useLocale();
   const st = t.store;
@@ -128,11 +129,13 @@ export default function GeoFenceMapPicker({
   const circleRef = useRef<google.maps.Circle | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const lastAppliedDefaultQueryRef = useRef("");
+  const lastAutoGeocodedQueryRef = useRef("");
+  const userSelectedLocationRef = useRef(false);
 
   const [mapsReady, setMapsReady] = useState(false);
   const [mapsError, setMapsError] = useState(false);
-  const [loadingLocation, setLoadingLocation] = useState(false);
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(defaultLocationQuery.trim());
 
   const initialLat = value?.latitude ?? DEFAULT_LAT;
   const initialLng = value?.longitude ?? DEFAULT_LNG;
@@ -170,6 +173,30 @@ export default function GeoFenceMapPicker({
       googleMapRef.current?.panTo(pos);
     },
     []
+  );
+
+  const geocodeAddress = useCallback(
+    (query: string, showError = true) => {
+      const address = query.trim();
+      if (!address || !window.google?.maps) return;
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ address }, (results, status) => {
+        if (status === "OK" && results && results[0]) {
+          const loc = results[0].geometry.location;
+          const newLat = loc.lat();
+          const newLng = loc.lng();
+          updateCircle(newLat, newLng, radius);
+          setLat(newLat);
+          setLng(newLng);
+          setSearchText(results[0].formatted_address || address);
+          notifyChange(newLat, newLng, radius);
+          console.log("[GeoFenceMapPicker] geocoded:", results[0].formatted_address);
+        } else if (showError) {
+          toast.error(`无法找到该地址 / Address not found`);
+        }
+      });
+    },
+    [notifyChange, radius, updateCircle]
   );
 
   // Initialize map
@@ -219,6 +246,7 @@ export default function GeoFenceMapPicker({
         marker.addListener("dragend", () => {
           const pos = marker.getPosition();
           if (!pos) return;
+          userSelectedLocationRef.current = true;
           const newLat = pos.lat();
           const newLng = pos.lng();
           circle.setCenter({ lat: newLat, lng: newLng });
@@ -231,6 +259,7 @@ export default function GeoFenceMapPicker({
         // Click on map → move marker
         map.addListener("click", (e: google.maps.MapMouseEvent) => {
           if (!e.latLng) return;
+          userSelectedLocationRef.current = true;
           const newLat = e.latLng.lat();
           const newLng = e.latLng.lng();
           marker.setPosition(e.latLng);
@@ -252,6 +281,7 @@ export default function GeoFenceMapPicker({
           autocomplete.addListener("place_changed", () => {
             const place = autocomplete.getPlace();
             if (!place.geometry?.location) return;
+            userSelectedLocationRef.current = true;
             const newLat = place.geometry.location.lat();
             const newLng = place.geometry.location.lng();
             marker.setPosition(place.geometry.location);
@@ -279,6 +309,42 @@ export default function GeoFenceMapPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const nextQuery = defaultLocationQuery.trim();
+    if (!nextQuery) return;
+
+    setSearchText((current) => {
+      const currentText = current.trim();
+      const canUseDefault =
+        !currentText ||
+        currentText === lastAppliedDefaultQueryRef.current ||
+        currentText === lastAutoGeocodedQueryRef.current;
+      if (!canUseDefault) return current;
+      lastAppliedDefaultQueryRef.current = nextQuery;
+      return nextQuery;
+    });
+  }, [defaultLocationQuery]);
+
+  useEffect(() => {
+    const nextQuery = defaultLocationQuery.trim();
+    const hasInitialCoordinates =
+      value?.latitude !== undefined &&
+      value?.longitude !== undefined &&
+      !lastAutoGeocodedQueryRef.current;
+    if (
+      !mapsReady ||
+      hasInitialCoordinates ||
+      userSelectedLocationRef.current ||
+      !nextQuery ||
+      lastAutoGeocodedQueryRef.current === nextQuery
+    ) {
+      return;
+    }
+
+    lastAutoGeocodedQueryRef.current = nextQuery;
+    geocodeAddress(nextQuery, false);
+  }, [defaultLocationQuery, geocodeAddress, mapsReady, value?.latitude, value?.longitude]);
+
   // Radius change → update circle
   const handleRadiusChange = (val: number) => {
     setRadius(val);
@@ -290,51 +356,8 @@ export default function GeoFenceMapPicker({
 
   // Manual search button (geocoding fallback)
   const handleManualSearch = () => {
-    if (!searchText.trim() || !window.google?.maps) return;
-    const geocoder = new window.google.maps.Geocoder();
-    geocoder.geocode({ address: searchText }, (results, status) => {
-      if (status === "OK" && results && results[0]) {
-        const loc = results[0].geometry.location;
-        const newLat = loc.lat();
-        const newLng = loc.lng();
-        updateCircle(newLat, newLng, radius);
-        setLat(newLat);
-        setLng(newLng);
-        notifyChange(newLat, newLng, radius);
-        console.log("[GeoFenceMapPicker] geocoded:", results[0].formatted_address);
-      } else {
-        toast.error(`无法找到该地址 / Address not found`);
-      }
-    });
-  };
-
-  // Use browser geolocation
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) {
-      toast.error("浏览器不支持定位");
-      return;
-    }
-    setLoadingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const newLat = pos.coords.latitude;
-        const newLng = pos.coords.longitude;
-        updateCircle(newLat, newLng, radius);
-        setLat(newLat);
-        setLng(newLng);
-        notifyChange(newLat, newLng, radius);
-        setLoadingLocation(false);
-        googleMapRef.current?.setZoom(17);
-        toast.success("已定位到当前位置");
-        console.log("[GeoFenceMapPicker] geolocated:", newLat, newLng);
-      },
-      (err) => {
-        console.log("[GeoFenceMapPicker] geolocation error:", err);
-        toast.error("定位失败，请手动搜索地址");
-        setLoadingLocation(false);
-      },
-      { timeout: 10000 }
-    );
+    userSelectedLocationRef.current = true;
+    geocodeAddress(searchText);
   };
 
   return (
@@ -373,15 +396,6 @@ export default function GeoFenceMapPicker({
           style={{ display: "flex", alignItems: "center", gap: 4 }}
         >
           {st.geofenceSearchBtn}
-        </Button>
-        <Button
-          size="small"
-          icon={loadingLocation ? <Spin size="small" /> : <Navigation size={13} />}
-          onClick={handleLocateMe}
-          loading={loadingLocation}
-          style={{ display: "flex", alignItems: "center", gap: 4 }}
-        >
-          {st.geofenceLocate}
         </Button>
       </div>
 

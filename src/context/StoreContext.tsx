@@ -19,7 +19,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const previousStoreIdRef = useRef(selectedStoreId);
   const initializedRef = useRef(false);
 
-  const fallbackStoreId = stores.find((store) => store.status === "enabled")?.id || stores[0]?.id || "";
+  const fallbackStoreId = stores[0]?.id || "";
 
   const setSelectedStoreId = (id: string) => {
     if (!id || id === "all") return;

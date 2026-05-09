@@ -13,7 +13,7 @@ interface AuthContextType {
   status: AuthStatus;
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  activate: (email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message?: string }>;
+  activate: (token: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
 }
 
@@ -149,12 +149,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const activate = async (
-    email: string,
+    token: string,
     password: string,
     confirmPassword: string
   ): Promise<{ success: boolean; message?: string }> => {
-    console.log("[AuthProvider] activate:", email);
-    await new Promise((r) => setTimeout(r, 800));
+    console.log("[AuthProvider] activate with token:", Boolean(token));
 
     if (password.length < 8) {
       return { success: false, message: "密码至少需要 8 位字符" };
@@ -164,13 +163,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const urlToken = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("token") || "";
-      const token = activationToken || urlToken;
-      if (!token) {
+      const effectiveToken = token || activationToken;
+      if (!effectiveToken) {
         return { success: false, message: "缺少激活令牌，请使用激活链接重新进入" };
       }
-      await merchantApi.activate(token, password);
-      return await login(email, password);
+      await merchantApi.activate(effectiveToken, password);
+      clearStoredAccessToken();
+      setStatus("unauthenticated");
+      setUser(null);
+      setActivationToken("");
+      return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : "激活失败，请重试";
       return { success: false, message };

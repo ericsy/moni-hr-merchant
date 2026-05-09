@@ -1,9 +1,8 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Input,
   Select,
-  Tag,
   Modal,
   Form,
   Popconfirm,
@@ -58,6 +57,13 @@ function getCountryLabel(country: CountryOption, locale: string) {
   return `${getCountryFlag(country.code)} ${name || country.code.toUpperCase()}`.trim();
 }
 
+function getCountrySearchName(code: string, countries: CountryOption[], locale: string) {
+  const normalized = code.toLowerCase();
+  const country = countries.find((item) => item.code.toLowerCase() === normalized);
+  if (!country) return normalized ? normalized.toUpperCase() : "";
+  return locale === "zh" ? country.nameZh || country.nameEn : country.nameEn || country.nameZh;
+}
+
 function getStoreCountryLabel(code: string, countries: CountryOption[], locale: string, fallbackLabels: Record<string, string>) {
   const normalized = code.toLowerCase();
   const country = countries.find((item) => item.code.toLowerCase() === normalized);
@@ -75,6 +81,7 @@ function StoreModal({
   store = null,
   employees = [],
   countries = FALLBACK_COUNTRIES,
+  locked = false,
   onSave = () => {},
   onCancel = () => {},
   t,
@@ -84,6 +91,7 @@ function StoreModal({
   store?: Store | null;
   employees?: { storeIds: string[] }[];
   countries?: CountryOption[];
+  locked?: boolean;
   onSave?: (store: Store) => void | Promise<void>;
   onCancel?: () => void;
   t: ReturnType<typeof useLocale>["t"];
@@ -112,7 +120,6 @@ function StoreModal({
         openTime: values.openTime ? values.openTime.format("HH:mm") : "09:00",
         closeTime: values.closeTime ? values.closeTime.format("HH:mm") : "22:00",
         timezone: store?.timezone || "Pacific/Auckland",
-        status: values.status,
         ...(geofenceValue
           ? {
               latitude: geofenceValue.latitude,
@@ -140,9 +147,24 @@ function StoreModal({
         openTime: store.openTime ? dayjs(store.openTime, "HH:mm") : null,
         closeTime: store.closeTime ? dayjs(store.closeTime, "HH:mm") : null,
       }
-    : { status: "enabled" };
+    : {};
 
   const storeName = form.getFieldValue("name") as string | undefined;
+  const watchedAddress = Form.useWatch("address", form) as string | undefined;
+  const watchedCity = Form.useWatch("city", form) as string | undefined;
+  const watchedCountry = Form.useWatch("country", form) as string | undefined;
+  const locationAddress = (watchedAddress ?? store?.address ?? "").trim();
+  const locationCity = (watchedCity ?? store?.city ?? "").trim();
+  const locationCountry = getCountrySearchName(
+    (watchedCountry ?? store?.country ?? "").trim(),
+    countryOptions,
+    locale
+  );
+  const defaultLocationQuery = locationAddress
+    ? [locationAddress, locationCity, locationCountry].filter(Boolean).join(", ")
+    : locationCity
+    ? [locationCity, locationCountry].filter(Boolean).join(", ")
+    : "";
 
   const tabItems = [
     {
@@ -196,12 +218,6 @@ function StoreModal({
               <Input placeholder={locale === "zh" ? `负责人姓名` : `Manager name`} />
             </Form.Item>
           </div>
-          <Form.Item name="status" label={t.status} rules={[{ required: true }]} initialValue="enabled">
-            <Select>
-              <Option value="enabled">{t.enabled}</Option>
-              <Option value="disabled">{t.disabled}</Option>
-            </Select>
-          </Form.Item>
         </Form>
       ),
     },
@@ -227,6 +243,7 @@ function StoreModal({
               console.log("[StoreModal] geofence updated:", val);
             }}
             storeName={storeName || store?.name || ""}
+            defaultLocationQuery={defaultLocationQuery}
           />
         </div>
       ),
@@ -238,13 +255,32 @@ function StoreModal({
       open={open}
       title={isEdit ? st.editStore : st.addStore}
       onOk={handleOk}
-      onCancel={onCancel}
+      onCancel={locked ? undefined : onCancel}
       okText={t.save}
       cancelText={t.cancel}
       width={700}
       destroyOnClose
+      maskClosable={!locked}
+      keyboard={!locked}
+      closable={!locked}
+      cancelButtonProps={{ style: { display: locked ? "none" : undefined } }}
       styles={{ body: { padding: "12px 24px 0" } }}
     >
+      {locked && (
+        <div
+          className="mb-3 rounded-lg px-4 py-3 text-sm"
+          style={{
+            background: "var(--accent)",
+            border: "1px solid var(--border)",
+            color: "var(--muted-foreground)",
+          }}
+        >
+          <div className="font-semibold mb-1" style={{ color: "var(--accent-foreground)" }}>
+            {st.firstStoreTitle}
+          </div>
+          <div>{st.firstStoreDesc}</div>
+        </div>
+      )}
       <Tabs
         activeKey={activeTab}
         onChange={(k) => { setActiveTab(k); }}
@@ -381,14 +417,6 @@ function StoreDetailPanel({
           <div className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}>
             {store.code} · {store.city}
           </div>
-          <div className="mt-1.5">
-            <Tag
-              color={store.status === "enabled" ? "success" : "default"}
-              style={{ fontSize: 11 }}
-            >
-              {store.status === "enabled" ? t.enabled : t.disabled}
-            </Tag>
-          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Button
@@ -424,9 +452,10 @@ function StoreDetailPanel({
 // ─── Main Stores Page ───
 export default function Stores() {
   const { t, locale } = useLocale();
-  const { stores, saveStore, deleteStore, employees, countries } = useData();
+  const { stores, storesLoaded, saveStore, deleteStore, employees, countries } = useData();
   const st = t.store;
   const countryOptions = countries.length > 0 ? countries : FALLBACK_COUNTRIES;
+  const requiresFirstStore = storesLoaded && stores.length === 0;
 
   const [search, setSearch] = useState("");
   const [filterCountry, setFilterCountry] = useState("all");
@@ -435,6 +464,12 @@ export default function Stores() {
   const [editingStore, setEditingStore] = useState<Store | null>(null);
 
   console.log("[Stores] selectedId:", selectedId, "total:", stores.length);
+
+  useEffect(() => {
+    if (!requiresFirstStore) return;
+    setEditingStore(null);
+    setModalOpen(true);
+  }, [requiresFirstStore]);
 
   const filtered = useMemo(() => {
     return stores.filter((s) => {
@@ -523,10 +558,27 @@ export default function Stores() {
           type="primary"
           icon={<Plus size={14} />}
           onClick={handleAdd}
+          disabled={requiresFirstStore && modalOpen}
         >
           {st.addStore}
         </Button>
       </div>
+
+      {requiresFirstStore && (
+        <div
+          className="mb-4 rounded-xl px-5 py-4"
+          style={{
+            background: "var(--accent)",
+            border: "1px solid var(--border)",
+            color: "var(--muted-foreground)",
+          }}
+        >
+          <div className="font-semibold text-sm mb-1" style={{ color: "var(--accent-foreground)" }}>
+            {st.firstStoreTitle}
+          </div>
+          <div className="text-sm">{st.firstStoreDesc}</div>
+        </div>
+      )}
 
       {/* ─── Body: left list + right detail ─── */}
       <div className="flex flex-1 gap-4 overflow-hidden">
@@ -589,12 +641,6 @@ export default function Stores() {
                       {getCountryFlag(store.country)} {store.city} · {store.code}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <Tag
-                        color={store.status === "enabled" ? "success" : "default"}
-                        style={{ fontSize: 10, padding: "0 4px", lineHeight: "16px", margin: 0 }}
-                      >
-                        {store.status === "enabled" ? t.enabled : t.disabled}
-                      </Tag>
                       <span className="text-xs flex items-center gap-0.5" style={{ color: "var(--muted-foreground)" }}>
                         <Users size={10} />
                         {empCount}
@@ -644,8 +690,12 @@ export default function Stores() {
         store={editingStore}
         employees={employees}
         countries={countryOptions}
+        locked={requiresFirstStore}
         onSave={handleSave}
-        onCancel={() => setModalOpen(false)}
+        onCancel={() => {
+          if (requiresFirstStore) return;
+          setModalOpen(false);
+        }}
         t={t}
         locale={locale}
       />

@@ -127,7 +127,7 @@ export default function Schedule() {
         storeOnlyDesc: "Used only in the selected store",
       };
 
-  const enabledStores = stores.filter((store) => store.status === "enabled");
+  const selectableStores = stores;
   const [modalOpen, setModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<ScheduleShift | null>(null);
   const [selectedShiftId, setSelectedShiftId] = useState("");
@@ -167,7 +167,7 @@ export default function Schedule() {
 
   const openCreateModal = () => {
     setEditingShift(null);
-    setForm(buildDefaultForm(selectedStoreId, enabledStores[0]?.id || ""));
+    setForm(buildDefaultForm(selectedStoreId, selectableStores[0]?.id || ""));
     setModalOpen(true);
   };
 
@@ -409,7 +409,7 @@ export default function Schedule() {
         isEdit={!!editingShift}
         form={form}
         setForm={setForm}
-        stores={enabledStores.map((store) => ({ id: store.id, name: store.name }))}
+        stores={selectableStores.map((store) => ({ id: store.id, name: store.name }))}
         currentStoreId={selectedStoreId}
         onClose={closeModal}
         onSave={handleSaveShift}

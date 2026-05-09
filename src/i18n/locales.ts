@@ -253,6 +253,8 @@ export const locales = {
       searchPlaceholder: "搜索店面名称、城市...",
       filterCountry: "按国家筛选",
       allCountries: "全部国家",
+      firstStoreTitle: "请先创建店面",
+      firstStoreDesc: "当前商户还没有店面。创建第一个店面后，员工、区域、排班等功能才会开放。",
       deleteSuccess: "店面删除成功",
       saveSuccess: "店面信息保存成功",
       countries: {
@@ -276,7 +278,6 @@ export const locales = {
       geofenceCenter: "围栏中心坐标",
       geofenceSearch: "搜索地址或地点...",
       geofenceSearchBtn: "搜索",
-      geofenceLocate: "使用当前位置",
       geofenceRadiusHint: "建议设置 100–500 米，覆盖店面周边区域",
       geofenceNotSet: "未设置",
       geofenceSet: "已设置",
@@ -541,6 +542,8 @@ export const locales = {
       searchPlaceholder: "Search store name, city...",
       filterCountry: "Filter by Country",
       allCountries: "All Countries",
+      firstStoreTitle: "Create your first store",
+      firstStoreDesc: "This merchant has no stores yet. Employee, area, roster and schedule features will unlock after the first store is created.",
       deleteSuccess: "Store deleted successfully",
       saveSuccess: "Store saved successfully",
       countries: {
@@ -564,7 +567,6 @@ export const locales = {
       geofenceCenter: "Fence Center Coordinates",
       geofenceSearch: "Search address or place...",
       geofenceSearchBtn: "Search",
-      geofenceLocate: "Use Current Location",
       geofenceRadiusHint: "Recommended 100–500 m to cover the store area",
       geofenceNotSet: "Not Set",
       geofenceSet: "Set",

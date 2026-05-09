@@ -23,7 +23,6 @@ export default function Dashboard({ onNavigate = () => {} }: DashboardProps) {
   const { employees, stores } = useData();
 
   const activeEmployees = employees.filter((e) => e.status === "active").length;
-  const enabledStores = stores.filter((s) => s.status === "enabled").length;
 
   const statsCards = [
     {
@@ -36,7 +35,7 @@ export default function Dashboard({ onNavigate = () => {} }: DashboardProps) {
     },
     {
       title: t.dashboard.totalStores,
-      value: enabledStores,
+      value: stores.length,
       icon: <Store size={22} />,
       color: "var(--chart-2)",
       bg: "var(--secondary)",
@@ -49,7 +48,7 @@ export default function Dashboard({ onNavigate = () => {} }: DashboardProps) {
     { label: t.dashboard.addStore, icon: <Store size={16} />, page: "stores" },
   ];
 
-  console.log("[Dashboard] stats:", { activeEmployees, enabledStores });
+  console.log("[Dashboard] stats:", { activeEmployees, stores: stores.length });
 
   return (
     <div data-cmp="Dashboard" className="flex flex-col gap-6">
@@ -206,12 +205,6 @@ export default function Dashboard({ onNavigate = () => {} }: DashboardProps) {
                     {getCountryFlag(store.country)} {store.country.toUpperCase()} · {store.city}
                   </div>
                 </div>
-                <Tag
-                  color={store.status === "enabled" ? "success" : "default"}
-                  style={{ margin: 0, fontSize: 11 }}
-                >
-                  {store.status === "enabled" ? t.enabled : t.disabled}
-                </Tag>
               </div>
             ))}
           </Card>

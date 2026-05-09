@@ -120,7 +120,6 @@ export default function Areas() {
         scopeValue: "Scope",
       };
 
-  const enabledStores = stores.filter((store) => store.status === "enabled");
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingArea, setEditingArea] = useState<Area | null>(null);
