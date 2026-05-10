@@ -13,7 +13,6 @@ const T = {
     emailPlaceholder: "Enter email address",
     passwordLabel: "Password",
     passwordPlaceholder: "Enter password",
-    forgotPassword: "Forgot password?",
     submitBtn: "Sign In",
     signingIn: "Signing in...",
     toastError: "Sign in failed",
@@ -28,7 +27,6 @@ const T = {
     emailPlaceholder: "请输入邮箱地址",
     passwordLabel: "密码",
     passwordPlaceholder: "请输入密码",
-    forgotPassword: "忘记密码？",
     submitBtn: "登录",
     signingIn: "登录中...",
     toastError: "登录失败",
@@ -232,17 +230,7 @@ export default function Login() {
 
             {/* Password */}
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground">{t.passwordLabel}</label>
-                <button
-                  type="button"
-                  className="text-xs font-medium transition-opacity hover:opacity-70"
-                  style={{ color: "var(--primary)" }}
-                  tabIndex={-1}
-                >
-                  {t.forgotPassword}
-                </button>
-              </div>
+              <label className="text-sm font-medium text-foreground">{t.passwordLabel}</label>
               <div className="relative flex items-center">
                 <span
                   className="absolute left-3 flex items-center pointer-events-none"

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Space, Select, type MenuProps } from "antd";
+import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Space, Select, Modal, Form, Input, type MenuProps } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
   House,
@@ -14,7 +14,7 @@ import {
   ChevronRight,
   Bell,
   CreditCard,
-  Settings,
+  KeyRound,
   LogOut,
   User,
   CalendarRange,
@@ -24,7 +24,8 @@ import { useData } from "../context/DataContext";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../context/PermissionsContext";
-import type { MerchantFeatureTreeNode } from "../lib/merchantApi";
+import { merchantApi, type MerchantFeatureTreeNode } from "../lib/merchantApi";
+import { toast } from "sonner";
 import {
   getPagePath,
   resolveRouteConfigFromFeature,
@@ -53,6 +54,12 @@ interface LayoutProps {
   children?: React.ReactNode;
 }
 
+type ChangePasswordFormValues = {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+};
+
 export default function AppLayout({
   currentPage = "home",
   onPageChange,
@@ -65,6 +72,9 @@ export default function AppLayout({
   const { logout, user } = useAuth();
   const { permissions } = usePermissions();
   const [collapsed, setCollapsed] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordForm] = Form.useForm<ChangePasswordFormValues>();
   const lastDataReloadKeyRef = useRef("");
   const requiresFirstStore = storesLoaded && stores.length === 0;
 
@@ -198,12 +208,51 @@ export default function AppLayout({
 
   const userMenuItems = [
     { key: "profile", icon: <User size={14} />, label: locale === "zh" ? "个人资料" : "Profile" },
-    { key: "settings", icon: <Settings size={14} />, label: locale === "zh" ? "设置" : "Settings" },
+    { key: "changePassword", icon: <KeyRound size={14} />, label: t.employee.changePassword },
     { type: "divider" as const },
     { key: "logout", icon: <LogOut size={14} />, label: locale === "zh" ? "退出登录" : "Logout", danger: true },
   ];
 
+  const openChangePasswordModal = () => {
+    passwordForm.resetFields();
+    setPasswordModalOpen(true);
+  };
+
+  const closeChangePasswordModal = () => {
+    if (passwordSaving) return;
+    setPasswordModalOpen(false);
+    passwordForm.resetFields();
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      const values = await passwordForm.validateFields();
+      setPasswordSaving(true);
+      await merchantApi.changePassword(values.currentPassword, values.newPassword);
+      toast.success(t.employee.passwordChanged);
+      setPasswordModalOpen(false);
+      passwordForm.resetFields();
+      logout();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      const isValidationError =
+        typeof error === "object" &&
+        error !== null &&
+        "errorFields" in error;
+      if (!isValidationError) {
+        toast.error(error instanceof Error ? error.message : t.employee.passwordChangeFailed);
+      }
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   const handleUserMenuClick = ({ key }: { key: string }) => {
+    if (key === "changePassword") {
+      openChangePasswordModal();
+      return;
+    }
+
     if (key === "logout") {
       console.log("[Layout] user logout");
       logout();
@@ -422,6 +471,90 @@ export default function AppLayout({
           </Content>
         </AntLayout>
       </AntLayout>
+      <ChangePasswordModal
+        open={passwordModalOpen}
+        loading={passwordSaving}
+        form={passwordForm}
+        t={t}
+        onOk={handleChangePassword}
+        onCancel={closeChangePasswordModal}
+      />
     </div>
+  );
+}
+
+function ChangePasswordModal({
+  open,
+  loading,
+  form,
+  t,
+  onOk,
+  onCancel,
+}: {
+  open: boolean;
+  loading: boolean;
+  form: ReturnType<typeof Form.useForm<ChangePasswordFormValues>>[0];
+  t: ReturnType<typeof useLocale>["t"];
+  onOk: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal
+      open={open}
+      title={t.employee.changePasswordTitle}
+      onOk={onOk}
+      onCancel={onCancel}
+      okText={t.employee.changePassword}
+      cancelText={t.cancel}
+      confirmLoading={loading}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" preserve={false}>
+        <Form.Item
+          name="currentPassword"
+          label={t.employee.currentPassword}
+          rules={[{ required: true, message: t.required }]}
+        >
+          <Input.Password
+            autoComplete="current-password"
+            placeholder={t.employee.currentPasswordPlaceholder}
+          />
+        </Form.Item>
+        <Form.Item
+          name="newPassword"
+          label={t.employee.newPassword}
+          rules={[
+            { required: true, message: t.required },
+            { min: 8, message: t.employee.passwordTooShort },
+          ]}
+        >
+          <Input.Password
+            autoComplete="new-password"
+            placeholder={t.employee.newPasswordPlaceholder}
+          />
+        </Form.Item>
+        <Form.Item
+          name="confirmPassword"
+          label={t.employee.confirmPassword}
+          dependencies={["newPassword"]}
+          rules={[
+            { required: true, message: t.required },
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                if (!value || getFieldValue("newPassword") === value) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error(t.employee.passwordMismatch));
+              },
+            }),
+          ]}
+        >
+          <Input.Password
+            autoComplete="new-password"
+            placeholder={t.employee.confirmPasswordPlaceholder}
+          />
+        </Form.Item>
+      </Form>
+    </Modal>
   );
 }

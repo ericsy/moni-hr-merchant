@@ -62,6 +62,7 @@ declare global {
   const Info: typeof import('lucide-react').Info
   const InfoIcon: typeof import('lucide-react').InfoIcon
   const Key: typeof import('lucide-react').Key
+  const KeyRound: typeof import('lucide-react').KeyRound
   const Layout: typeof import('lucide-react').Layout
   const LayoutDashboard: typeof import('lucide-react').LayoutDashboard
   const LayoutTemplate: typeof import('lucide-react').LayoutTemplate

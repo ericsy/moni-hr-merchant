@@ -605,6 +605,11 @@ export const merchantApi = {
     apiRequest<null>("/api/v1/merchant/auth/logout", {
       method: "POST",
     }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiRequest<null>("/api/v1/merchant/auth/password", {
+      method: "PUT",
+      body: { currentPassword, newPassword },
+    }),
   merchantMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/me"),
   authMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/auth/me"),
   updateLastStore: (storeId: string) => {

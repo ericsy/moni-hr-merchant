@@ -54,6 +54,11 @@ export const locales = {
       billing: "账单订阅",
     },
 
+    // Home
+    home: {
+      welcome: "欢迎使用本系统",
+    },
+
     // Dashboard
     dashboard: {
       title: "控制台",
@@ -91,6 +96,18 @@ export const locales = {
       deleteFailed: "员工删除失败",
       saveSuccess: "员工信息保存成功",
       saveFailed: "员工信息保存失败",
+      changePassword: "修改密码",
+      changePasswordTitle: "修改当前登录账号密码",
+      currentPassword: "当前密码",
+      currentPasswordPlaceholder: "请输入当前密码",
+      newPassword: "新密码",
+      newPasswordPlaceholder: "请输入新密码（至少 8 位）",
+      confirmPassword: "确认新密码",
+      confirmPasswordPlaceholder: "请再次输入新密码",
+      passwordTooShort: "密码至少需要 8 位字符",
+      passwordMismatch: "两次输入的新密码不一致",
+      passwordChanged: "密码修改成功，请重新登录",
+      passwordChangeFailed: "密码修改失败",
       employeeColor: "员工颜色",
       avatar: "员工头像",
       avatarHint: "支持 JPG、PNG、WEBP 等图片文件",
@@ -337,6 +354,10 @@ export const locales = {
       billing: "Billing",
     },
 
+    home: {
+      welcome: "Welcome to the system",
+    },
+
     dashboard: {
       title: "Dashboard",
       totalEmployees: "Total Employees",
@@ -372,6 +393,18 @@ export const locales = {
       deleteFailed: "Failed to delete employee",
       saveSuccess: "Employee saved successfully",
       saveFailed: "Failed to save employee",
+      changePassword: "Change Password",
+      changePasswordTitle: "Change Current Account Password",
+      currentPassword: "Current Password",
+      currentPasswordPlaceholder: "Enter current password",
+      newPassword: "New Password",
+      newPasswordPlaceholder: "Enter new password (min. 8 characters)",
+      confirmPassword: "Confirm New Password",
+      confirmPasswordPlaceholder: "Re-enter new password",
+      passwordTooShort: "Password must be at least 8 characters",
+      passwordMismatch: "The new passwords do not match",
+      passwordChanged: "Password changed. Please sign in again.",
+      passwordChangeFailed: "Failed to change password",
       employeeColor: "Employee Color",
       avatar: "Avatar",
       avatarHint: "Supports JPG, PNG, WEBP, and other image files",
