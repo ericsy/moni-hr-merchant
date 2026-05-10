@@ -1,42 +1,51 @@
-import { useState, useCallback, useRef } from "react";
 import {
+  Avatar,
   Button,
   Input,
   Modal,
-  Select,
-  Avatar,
-  TimePicker,
   Popconfirm,
   Radio,
+  Select,
+  TimePicker,
 } from "antd";
+import dayjs from "dayjs";
+import isoWeek from "dayjs/plugin/isoWeek";
+import weekOfYear from "dayjs/plugin/weekOfYear";
 import {
-  Plus,
-  Search,
-  Trash2,
-  Edit2,
-  Clock,
-  Save,
+  AlertTriangle,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  GripVertical,
-  CalendarDays,
-  LayoutTemplate,
-  Send,
-  Users,
-  Info,
+  Clock,
   Download,
+  Edit2,
+  GripVertical,
+  Info,
+  LayoutTemplate,
+  Plus,
+  Save,
+  Search,
+  Send,
+  Trash2,
+  Users,
   X,
-  AlertTriangle,
 } from "lucide-react";
-import { useData, type Area, type ScheduleShift, type RosterTemplate } from "../context/DataContext";
+import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
+import {
+  ColorSwatchPicker,
+  DEFAULT_COLOR_KEY,
+  getSoftColorStyle,
+} from "../components/ColorSwatchPicker";
+import {
+  useData,
+  type Area,
+  type RosterTemplate,
+  type ScheduleShift,
+} from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { calcShiftHours, datedShiftsOverlap } from "../lib/shift";
-import { ColorSwatchPicker, DEFAULT_COLOR_KEY, getSoftColorStyle } from "../components/ColorSwatchPicker";
-import { toast } from "sonner";
-import dayjs from "dayjs";
-import weekOfYear from "dayjs/plugin/weekOfYear";
-import isoWeek from "dayjs/plugin/isoWeek";
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
@@ -53,10 +62,17 @@ const formatTime12 = (t: string) => {
   return `${h12}:${String(m).padStart(2, "0")}${ampm}`;
 };
 
-const calcHours = (start: string, end: string, brk = 0) => calcShiftHours(start, end, brk);
+const calcHours = (start: string, end: string, brk = 0) =>
+  calcShiftHours(start, end, brk);
 
-const getShiftEmployeeIds = (shift: Pick<ScheduleShift, "employeeId" | "employeeIds">) =>
-  shift.employeeIds?.length ? shift.employeeIds : shift.employeeId ? [shift.employeeId] : [];
+const getShiftEmployeeIds = (
+  shift: Pick<ScheduleShift, "employeeId" | "employeeIds">,
+) =>
+  shift.employeeIds?.length
+    ? shift.employeeIds
+    : shift.employeeId
+      ? [shift.employeeId]
+      : [];
 
 const getColorStyle = (color: string) => getSoftColorStyle(color);
 
@@ -77,7 +93,8 @@ const makeShiftPresetKey = ({
   startTime: string;
   endTime: string;
   color: string;
-}) => `${shiftType}::${storeId}::${shiftName}::${startTime}::${endTime}::${color}`;
+}) =>
+  `${shiftType}::${storeId}::${shiftName}::${startTime}::${endTime}::${color}`;
 
 interface ShiftPresetOption {
   key: string;
@@ -91,7 +108,11 @@ interface ShiftPresetOption {
   storeId: string;
 }
 
-type TemplateConflictStrategy = "overwrite_slot" | "merge_old" | "merge_new" | "replace_range";
+type TemplateConflictStrategy =
+  | "overwrite_slot"
+  | "merge_old"
+  | "merge_new"
+  | "replace_range";
 
 interface TemplateCandidateShift {
   candidateKey: string;
@@ -130,19 +151,26 @@ interface TemplateApplyPlan {
 const makeAreaDateKey = (areaId: string, date: string) => `${areaId}::${date}`;
 
 const shiftConflictsWithTemplateCandidate = (
-  shift: Pick<ScheduleShift, "areaId" | "date" | "startTime" | "endTime" | "employeeId" | "employeeIds">,
-  candidate: TemplateCandidateShift
+  shift: Pick<
+    ScheduleShift,
+    "areaId" | "date" | "startTime" | "endTime" | "employeeId" | "employeeIds"
+  >,
+  candidate: TemplateCandidateShift,
+  checkAreaOverlap = true,
 ) => {
-  const candidateEmployeeIds = candidate.employeeIds.length > 0
-    ? candidate.employeeIds
-    : candidate.employeeId
-    ? [candidate.employeeId]
-    : [];
+  const candidateEmployeeIds =
+    candidate.employeeIds.length > 0
+      ? candidate.employeeIds
+      : candidate.employeeId
+        ? [candidate.employeeId]
+        : [];
   const shiftEmployeeIds = getShiftEmployeeIds(shift);
   const sameEmployeeOverlap =
-    candidateEmployeeIds.some((employeeId) => shiftEmployeeIds.includes(employeeId)) &&
-    datedShiftsOverlap(candidate, shift);
+    candidateEmployeeIds.some((employeeId) =>
+      shiftEmployeeIds.includes(employeeId),
+    ) && datedShiftsOverlap(candidate, shift);
   const sameAreaOverlap =
+    checkAreaOverlap &&
     shift.areaId === candidate.areaId &&
     shift.date === candidate.date &&
     datedShiftsOverlap(candidate, shift);
@@ -155,8 +183,8 @@ interface RosterTemplateCard {
   id: string;
   name: string;
   storeId: string;
-  type: string;    // e.g. "1 week" / "2 weeks" — derived from totalDays
-  color: string;   // first cell color or "blue"
+  type: string; // e.g. "1 week" / "2 weeks" — derived from totalDays
+  color: string; // first cell color or "blue"
   shifts: {
     name: string;
     startTime: string;
@@ -176,11 +204,23 @@ function toTemplateCard(t: RosterTemplate): RosterTemplateCard {
     const key = `${cell.label}|${cell.startTime}|${cell.endTime}`;
     if (!seen.has(key)) {
       seen.add(key);
-      shifts.push({ name: cell.label || cell.startTime, startTime: cell.startTime, endTime: cell.endTime, color: cell.color });
+      shifts.push({
+        name: cell.label || cell.startTime,
+        startTime: cell.startTime,
+        endTime: cell.endTime,
+        color: cell.color,
+      });
     }
   }
   const firstColor = t.cells[0]?.color || DEFAULT_COLOR_KEY;
-  return { id: t.id, name: t.name, storeId: t.storeId, type: typeLabel, color: firstColor, shifts };
+  return {
+    id: t.id,
+    name: t.name,
+    storeId: t.storeId,
+    type: typeLabel,
+    color: firstColor,
+    shifts,
+  };
 }
 
 // ─── TemplateCard (draggable) ─────────────────────────────────────────────────
@@ -191,7 +231,11 @@ interface TemplateCardProps {
   onDragEnd?: () => void;
 }
 
-function TemplateCard({ template, onDragStart = () => {}, onDragEnd = () => {} }: TemplateCardProps) {
+function TemplateCard({
+  template,
+  onDragStart = () => {},
+  onDragEnd = () => {},
+}: TemplateCardProps) {
   if (!template) return null;
   const cs = getColorStyle(template.color);
   return (
@@ -212,15 +256,26 @@ function TemplateCard({ template, onDragStart = () => {}, onDragEnd = () => {} }
         <div className="flex items-center gap-2">
           <div
             className="flex items-center justify-center rounded-lg"
-            style={{ width: 30, height: 30, background: cs.bg, border: `1.5px solid ${cs.border}` }}
+            style={{
+              width: 30,
+              height: 30,
+              background: cs.bg,
+              border: `1.5px solid ${cs.border}`,
+            }}
           >
             <CalendarDays size={14} style={{ color: cs.text }} />
           </div>
           <div>
-            <div className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+            <div
+              className="text-sm font-semibold"
+              style={{ color: "var(--foreground)" }}
+            >
               {template.name}
             </div>
-            <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            <div
+              className="text-xs"
+              style={{ color: "var(--muted-foreground)" }}
+            >
               {template.type}
             </div>
           </div>
@@ -318,10 +373,20 @@ function ShiftEntry({
                 className="flex items-center gap-0.5 rounded-md px-1 py-0.5"
                 style={{ background: "var(--card)" }}
               >
-                <Avatar size={13} style={{ background: emp.color, flexShrink: 0, fontSize: 7 }}>
+                <Avatar
+                  size={13}
+                  style={{ background: emp.color, flexShrink: 0, fontSize: 7 }}
+                >
                   {emp.name.charAt(0)}
                 </Avatar>
-                <span className="text-xs truncate" style={{ color: "var(--foreground)", maxWidth: 72, fontSize: 10 }}>
+                <span
+                  className="text-xs truncate"
+                  style={{
+                    color: "var(--foreground)",
+                    maxWidth: 72,
+                    fontSize: 10,
+                  }}
+                >
                   {emp.name}
                 </span>
                 <button
@@ -334,13 +399,20 @@ function ShiftEntry({
               </div>
             ))
           ) : (
-            <span className="text-xs font-semibold truncate" style={{ color: cs.text, maxWidth: 90, fontSize: 10 }}>
+            <span
+              className="text-xs font-semibold truncate"
+              style={{ color: cs.text, maxWidth: 90, fontSize: 10 }}
+            >
               {shift.shiftName || formatTime12(shift.startTime)}
             </span>
           )}
         </div>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          <button onClick={onEdit} className="rounded p-0.5 hover:opacity-70" style={{ color: "var(--muted-foreground)" }}>
+          <button
+            onClick={onEdit}
+            className="rounded p-0.5 hover:opacity-70"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             <Edit2 size={10} />
           </button>
           <Popconfirm
@@ -350,7 +422,10 @@ function ShiftEntry({
             cancelText={locale === "zh" ? "否" : "No"}
             placement="topRight"
           >
-            <button className="rounded p-0.5 hover:opacity-70" style={{ color: "var(--destructive)" }}>
+            <button
+              className="rounded p-0.5 hover:opacity-70"
+              style={{ color: "var(--destructive)" }}
+            >
               <Trash2 size={10} />
             </button>
           </Popconfirm>
@@ -365,7 +440,11 @@ function ShiftEntry({
         </span>
         <span
           className="rounded-full px-1 ml-auto font-semibold"
-          style={{ fontSize: 8, background: cs.border, color: "var(--primary-foreground)" }}
+          style={{
+            fontSize: 8,
+            background: cs.border,
+            color: "var(--primary-foreground)",
+          }}
         >
           {hrs}h
         </span>
@@ -373,7 +452,10 @@ function ShiftEntry({
 
       {/* Shift label when employees are present */}
       {assignedEmployees.length > 0 && shift.shiftName && (
-        <div className="mt-0.5 truncate" style={{ fontSize: 9, color: cs.text, fontWeight: 600 }}>
+        <div
+          className="mt-0.5 truncate"
+          style={{ fontSize: 9, color: cs.text, fontWeight: 600 }}
+        >
           {shift.shiftName}
         </div>
       )}
@@ -387,10 +469,19 @@ function ShiftEntry({
           background: isDragOver ? "var(--secondary)" : "transparent",
         }}
       >
-        <span style={{ color: isDragOver ? "var(--primary)" : cs.text, fontSize: 9 }}>
+        <span
+          style={{
+            color: isDragOver ? "var(--primary)" : cs.text,
+            fontSize: 9,
+          }}
+        >
           {assignedEmployees.length > 0
-            ? (locale === "zh" ? `+ 拖拽添加员工` : `+ drag employee`)
-            : (locale === "zh" ? `拖拽员工到此处` : `drag employee here`)}
+            ? locale === "zh"
+              ? `+ 拖拽添加员工`
+              : `+ drag employee`
+            : locale === "zh"
+              ? `拖拽员工到此处`
+              : `drag employee here`}
         </span>
       </div>
     </div>
@@ -449,10 +540,10 @@ function DateColHeader({
         background: isDragOver
           ? "var(--accent)"
           : isToday
-          ? "var(--primary)"
-          : isWeekend
-          ? "var(--workday-weekend-header)"
-          : "var(--card)",
+            ? "var(--primary)"
+            : isWeekend
+              ? "var(--workday-weekend-header)"
+              : "var(--card)",
         cursor: isDragOver ? "copy" : "default",
         border: isDragOver ? `2px dashed var(--primary)` : undefined,
       }}
@@ -467,7 +558,9 @@ function DateColHeader({
         >
           <div className="flex flex-col items-center gap-0.5">
             <Download size={14} style={{ color: "var(--primary)" }} />
-            <span style={{ fontSize: 10, color: "var(--primary)", fontWeight: 600 }}>
+            <span
+              style={{ fontSize: 10, color: "var(--primary)", fontWeight: 600 }}
+            >
               {locale === "zh" ? "应用到本日" : "Apply to day"}
             </span>
           </div>
@@ -476,7 +569,11 @@ function DateColHeader({
       <span
         className="text-xs font-medium"
         style={{
-          color: isToday ? "var(--primary-foreground)" : isWeekend ? "var(--workday-weekend-text)" : "var(--muted-foreground)",
+          color: isToday
+            ? "var(--primary-foreground)"
+            : isWeekend
+              ? "var(--workday-weekend-text)"
+              : "var(--muted-foreground)",
         }}
       >
         {date ? date.format("MM/DD") : ""}
@@ -485,7 +582,11 @@ function DateColHeader({
         className="font-bold"
         style={{
           fontSize: 15,
-          color: isToday ? "var(--primary-foreground)" : isWeekend ? "var(--workday-weekend-text)" : "var(--foreground)",
+          color: isToday
+            ? "var(--primary-foreground)"
+            : isWeekend
+              ? "var(--workday-weekend-text)"
+              : "var(--foreground)",
         }}
       >
         {dayLabel}
@@ -493,9 +594,22 @@ function DateColHeader({
       {shiftCount > 0 && !isDragOver && (
         <div
           className="rounded-full flex items-center justify-center mt-0.5"
-          style={{ minWidth: 16, height: 16, background: isToday ? "var(--primary-foreground)" : "var(--primary)", padding: "0 4px" }}
+          style={{
+            minWidth: 16,
+            height: 16,
+            background: isToday
+              ? "var(--primary-foreground)"
+              : "var(--primary)",
+            padding: "0 4px",
+          }}
         >
-          <span style={{ fontSize: 9, color: isToday ? "var(--primary)" : "var(--primary-foreground)", fontWeight: 700 }}>
+          <span
+            style={{
+              fontSize: 9,
+              color: isToday ? "var(--primary)" : "var(--primary-foreground)",
+              fontWeight: 700,
+            }}
+          >
             {shiftCount}
           </span>
         </div>
@@ -541,7 +655,9 @@ function AreaDateCell({
   const { locale } = useLocale();
 
   const empMap: Record<string, { name: string; color: string }> = {};
-  employees.forEach((e) => { empMap[e.id] = { name: e.name, color: e.color }; });
+  employees.forEach((e) => {
+    empMap[e.id] = { name: e.name, color: e.color };
+  });
 
   const handleCellDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -568,10 +684,10 @@ function AreaDateCell({
         background: isDragOver
           ? "var(--secondary)"
           : isToday
-          ? "var(--workday-active-bg)"
-          : isWeekend
-          ? "var(--workday-weekend-header)"
-          : "transparent",
+            ? "var(--workday-active-bg)"
+            : isWeekend
+              ? "var(--workday-weekend-header)"
+              : "transparent",
         transition: "background 0.12s",
         outline: isDragOver ? `2px dashed var(--primary)` : undefined,
         outlineOffset: -2,
@@ -588,7 +704,11 @@ function AreaDateCell({
       {isDragOver && shifts.length === 0 && (
         <div
           className="flex items-center justify-center rounded-lg mb-1"
-          style={{ height: 40, border: "1.5px dashed var(--primary)", background: "var(--secondary)" }}
+          style={{
+            height: 40,
+            border: "1.5px dashed var(--primary)",
+            background: "var(--secondary)",
+          }}
         >
           <span style={{ color: "var(--primary)", fontSize: 9 }}>
             {locale === "zh" ? "放置到此处" : "Drop here"}
@@ -610,7 +730,9 @@ function AreaDateCell({
             assignedEmployees={assignedEmps}
             onEdit={() => onEditShift(sh)}
             onDelete={() => onDeleteShift(sh.id)}
-            onRemoveEmployee={(empId) => onRemoveEmployeeFromShift(sh.id, empId)}
+            onRemoveEmployee={(empId) =>
+              onRemoveEmployeeFromShift(sh.id, empId)
+            }
             onDropEmployee={(empId) => onDropEmployeeToShift(empId, sh)}
             onDropTemplate={onDropTemplate}
           />
@@ -630,7 +752,9 @@ function AreaDateCell({
         }}
       >
         <Plus size={10} />
-        <span style={{ fontSize: 10 }}>{locale === "zh" ? "加班次" : "Add shift"}</span>
+        <span style={{ fontSize: 10 }}>
+          {locale === "zh" ? "加班次" : "Add shift"}
+        </span>
       </button>
     </div>
   );
@@ -659,23 +783,35 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   // ── Week navigation ─────────────────────────────────────────────────────────
   const [weekOffset, setWeekOffset] = useState(0);
-  const weekStart = dayjs().startOf("isoWeek").add(weekOffset * 7, "day");
-  const weekDates = Array.from({ length: 7 }, (_, i) => weekStart.add(i, "day"));
+  const weekStart = dayjs()
+    .startOf("isoWeek")
+    .add(weekOffset * 7, "day");
+  const weekDates = Array.from({ length: 7 }, (_, i) =>
+    weekStart.add(i, "day"),
+  );
   const todayStr = dayjs().format("YYYY-MM-DD");
 
   // ── Left panel state ────────────────────────────────────────────────────────
-  const [leftTab, setLeftTab] = useState<"templates" | "employees">("templates");
+  const [leftTab, setLeftTab] = useState<"templates" | "employees">(
+    "templates",
+  );
   const [templateSearch, setTemplateSearch] = useState("");
   const [employeeSearch, setEmployeeSearch] = useState("");
 
   // Convert shared RosterTemplate[] → display RosterTemplateCard[] (derived, not stored in state)
-  const rosterTemplates: RosterTemplateCard[] = rawRosterTemplates.map(toTemplateCard);
+  const rosterTemplates: RosterTemplateCard[] =
+    rawRosterTemplates.map(toTemplateCard);
 
   // ── Drag state ──────────────────────────────────────────────────────────────
-  const [draggingTemplateId, setDraggingTemplateId] = useState<string | null>(null);
-  const [templateConflictModalOpen, setTemplateConflictModalOpen] = useState(false);
-  const [pendingTemplatePlan, setPendingTemplatePlan] = useState<TemplateApplyPlan | null>(null);
-  const [templateConflictStrategy, setTemplateConflictStrategy] = useState<TemplateConflictStrategy>("merge_old");
+  const [draggingTemplateId, setDraggingTemplateId] = useState<string | null>(
+    null,
+  );
+  const [templateConflictModalOpen, setTemplateConflictModalOpen] =
+    useState(false);
+  const [pendingTemplatePlan, setPendingTemplatePlan] =
+    useState<TemplateApplyPlan | null>(null);
+  const [templateConflictStrategy, setTemplateConflictStrategy] =
+    useState<TemplateConflictStrategy>("merge_old");
   const templateApplySeedRef = useRef(0);
 
   // ── Shift modal ─────────────────────────────────────────────────────────────
@@ -703,15 +839,26 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   // Areas: use shared base area data from context
   const displayAreas: Area[] = areas
-    .filter((area) => !selectedStoreId || (area.areaType || "store") === "general" || area.storeId === selectedStoreId)
+    .filter(
+      (area) =>
+        !selectedStoreId ||
+        (area.areaType || "store") === "general" ||
+        area.storeId === selectedStoreId,
+    )
     .sort((a, b) => a.order - b.order);
 
-  const filteredTemplates = rosterTemplates.filter((t) =>
-    (!selectedStoreId || t.storeId === selectedStoreId) &&
-    (!templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase()))
+  const filteredTemplates = rosterTemplates.filter(
+    (t) =>
+      (!selectedStoreId || t.storeId === selectedStoreId) &&
+      (!templateSearch ||
+        t.name.toLowerCase().includes(templateSearch.toLowerCase())),
   );
-  const filteredEmployees = activeEmployees.filter((e) =>
-    !employeeSearch || `${e.firstName} ${e.lastName}`.toLowerCase().includes(employeeSearch.toLowerCase())
+  const filteredEmployees = activeEmployees.filter(
+    (e) =>
+      !employeeSearch ||
+      `${e.firstName} ${e.lastName}`
+        .toLowerCase()
+        .includes(employeeSearch.toLowerCase()),
   );
 
   const empNameMap: Record<string, string> = {};
@@ -738,7 +885,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     if (!shift.isGlobalPreset) return;
 
     const shiftType = shift.shiftType || "store";
-    const belongsToStore = shiftType === "general" || !modalStoreId || shift.storeId === modalStoreId;
+    const belongsToStore =
+      shiftType === "general" ||
+      !modalStoreId ||
+      shift.storeId === modalStoreId;
     if (!belongsToStore) return;
 
     const shiftName = (shift.shiftName || "").trim();
@@ -813,33 +963,54 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         const matchStore = !selectedStoreId || s.storeId === selectedStoreId;
         return matchArea && matchDate && matchStore;
       }),
-    [scheduleShifts, selectedStoreId]
+    [scheduleShifts, selectedStoreId],
   );
 
   // Week shifts count per date (for header badge)
   const dateTotalShifts = (dateStr: string) =>
-    scheduleShifts.filter((s) => s.date === dateStr && (!selectedStoreId || s.storeId === selectedStoreId)).length;
+    scheduleShifts.filter(
+      (s) =>
+        s.date === dateStr &&
+        (!selectedStoreId || s.storeId === selectedStoreId),
+    ).length;
 
   // Weekly total hours per employee
   const weekHoursForEmp = (empId: string) =>
-    weekDates.reduce((sum, d) => {
-      const ss = scheduleShifts.filter(
-        (s) =>
-          getShiftEmployeeIds(s).includes(empId) &&
-          s.date === d.format("YYYY-MM-DD") &&
-          (!selectedStoreId || s.storeId === selectedStoreId)
-      );
-      return sum + ss.reduce((s2, sh) => s2 + parseFloat(calcHours(sh.startTime, sh.endTime, sh.breakMinutes)), 0);
-    }, 0).toFixed(1);
+    weekDates
+      .reduce((sum, d) => {
+        const ss = scheduleShifts.filter(
+          (s) =>
+            getShiftEmployeeIds(s).includes(empId) &&
+            s.date === d.format("YYYY-MM-DD") &&
+            (!selectedStoreId || s.storeId === selectedStoreId),
+        );
+        return (
+          sum +
+          ss.reduce(
+            (s2, sh) =>
+              s2 +
+              parseFloat(calcHours(sh.startTime, sh.endTime, sh.breakMinutes)),
+            0,
+          )
+        );
+      }, 0)
+      .toFixed(1);
 
   const draftCount = scheduleShifts.filter((s) => {
     const d = dayjs(s.date);
-    return s.status === "draft" && d >= weekStart && d <= weekStart.add(6, "day");
+    return (
+      s.status === "draft" && d >= weekStart && d <= weekStart.add(6, "day")
+    );
   }).length;
 
-  const resolveTemplateCellPreset = (cell: RosterTemplate["cells"][number], storeId: string) => {
+  const resolveTemplateCellPreset = (
+    cell: RosterTemplate["cells"][number],
+    storeId: string,
+  ) => {
     if (cell.shiftId) {
-      const matchedById = scheduleShifts.find((shift) => shift.isGlobalPreset && shift.shiftId === cell.shiftId);
+      const matchedById = scheduleShifts.find(
+        (shift) => shift.isGlobalPreset && shift.shiftId === cell.shiftId,
+      );
       return {
         shiftId: cell.shiftId,
         breakMinutes: matchedById?.breakMinutes ?? 30,
@@ -869,22 +1040,31 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     };
   };
 
-  const buildTemplateApplyPlan = (templateId: string, startDate: string, targetAreaId: string | null) => {
-    const rawTmpl = rawRosterTemplates.find((template) => template.id === templateId);
+  const buildTemplateApplyPlan = (
+    templateId: string,
+    startDate: string,
+    targetAreaId: string | null,
+  ) => {
+    const rawTmpl = rawRosterTemplates.find(
+      (template) => template.id === templateId,
+    );
     if (!rawTmpl || !startDate) return null;
 
     const storeId = rawTmpl.storeId || selectedStoreId || stores[0]?.id || "s1";
     const visibleAreaIds = new Set(displayAreas.map((area) => area.id));
-    const templateAreaIds = Array.from(new Set(
-      (targetAreaId
-        ? [targetAreaId]
-        : rawTmpl.areaIds.length > 0
-        ? rawTmpl.areaIds
-        : rawTmpl.cells.map((cell) => cell.areaId)
-      ).filter(Boolean)
-    )).filter((areaId) => visibleAreaIds.has(areaId));
-    const coveredDates = Array.from({ length: Math.max(rawTmpl.totalDays, 1) }, (_, index) =>
-      dayjs(startDate).add(index, "day").format("YYYY-MM-DD")
+    const templateAreaIds = Array.from(
+      new Set(
+        (targetAreaId
+          ? [targetAreaId]
+          : rawTmpl.areaIds.length > 0
+            ? rawTmpl.areaIds
+            : rawTmpl.cells.map((cell) => cell.areaId)
+        ).filter(Boolean),
+      ),
+    ).filter((areaId) => visibleAreaIds.has(areaId));
+    const coveredDates = Array.from(
+      { length: Math.max(rawTmpl.totalDays, 1) },
+      (_, index) => dayjs(startDate).add(index, "day").format("YYYY-MM-DD"),
     );
     const coveredAreaSet = new Set(templateAreaIds);
     const coveredDateSet = new Set(coveredDates);
@@ -896,9 +1076,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       if (targetAreaId && mappedAreaId !== targetAreaId) return;
       if (!coveredAreaSet.has(mappedAreaId)) return;
 
-      const targetDate = dayjs(startDate).add(cell.dayIndex, "day").format("YYYY-MM-DD");
+      const targetDate = dayjs(startDate)
+        .add(cell.dayIndex, "day")
+        .format("YYYY-MM-DD");
 
-      const employeeIds = Array.from(new Set(cell.employeeIds || [])).filter(Boolean);
+      const employeeIds = Array.from(new Set(cell.employeeIds || [])).filter(
+        Boolean,
+      );
       const preset = resolveTemplateCellPreset(cell, storeId);
 
       candidateShifts.push({
@@ -916,11 +1100,16 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         breakMinutes: preset.breakMinutes,
         shiftName: preset.shiftName,
         color: preset.color,
-        note: locale === "zh" ? `来自模版: ${rawTmpl.name}` : `From template: ${rawTmpl.name}`,
+        note:
+          locale === "zh"
+            ? `来自模版: ${rawTmpl.name}`
+            : `From template: ${rawTmpl.name}`,
       });
     });
 
-    const touchedSlotKeys = Array.from(new Set(candidateShifts.map((shift) => shift.slotKey)));
+    const touchedSlotKeys = Array.from(
+      new Set(candidateShifts.map((shift) => shift.slotKey)),
+    );
     const touchedSlotSet = new Set(touchedSlotKeys);
     const occupiedSlotKeysSet = new Set<string>();
     const rangeExistingShiftIdsSet = new Set<string>();
@@ -928,7 +1117,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
     scheduleShifts.forEach((shift) => {
       const slotKey = makeAreaDateKey(shift.areaId, shift.date);
-      const inCoveredRange = coveredAreaSet.has(shift.areaId) && coveredDateSet.has(shift.date);
+      const inCoveredRange =
+        coveredAreaSet.has(shift.areaId) && coveredDateSet.has(shift.date);
       if (inCoveredRange) {
         rangeExistingShiftIdsSet.add(shift.id);
         if (touchedSlotSet.has(slotKey)) {
@@ -969,7 +1159,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     setDraggingTemplateId(null);
   };
 
-  const commitTemplateApplyPlan = (plan: TemplateApplyPlan, strategy: TemplateConflictStrategy) => {
+  const commitTemplateApplyPlan = (
+    plan: TemplateApplyPlan,
+    strategy: TemplateConflictStrategy,
+  ) => {
     type WorkingShift = ScheduleShift & { __temp?: boolean };
 
     const touchedSlotSet = new Set(plan.touchedSlotKeys);
@@ -980,7 +1173,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     const applySeed = templateApplySeedRef.current;
     const removedIds = new Set<string>();
     let skipped = 0;
-    let workingShifts: WorkingShift[] = scheduleShifts.map((shift) => ({ ...shift }));
+    let workingShifts: WorkingShift[] = scheduleShifts.map((shift) => ({
+      ...shift,
+    }));
 
     const removeMatching = (predicate: (shift: WorkingShift) => boolean) => {
       workingShifts = workingShifts.filter((shift) => {
@@ -991,45 +1186,138 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     };
 
     if (strategy === "overwrite_slot") {
-      removeMatching((shift) => touchedSlotSet.has(makeAreaDateKey(shift.areaId, shift.date)));
+      removeMatching((shift) =>
+        touchedSlotSet.has(makeAreaDateKey(shift.areaId, shift.date)),
+      );
     } else if (strategy === "replace_range") {
-      removeMatching((shift) => coveredAreaSet.has(shift.areaId) && coveredDateSet.has(shift.date));
+      removeMatching(
+        (shift) =>
+          coveredAreaSet.has(shift.areaId) && coveredDateSet.has(shift.date),
+      );
     }
 
     plan.candidateShifts.forEach((candidate, index) => {
-      if (strategy === "merge_old" && occupiedSlotSet.has(candidate.slotKey)) {
-        skipped += 1;
-        return;
-      }
+      const employeeIds =
+        candidate.employeeIds.length > 0
+          ? candidate.employeeIds
+          : candidate.employeeId
+            ? [candidate.employeeId]
+            : [];
 
-      if (strategy !== "merge_old") {
-        removeMatching((shift) => !shift.__temp && shiftConflictsWithTemplateCandidate(shift, candidate));
-      }
+      if (employeeIds.length === 0) {
+        if (
+          strategy === "merge_old" &&
+          occupiedSlotSet.has(candidate.slotKey)
+        ) {
+          skipped += 1;
+          return;
+        }
 
-      const hasRemainingConflict = workingShifts.some((shift) => shiftConflictsWithTemplateCandidate(shift, candidate));
-      if (hasRemainingConflict) {
-        skipped += 1;
-        return;
-      }
+        if (strategy !== "merge_old") {
+          removeMatching(
+            (shift) =>
+              !shift.__temp &&
+              shiftConflictsWithTemplateCandidate(shift, candidate, false),
+          );
+        }
 
-      workingShifts.push({
-        id: `tmpl_${applySeed}_${index}`,
-        shiftId: candidate.shiftId,
-        employeeId: candidate.employeeId,
-        employeeIds: candidate.employeeIds,
-        areaId: candidate.areaId,
-        storeId: candidate.storeId,
-        shiftType: candidate.shiftType,
-        date: candidate.date,
-        startTime: candidate.startTime,
-        endTime: candidate.endTime,
-        breakMinutes: candidate.breakMinutes,
-        shiftName: candidate.shiftName,
-        color: candidate.color,
-        note: candidate.note,
-        status: "draft",
-        __temp: true,
-      });
+        const hasRemainingConflict = workingShifts.some((shift) =>
+          shiftConflictsWithTemplateCandidate(shift, candidate, false),
+        );
+        if (hasRemainingConflict) {
+          skipped += 1;
+          return;
+        }
+
+        workingShifts.push({
+          id: `tmpl_${applySeed}_${index}`,
+          shiftId: candidate.shiftId,
+          employeeId: "",
+          employeeIds: [],
+          areaId: candidate.areaId,
+          storeId: candidate.storeId,
+          shiftType: candidate.shiftType,
+          date: candidate.date,
+          startTime: candidate.startTime,
+          endTime: candidate.endTime,
+          breakMinutes: candidate.breakMinutes,
+          shiftName: candidate.shiftName,
+          color: candidate.color,
+          note: candidate.note,
+          status: "draft",
+          __temp: true,
+        });
+      } else {
+        if (strategy !== "merge_old") {
+          removeMatching(
+            (shift) =>
+              !shift.__temp &&
+              shiftConflictsWithTemplateCandidate(shift, candidate, false),
+          );
+        }
+
+        const validEmployeeIds: string[] = [];
+
+        for (const empId of employeeIds) {
+          const singleEmployeeCandidate = {
+            ...candidate,
+            employeeId: empId,
+            employeeIds: [empId],
+          };
+
+          if (
+            strategy === "merge_old" &&
+            occupiedSlotSet.has(candidate.slotKey)
+          ) {
+            const hasEmployeeConflict = workingShifts.some((shift) =>
+              shiftConflictsWithTemplateCandidate(
+                shift,
+                singleEmployeeCandidate,
+                false,
+              ),
+            );
+            if (hasEmployeeConflict) {
+              skipped += 1;
+              continue;
+            }
+          }
+
+          const hasRemainingConflict = workingShifts.some((shift) =>
+            shiftConflictsWithTemplateCandidate(
+              shift,
+              singleEmployeeCandidate,
+              false,
+            ),
+          );
+          if (hasRemainingConflict) {
+            skipped += 1;
+            continue;
+          }
+
+          validEmployeeIds.push(empId);
+        }
+
+        validEmployeeIds.forEach((empId, empIdx) => {
+          workingShifts.push({
+            id: `tmpl_${applySeed}_${index}_${empIdx}`,
+            shiftId: candidate.shiftId,
+            employeeId: empId,
+            employeeIds: [empId],
+            areaId: candidate.areaId,
+            storeId: candidate.storeId,
+            shiftType: candidate.shiftType,
+            date: candidate.date,
+            startTime: candidate.startTime,
+            endTime: candidate.endTime,
+            breakMinutes: candidate.breakMinutes,
+            shiftName: candidate.shiftName,
+            color: candidate.color,
+            note: candidate.note,
+            status: "draft",
+            __temp: true,
+          });
+        });
+      }
     });
 
     const nextShifts = workingShifts.map(({ __temp, ...shift }) => shift);
@@ -1038,22 +1326,28 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     setScheduleShifts(nextShifts);
 
     if (added > 0) {
-      const removedText = removedIds.size > 0
-        ? (locale === "zh" ? `，移除 ${removedIds.size} 个旧班次` : `, removed ${removedIds.size} old shifts`)
-        : "";
-      const skippedText = skipped > 0
-        ? (locale === "zh" ? `，跳过 ${skipped} 个无法写入的班次` : `, skipped ${skipped} shifts`)
-        : "";
+      const removedText =
+        removedIds.size > 0
+          ? locale === "zh"
+            ? `，移除 ${removedIds.size} 个旧班次`
+            : `, removed ${removedIds.size} old shifts`
+          : "";
+      const skippedText =
+        skipped > 0
+          ? locale === "zh"
+            ? `，跳过 ${skipped} 个无法写入的班次`
+            : `, skipped ${skipped} shifts`
+          : "";
       toast.success(
         locale === "zh"
           ? `已应用「${plan.templateName}」，新增 ${added} 个班次${removedText}${skippedText}`
-          : `Applied "${plan.templateName}": added ${added} shifts${removedText}${skippedText}`
+          : `Applied "${plan.templateName}": added ${added} shifts${removedText}${skippedText}`,
       );
     } else {
       toast.warning(
         locale === "zh"
           ? `「${plan.templateName}」没有新增班次${removedIds.size > 0 ? `，但已移除 ${removedIds.size} 个旧班次` : ""}`
-          : `"${plan.templateName}" added no new shifts${removedIds.size > 0 ? `, but removed ${removedIds.size} old shifts` : ""}`
+          : `"${plan.templateName}" added no new shifts${removedIds.size > 0 ? `, but removed ${removedIds.size} old shifts` : ""}`,
       );
     }
 
@@ -1063,7 +1357,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     setDraggingTemplateId(null);
   };
 
-  const prepareTemplateApply = (templateId: string, startDate: string, targetAreaId: string | null) => {
+  const prepareTemplateApply = (
+    templateId: string,
+    startDate: string,
+    targetAreaId: string | null,
+  ) => {
     const plan = buildTemplateApplyPlan(templateId, startDate, targetAreaId);
     if (!plan) {
       setDraggingTemplateId(null);
@@ -1071,13 +1369,21 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     }
 
     if (plan.coveredAreaIds.length === 0) {
-      toast.warning(locale === "zh" ? "当前视图没有可应用的模版区域" : "No template areas are available in the current view");
+      toast.warning(
+        locale === "zh"
+          ? "当前视图没有可应用的模版区域"
+          : "No template areas are available in the current view",
+      );
       setDraggingTemplateId(null);
       return;
     }
 
     if (plan.candidateShifts.length === 0) {
-      toast.warning(locale === "zh" ? "模版中没有可应用的班次" : "This template has no shifts to apply");
+      toast.warning(
+        locale === "zh"
+          ? "模版中没有可应用的班次"
+          : "This template has no shifts to apply",
+      );
       setDraggingTemplateId(null);
       return;
     }
@@ -1113,7 +1419,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       shiftName: "",
       color: DEFAULT_COLOR_KEY,
       note: "",
-      storeId: selectedStoreId || areas.find((area) => area.id === areaId)?.storeId || stores[0]?.id || "",
+      storeId:
+        selectedStoreId ||
+        areas.find((area) => area.id === areaId)?.storeId ||
+        stores[0]?.id ||
+        "",
     });
     setModalOpen(true);
   };
@@ -1157,9 +1467,18 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       toast.error(locale === "zh" ? "请选择班次" : "Please choose a shift");
       return;
     }
-    const empIds = shiftForm.employeeIds.length > 0 ? shiftForm.employeeIds : (shiftForm.employeeId ? [shiftForm.employeeId] : []);
+    const empIds =
+      shiftForm.employeeIds.length > 0
+        ? shiftForm.employeeIds
+        : shiftForm.employeeId
+          ? [shiftForm.employeeId]
+          : [];
     if (empIds.length === 0) {
-      toast.error(locale === "zh" ? "请至少选择一名员工" : "Please select at least one employee");
+      toast.error(
+        locale === "zh"
+          ? "请至少选择一名员工"
+          : "Please select at least one employee",
+      );
       return;
     }
     const nextShift = {
@@ -1180,7 +1499,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         toast.error(
           locale === "zh"
             ? `${empNameMap[empId]} 在该时间段存在冲突`
-            : `Conflict detected for ${empNameMap[empId]}`
+            : `Conflict detected for ${empNameMap[empId]}`,
         );
         return;
       }
@@ -1212,7 +1531,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         note: shiftForm.note,
         status: "draft",
       };
-      setScheduleShifts((prev) => prev.map((s) => (s.id === editingShift.id ? data : s)));
+      setScheduleShifts((prev) =>
+        prev.map((s) => (s.id === editingShift.id ? data : s)),
+      );
       toast.success(locale === "zh" ? "班次已更新" : "Shift updated");
       console.log("[Rosters] updated shift:", data);
     } else {
@@ -1238,7 +1559,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       toast.success(
         locale === "zh"
           ? `已添加 ${newShifts.length} 个班次`
-          : `Added ${newShifts.length} shift${newShifts.length > 1 ? "s" : ""}`
+          : `Added ${newShifts.length} shift${newShifts.length > 1 ? "s" : ""}`,
       );
       console.log("[Rosters] added shifts:", newShifts);
     }
@@ -1255,27 +1576,49 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       prev.map((shift) => {
         if (shift.id !== shiftId) return shift;
 
-        const nextEmployeeIds = getShiftEmployeeIds(shift).filter((id) => id !== empId);
+        const nextEmployeeIds = getShiftEmployeeIds(shift).filter(
+          (id) => id !== empId,
+        );
         return {
           ...shift,
           employeeId: nextEmployeeIds[0] || "",
           employeeIds: nextEmployeeIds,
         };
-      })
+      }),
     );
-    toast.success(locale === "zh" ? "员工已从班次移除" : "Employee removed from shift");
+    toast.success(
+      locale === "zh" ? "员工已从班次移除" : "Employee removed from shift",
+    );
   };
 
   // ── Drop employee into area cell ────────────────────────────────────────────
-  const handleDropEmployee = (empId: string, areaId: string, dateStr: string) => {
-    console.log("[Rosters] drop employee", empId, "into area", areaId, "date", dateStr);
+  const handleDropEmployee = (
+    empId: string,
+    areaId: string,
+    dateStr: string,
+  ) => {
+    console.log(
+      "[Rosters] drop employee",
+      empId,
+      "into area",
+      areaId,
+      "date",
+      dateStr,
+    );
     openAddShift(areaId, dateStr, empId);
   };
 
-  const handleDropEmployeeToShift = (empId: string, targetShift: ScheduleShift) => {
+  const handleDropEmployeeToShift = (
+    empId: string,
+    targetShift: ScheduleShift,
+  ) => {
     const existingEmployeeIds = getShiftEmployeeIds(targetShift);
     if (existingEmployeeIds.includes(empId)) {
-      toast.warning(locale === "zh" ? "该员工已在此班次中" : "Employee already assigned to this shift");
+      toast.warning(
+        locale === "zh"
+          ? "该员工已在此班次中"
+          : "Employee already assigned to this shift",
+      );
       return;
     }
 
@@ -1295,7 +1638,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       toast.error(
         locale === "zh"
           ? `${empNameMap[empId]} 在该时间段存在冲突`
-          : `Conflict detected for ${empNameMap[empId]}`
+          : `Conflict detected for ${empNameMap[empId]}`,
       );
       return;
     }
@@ -1311,9 +1654,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           employeeIds: nextEmployeeIds,
           status: "draft",
         };
-      })
+      }),
     );
-    toast.success(locale === "zh" ? "员工已添加到班次" : "Employee added to shift");
+    toast.success(
+      locale === "zh" ? "员工已添加到班次" : "Employee added to shift",
+    );
   };
 
   // ── Drop template onto the current visible week body ────────────────────────
@@ -1323,7 +1668,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   // ── Drop template onto date column header (applies to all areas) ────────────
   const handleDropTemplateToDate = (templateId: string, dateStr: string) => {
-    console.log("[Rosters] drop template", templateId, "onto date column", dateStr);
+    console.log(
+      "[Rosters] drop template",
+      templateId,
+      "onto date column",
+      dateStr,
+    );
     prepareTemplateApply(templateId, dateStr, null);
   };
 
@@ -1332,14 +1682,18 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     const ids = scheduleShifts
       .filter((s) => {
         const d = dayjs(s.date);
-        return s.status === "draft" && d >= weekStart && d <= weekStart.add(6, "day");
+        return (
+          s.status === "draft" && d >= weekStart && d <= weekStart.add(6, "day")
+        );
       })
       .map((s) => s.id);
     try {
       await saveScheduleDraft(scheduleShifts, selectedStoreId);
       await publishSchedule(selectedStoreId);
       toast.success(
-        locale === "zh" ? `已发布 ${ids.length} 个班次` : `Published ${ids.length} shifts`
+        locale === "zh"
+          ? `已发布 ${ids.length} 个班次`
+          : `Published ${ids.length} shifts`,
       );
       console.log("[Rosters] published", ids.length, "shifts");
     } catch (error) {
@@ -1353,13 +1707,22 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       onSave();
       toast.success(isZh ? "排班已保存" : "Roster saved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Roster save failed");
+      toast.error(
+        error instanceof Error ? error.message : "Roster save failed",
+      );
     }
   };
 
   const dayLabels = locale === "zh" ? WEEK_DAY_LABELS_ZH : WEEK_DAY_LABELS_EN;
 
-  console.log("[Rosters] weekOffset:", weekOffset, "areas:", displayAreas.length, "draftCount:", draftCount);
+  console.log(
+    "[Rosters] weekOffset:",
+    weekOffset,
+    "areas:",
+    displayAreas.length,
+    "draftCount:",
+    draftCount,
+  );
 
   // ── Column width constants ──────────────────────────────────────────────────
   const LEFT_COL_W = 120;
@@ -1367,12 +1730,18 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const TOTAL_GRID_W = LEFT_COL_W + DATE_COL_W * 7;
 
   return (
-    <div data-cmp="Rosters" className="flex flex-col" style={{ height: "calc(100vh - 88px)", overflow: "hidden" }}>
-
+    <div
+      data-cmp="Rosters"
+      className="flex flex-col"
+      style={{ height: "calc(100vh - 88px)", overflow: "hidden" }}
+    >
       {/* ── Top toolbar ───────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-5 py-2.5 flex-shrink-0"
-        style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}
+        style={{
+          background: "var(--card)",
+          borderBottom: "1px solid var(--border)",
+        }}
       >
         {/* Left */}
         <div className="flex items-center gap-3">
@@ -1381,8 +1750,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
             size="small"
             onClick={() => setWeekOffset(0)}
             style={{
-              background: weekOffset === 0 ? "var(--secondary)" : "var(--muted)",
-              color: weekOffset === 0 ? "var(--primary)" : "var(--muted-foreground)",
+              background:
+                weekOffset === 0 ? "var(--secondary)" : "var(--muted)",
+              color:
+                weekOffset === 0 ? "var(--primary)" : "var(--muted-foreground)",
               border: `1px solid var(--border)`,
               fontWeight: 600,
             }}
@@ -1394,32 +1765,54 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
             <button
               onClick={() => setWeekOffset((w) => w - 1)}
               className="flex items-center justify-center rounded-lg transition-all hover:opacity-80"
-              style={{ width: 28, height: 28, background: "var(--muted)", color: "var(--muted-foreground)", border: "1px solid var(--border)" }}
+              style={{
+                width: 28,
+                height: 28,
+                background: "var(--muted)",
+                color: "var(--muted-foreground)",
+                border: "1px solid var(--border)",
+              }}
             >
               <ChevronLeft size={15} />
             </button>
             <button
               onClick={() => setWeekOffset((w) => w + 1)}
               className="flex items-center justify-center rounded-lg transition-all hover:opacity-80"
-              style={{ width: 28, height: 28, background: "var(--muted)", color: "var(--muted-foreground)", border: "1px solid var(--border)" }}
+              style={{
+                width: 28,
+                height: 28,
+                background: "var(--muted)",
+                color: "var(--muted-foreground)",
+                border: "1px solid var(--border)",
+              }}
             >
               <ChevronRight size={15} />
             </button>
           </div>
           {/* Week range */}
           <div className="flex items-center gap-2">
-            <CalendarDays size={14} style={{ color: "var(--muted-foreground)" }} />
-            <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+            <CalendarDays
+              size={14}
+              style={{ color: "var(--muted-foreground)" }}
+            />
+            <span
+              className="text-sm font-semibold"
+              style={{ color: "var(--foreground)" }}
+            >
               {isZh
                 ? `${weekStart.format("YYYY年 M月D日")} — ${weekStart.add(6, "day").format("M月D日")}`
-                : `${weekStart.format("MMM D")} – ${weekStart.add(6, "day").format("MMM D, YYYY")}`
-              }
+                : `${weekStart.format("MMM D")} – ${weekStart.add(6, "day").format("MMM D, YYYY")}`}
             </span>
             <span
               className="rounded-full px-2 py-0.5 text-xs font-medium"
-              style={{ background: "var(--secondary)", color: "var(--primary)" }}
+              style={{
+                background: "var(--secondary)",
+                color: "var(--primary)",
+              }}
             >
-              {isZh ? `第 ${weekStart.isoWeek()} 周` : `W${weekStart.isoWeek()}`}
+              {isZh
+                ? `第 ${weekStart.isoWeek()} 周`
+                : `W${weekStart.isoWeek()}`}
             </span>
           </div>
         </div>
@@ -1455,27 +1848,51 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-
         {/* ── Left Panel ──────────────────────────────────────────────────── */}
         <div
           className="flex flex-col flex-shrink-0"
-          style={{ width: 256, background: "var(--card)", borderRight: "1px solid var(--border)", overflow: "hidden" }}
+          style={{
+            width: 256,
+            background: "var(--card)",
+            borderRight: "1px solid var(--border)",
+            overflow: "hidden",
+          }}
         >
           {/* Tab */}
-          <div className="flex flex-shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div
+            className="flex flex-shrink-0"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
             {(["templates", "employees"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setLeftTab(tab)}
                 className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-all"
                 style={{
-                  background: leftTab === tab ? "var(--secondary)" : "transparent",
-                  color: leftTab === tab ? "var(--primary)" : "var(--muted-foreground)",
-                  borderBottom: leftTab === tab ? `2px solid var(--primary)` : "2px solid transparent",
+                  background:
+                    leftTab === tab ? "var(--secondary)" : "transparent",
+                  color:
+                    leftTab === tab
+                      ? "var(--primary)"
+                      : "var(--muted-foreground)",
+                  borderBottom:
+                    leftTab === tab
+                      ? `2px solid var(--primary)`
+                      : "2px solid transparent",
                 }}
               >
-                {tab === "templates" ? <LayoutTemplate size={13} /> : <Users size={13} />}
-                {tab === "templates" ? (isZh ? "模版" : "Templates") : (isZh ? "员工" : "Employees")}
+                {tab === "templates" ? (
+                  <LayoutTemplate size={13} />
+                ) : (
+                  <Users size={13} />
+                )}
+                {tab === "templates"
+                  ? isZh
+                    ? "模版"
+                    : "Templates"
+                  : isZh
+                    ? "员工"
+                    : "Employees"}
               </button>
             ))}
           </div>
@@ -1483,9 +1900,17 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           {/* ── Templates panel ────────────────────────────────────────────── */}
           {leftTab === "templates" && (
             <>
-              <div className="px-3 py-2.5 flex-shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div
+                className="px-3 py-2.5 flex-shrink-0"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
                 <Input
-                  prefix={<Search size={11} style={{ color: "var(--muted-foreground)" }} />}
+                  prefix={
+                    <Search
+                      size={11}
+                      style={{ color: "var(--muted-foreground)" }}
+                    />
+                  }
                   placeholder={isZh ? "搜索模版..." : "Search templates..."}
                   size="small"
                   value={templateSearch}
@@ -1497,10 +1922,26 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               <div className="px-3 pt-2.5 flex-shrink-0">
                 <div
                   className="flex items-start gap-1.5 rounded-xl px-2.5 py-2 mb-2"
-                  style={{ background: "var(--secondary)", border: "1px solid var(--border)" }}
+                  style={{
+                    background: "var(--secondary)",
+                    border: "1px solid var(--border)",
+                  }}
                 >
-                  <Info size={11} style={{ color: "var(--primary)", flexShrink: 0, marginTop: 1 }} />
-                  <div style={{ fontSize: 10, color: "var(--primary)", lineHeight: 1.5 }}>
+                  <Info
+                    size={11}
+                    style={{
+                      color: "var(--primary)",
+                      flexShrink: 0,
+                      marginTop: 1,
+                    }}
+                  />
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "var(--primary)",
+                      lineHeight: 1.5,
+                    }}
+                  >
                     {isZh
                       ? "将模版拖到周视图任意位置会按当前周自动对齐并跨周顺延；拖到日期列头则从该日期开始顺延应用"
                       : "Drop a template anywhere on the weekly grid to align it to the current week, or onto a date header to start from that day"}
@@ -1517,9 +1958,17 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   />
                 ))}
                 {filteredTemplates.length === 0 && (
-                  <div className="flex flex-col items-center py-8" style={{ color: "var(--muted-foreground)" }}>
-                    <LayoutTemplate size={28} style={{ opacity: 0.3, marginBottom: 8 }} />
-                    <span style={{ fontSize: 12 }}>{isZh ? "未找到模版" : "No templates"}</span>
+                  <div
+                    className="flex flex-col items-center py-8"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    <LayoutTemplate
+                      size={28}
+                      style={{ opacity: 0.3, marginBottom: 8 }}
+                    />
+                    <span style={{ fontSize: 12 }}>
+                      {isZh ? "未找到模版" : "No templates"}
+                    </span>
                   </div>
                 )}
               </div>
@@ -1529,9 +1978,17 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           {/* ── Employees panel ────────────────────────────────────────────── */}
           {leftTab === "employees" && (
             <>
-              <div className="px-3 py-2.5 flex-shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div
+                className="px-3 py-2.5 flex-shrink-0"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
                 <Input
-                  prefix={<Search size={11} style={{ color: "var(--muted-foreground)" }} />}
+                  prefix={
+                    <Search
+                      size={11}
+                      style={{ color: "var(--muted-foreground)" }}
+                    />
+                  }
                   placeholder={isZh ? "搜索员工..." : "Search employees..."}
                   size="small"
                   value={employeeSearch}
@@ -1539,12 +1996,20 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   allowClear
                 />
                 <div className="flex items-center justify-between mt-1.5">
-                  <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-                    {isZh ? "拖拽到格子中添加班次" : "Drag to a cell to add a shift"}
+                  <span
+                    style={{ fontSize: 11, color: "var(--muted-foreground)" }}
+                  >
+                    {isZh
+                      ? "拖拽到格子中添加班次"
+                      : "Drag to a cell to add a shift"}
                   </span>
                   <span
                     className="rounded-full px-1.5 py-0.5"
-                    style={{ fontSize: 10, background: "var(--secondary)", color: "var(--primary)" }}
+                    style={{
+                      fontSize: 10,
+                      background: "var(--secondary)",
+                      color: "var(--primary)",
+                    }}
                   >
                     {filteredEmployees.length}
                   </span>
@@ -1563,26 +2028,55 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                         console.log("[Rosters] drag employee:", emp.id);
                       }}
                       className="rounded-xl p-2.5 mb-2 cursor-grab active:cursor-grabbing select-none transition-all hover:shadow-custom"
-                      style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
+                      style={{
+                        background: "var(--muted)",
+                        border: "1px solid var(--border)",
+                      }}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-1.5">
                           <Avatar
                             size={22}
-                            style={{ background: emp.employeeColor || "var(--primary)", flexShrink: 0, fontSize: 9 }}
+                            style={{
+                              background: emp.employeeColor || "var(--primary)",
+                              flexShrink: 0,
+                              fontSize: 9,
+                            }}
                           >
-                            {emp.firstName.charAt(0)}{emp.lastName.charAt(0)}
+                            {emp.firstName.charAt(0)}
+                            {emp.lastName.charAt(0)}
                           </Avatar>
                           <div>
-                            <div className="text-xs font-semibold truncate" style={{ color: "var(--foreground)", maxWidth: 130 }}>
+                            <div
+                              className="text-xs font-semibold truncate"
+                              style={{
+                                color: "var(--foreground)",
+                                maxWidth: 130,
+                              }}
+                            >
                               {emp.firstName} {emp.lastName}
                             </div>
-                            <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{emp.role}</div>
+                            <div
+                              style={{
+                                fontSize: 9,
+                                color: "var(--muted-foreground)",
+                              }}
+                            >
+                              {emp.role}
+                            </div>
                           </div>
                         </div>
                         <span
                           className="rounded-full px-1.5 py-0.5 font-semibold"
-                          style={{ fontSize: 9, background: hrs > 0 ? "var(--secondary)" : "var(--card)", color: hrs > 0 ? "var(--primary)" : "var(--muted-foreground)" }}
+                          style={{
+                            fontSize: 9,
+                            background:
+                              hrs > 0 ? "var(--secondary)" : "var(--card)",
+                            color:
+                              hrs > 0
+                                ? "var(--primary)"
+                                : "var(--muted-foreground)",
+                          }}
                         >
                           {hrs > 0 ? `${hrs}h` : "–"}
                         </span>
@@ -1594,18 +2088,47 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                             (s) =>
                               getShiftEmployeeIds(s).includes(emp.id) &&
                               s.date === d.format("YYYY-MM-DD") &&
-                              (!selectedStoreId || s.storeId === selectedStoreId)
+                              (!selectedStoreId ||
+                                s.storeId === selectedStoreId),
                           );
-                          const dayHrs = ss.reduce((acc, sh) => acc + parseFloat(calcHours(sh.startTime, sh.endTime, sh.breakMinutes)), 0);
+                          const dayHrs = ss.reduce(
+                            (acc, sh) =>
+                              acc +
+                              parseFloat(
+                                calcHours(
+                                  sh.startTime,
+                                  sh.endTime,
+                                  sh.breakMinutes,
+                                ),
+                              ),
+                            0,
+                          );
                           return (
-                            <div key={i} className="flex flex-col items-center" style={{ flex: 1 }}>
-                              <span style={{ fontSize: 7, color: "var(--muted-foreground)" }}>{shortDays[i]}</span>
+                            <div
+                              key={i}
+                              className="flex flex-col items-center"
+                              style={{ flex: 1 }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: 7,
+                                  color: "var(--muted-foreground)",
+                                }}
+                              >
+                                {shortDays[i]}
+                              </span>
                               <div
                                 className="rounded-sm w-full text-center"
                                 style={{
                                   fontSize: 7,
-                                  background: dayHrs > 0 ? "var(--secondary)" : "var(--border)",
-                                  color: dayHrs > 0 ? "var(--primary)" : "transparent",
+                                  background:
+                                    dayHrs > 0
+                                      ? "var(--secondary)"
+                                      : "var(--border)",
+                                  color:
+                                    dayHrs > 0
+                                      ? "var(--primary)"
+                                      : "transparent",
                                   padding: "1px 0",
                                   minWidth: 12,
                                 }}
@@ -1620,9 +2143,17 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   );
                 })}
                 {filteredEmployees.length === 0 && (
-                  <div className="flex flex-col items-center py-8" style={{ color: "var(--muted-foreground)" }}>
-                    <Users size={28} style={{ opacity: 0.3, marginBottom: 8 }} />
-                    <span style={{ fontSize: 12 }}>{isZh ? "未找到员工" : "No employees"}</span>
+                  <div
+                    className="flex flex-col items-center py-8"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    <Users
+                      size={28}
+                      style={{ opacity: 0.3, marginBottom: 8 }}
+                    />
+                    <span style={{ fontSize: 12 }}>
+                      {isZh ? "未找到员工" : "No employees"}
+                    </span>
                   </div>
                 )}
               </div>
@@ -1633,11 +2164,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         {/* ── Right: Grid ───────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-auto relative">
           <div style={{ minWidth: TOTAL_GRID_W }}>
-
             {/* ── Sticky header row ───────────────────────────────────────── */}
             <div
               className="flex sticky top-0 z-20"
-              style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}
+              style={{
+                background: "var(--card)",
+                borderBottom: "1px solid var(--border)",
+              }}
             >
               {/* Left label column */}
               <div
@@ -1650,7 +2183,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   zIndex: 30,
                 }}
               >
-                <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
                   {isZh ? "区域" : "Area"}
                 </span>
               </div>
@@ -1682,62 +2218,76 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               >
                 <div className="flex flex-col items-center gap-2 text-sm">
                   <LayoutTemplate size={28} style={{ opacity: 0.35 }} />
-                  <span>{isZh ? "暂无基础区域，请先到区域管理维护" : "No base areas yet. Add them in Area Management first."}</span>
+                  <span>
+                    {isZh
+                      ? "暂无基础区域，请先到区域管理维护"
+                      : "No base areas yet. Add them in Area Management first."}
+                  </span>
                 </div>
               </div>
-            ) : displayAreas.map((area) => (
-              <div key={area.id} className="flex" style={{ borderBottom: "1px solid var(--border)" }}>
-
-                {/* Area name cell — matches RosterTemplate area label cell */}
+            ) : (
+              displayAreas.map((area) => (
                 <div
-                  className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
-                  style={{
-                    width: LEFT_COL_W,
-                    borderRight: "1px solid var(--border)",
-                    minHeight: 88,
-                    background: "var(--muted)",
-                    zIndex: 10,
-                  }}
+                  key={area.id}
+                  className="flex"
+                  style={{ borderBottom: "1px solid var(--border)" }}
                 >
-                  <div className="flex items-center gap-1">
-                    <GripVertical size={12} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                      {area.name}
-                    </span>
+                  {/* Area name cell — matches RosterTemplate area label cell */}
+                  <div
+                    className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
+                    style={{
+                      width: LEFT_COL_W,
+                      borderRight: "1px solid var(--border)",
+                      minHeight: 88,
+                      background: "var(--muted)",
+                      zIndex: 10,
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      <GripVertical
+                        size={12}
+                        style={{ color: "var(--muted-foreground)" }}
+                      />
+                      <span
+                        className="text-sm font-medium"
+                        style={{ color: "var(--foreground)" }}
+                      >
+                        {area.name}
+                      </span>
+                    </div>
                   </div>
 
+                  {/* Day cells — one per weekday, matching RosterTemplate cell layout */}
+                  {weekDates.map((d, i) => {
+                    const dateStr = d.format("YYYY-MM-DD");
+                    const isToday = dateStr === todayStr;
+                    const isWeekend = i >= 5;
+                    const cellShifts = getShifts(area.id, dateStr);
+
+                    return (
+                      <AreaDateCell
+                        key={i}
+                        date={d}
+                        areaId={area.id}
+                        shifts={cellShifts}
+                        employees={allEmpList}
+                        onAddShift={openAddShift}
+                        onEditShift={openEditShift}
+                        onDeleteShift={handleDeleteShift}
+                        onRemoveEmployeeFromShift={
+                          handleRemoveEmployeeFromShift
+                        }
+                        onDropEmployee={handleDropEmployee}
+                        onDropEmployeeToShift={handleDropEmployeeToShift}
+                        onDropTemplate={handleDropTemplateToCurrentWeek}
+                        isToday={isToday}
+                        isWeekend={isWeekend}
+                      />
+                    );
+                  })}
                 </div>
-
-                {/* Day cells — one per weekday, matching RosterTemplate cell layout */}
-                {weekDates.map((d, i) => {
-                  const dateStr = d.format("YYYY-MM-DD");
-                  const isToday = dateStr === todayStr;
-                  const isWeekend = i >= 5;
-                  const cellShifts = getShifts(area.id, dateStr);
-
-                  return (
-                    <AreaDateCell
-                      key={i}
-                      date={d}
-                      areaId={area.id}
-                      shifts={cellShifts}
-                      employees={allEmpList}
-                      onAddShift={openAddShift}
-                      onEditShift={openEditShift}
-                      onDeleteShift={handleDeleteShift}
-                      onRemoveEmployeeFromShift={handleRemoveEmployeeFromShift}
-                      onDropEmployee={handleDropEmployee}
-                      onDropEmployeeToShift={handleDropEmployeeToShift}
-                      onDropTemplate={handleDropTemplateToCurrentWeek}
-                      isToday={isToday}
-                      isWeekend={isWeekend}
-                    />
-                  );
-                })}
-              </div>
-            ))}
-
-
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -1746,8 +2296,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       <Modal
         title={
           editingShift
-            ? (isZh ? "编辑班次" : "Edit Shift")
-            : (isZh ? "添加班次" : "Add Shift")
+            ? isZh
+              ? "编辑班次"
+              : "Edit Shift"
+            : isZh
+              ? "添加班次"
+              : "Add Shift"
         }
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
@@ -1758,17 +2312,21 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         width={500}
       >
         <div className="flex flex-col gap-4 py-3">
-
           {/* Preset select */}
           <div>
-            <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+            <div
+              className="text-sm mb-1.5"
+              style={{ color: "var(--foreground)" }}
+            >
               {isZh ? "选择班次" : "Select Shift"}
             </div>
             <Select
               showSearch
               value={shiftForm.presetKey || undefined}
               onChange={(value) => {
-                const preset = modalShiftPresetOptions.find((option) => option.key === value);
+                const preset = modalShiftPresetOptions.find(
+                  (option) => option.key === value,
+                );
                 if (!preset) {
                   setShiftForm((form) => ({ ...form, presetKey: value }));
                   return;
@@ -1779,7 +2337,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   presetKey: preset.key,
                   shiftId: preset.shiftId || "",
                   shiftType: preset.shiftType,
-                  storeId: preset.shiftType === "general" ? form.storeId : preset.storeId,
+                  storeId:
+                    preset.shiftType === "general"
+                      ? form.storeId
+                      : preset.storeId,
                   shiftName: preset.shiftName,
                   startTime: preset.startTime,
                   endTime: preset.endTime,
@@ -1796,8 +2357,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               }))}
             />
             {shiftPresetOptions.length === 0 && (
-              <div className="text-xs mt-2" style={{ color: "var(--muted-foreground)" }}>
-                {isZh ? "暂无可选班次，请先到班次管理创建班次" : "No shifts available yet. Create shifts in Shift Management first."}
+              <div
+                className="text-xs mt-2"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {isZh
+                  ? "暂无可选班次，请先到班次管理创建班次"
+                  : "No shifts available yet. Create shifts in Shift Management first."}
               </div>
             )}
           </div>
@@ -1805,26 +2371,42 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           {/* Time */}
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+              <div
+                className="text-sm mb-1.5"
+                style={{ color: "var(--foreground)" }}
+              >
                 {isZh ? "开始时间" : "Start Time"}
               </div>
               <TimePicker
                 disabled
                 format="HH:mm"
                 value={dayjs(shiftForm.startTime, "HH:mm")}
-                onChange={(v) => setShiftForm((f) => ({ ...f, startTime: v ? v.format("HH:mm") : "09:00" }))}
+                onChange={(v) =>
+                  setShiftForm((f) => ({
+                    ...f,
+                    startTime: v ? v.format("HH:mm") : "09:00",
+                  }))
+                }
                 style={{ width: "100%" }}
               />
             </div>
             <div className="flex-1">
-              <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+              <div
+                className="text-sm mb-1.5"
+                style={{ color: "var(--foreground)" }}
+              >
                 {isZh ? "结束时间" : "End Time"}
               </div>
               <TimePicker
                 disabled
                 format="HH:mm"
                 value={dayjs(shiftForm.endTime, "HH:mm")}
-                onChange={(v) => setShiftForm((f) => ({ ...f, endTime: v ? v.format("HH:mm") : "17:00" }))}
+                onChange={(v) =>
+                  setShiftForm((f) => ({
+                    ...f,
+                    endTime: v ? v.format("HH:mm") : "17:00",
+                  }))
+                }
                 style={{ width: "100%" }}
               />
             </div>
@@ -1837,31 +2419,54 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           >
             <Clock size={14} style={{ color: "var(--primary)" }} />
             <span className="text-sm" style={{ color: "var(--primary)" }}>
-              {calcHours(shiftForm.startTime, shiftForm.endTime, shiftForm.breakMinutes)}
+              {calcHours(
+                shiftForm.startTime,
+                shiftForm.endTime,
+                shiftForm.breakMinutes,
+              )}
               {isZh ? " 小时" : " hours"}
-              <span style={{ fontSize: 11, marginLeft: 8, color: "var(--muted-foreground)" }}>
-                ({formatTime12(shiftForm.startTime)} – {formatTime12(shiftForm.endTime)})
+              <span
+                style={{
+                  fontSize: 11,
+                  marginLeft: 8,
+                  color: "var(--muted-foreground)",
+                }}
+              >
+                ({formatTime12(shiftForm.startTime)} –{" "}
+                {formatTime12(shiftForm.endTime)})
               </span>
             </span>
           </div>
 
           {/* Color */}
           <div>
-            <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+            <div
+              className="text-sm mb-1.5"
+              style={{ color: "var(--foreground)" }}
+            >
               {isZh ? "颜色标识" : "Color"}
             </div>
-            <ColorSwatchPicker value={shiftForm.color} onChange={(color) => setShiftForm((f) => ({ ...f, color }))} locale={locale} />
+            <ColorSwatchPicker
+              value={shiftForm.color}
+              onChange={(color) => setShiftForm((f) => ({ ...f, color }))}
+              locale={locale}
+            />
           </div>
 
           {/* Multi-employee assignment */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-sm" style={{ color: "var(--foreground)" }}>
-                {isZh ? "分配员工（支持多人）*" : "Assign Employees (multi-select) *"}
+                {isZh
+                  ? "分配员工（支持多人）*"
+                  : "Assign Employees (multi-select) *"}
               </div>
               <span
                 className="text-xs rounded-md px-1.5 py-0.5"
-                style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                style={{
+                  background: "var(--secondary)",
+                  color: "var(--primary)",
+                }}
               >
                 {shiftForm.employeeIds.length} {isZh ? "人" : "assigned"}
               </span>
@@ -1869,8 +2474,16 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
             <Select
               mode="multiple"
               value={shiftForm.employeeIds}
-              onChange={(v: string[]) => setShiftForm((f) => ({ ...f, employeeIds: v, employeeId: v[0] || "" }))}
-              placeholder={isZh ? "选择员工（可多选）..." : "Select employees..."}
+              onChange={(v: string[]) =>
+                setShiftForm((f) => ({
+                  ...f,
+                  employeeIds: v,
+                  employeeId: v[0] || "",
+                }))
+              }
+              placeholder={
+                isZh ? "选择员工（可多选）..." : "Select employees..."
+              }
               style={{ width: "100%" }}
               maxTagCount="responsive"
               showSearch
@@ -1882,24 +2495,41 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   <div className="flex items-center gap-2">
                     <Avatar
                       size={18}
-                      style={{ background: emp.employeeColor || "var(--primary)", fontSize: 9, flexShrink: 0 }}
+                      style={{
+                        background: emp.employeeColor || "var(--primary)",
+                        fontSize: 9,
+                        flexShrink: 0,
+                      }}
                     >
-                      {emp.firstName.charAt(0)}{emp.lastName.charAt(0)}
+                      {emp.firstName.charAt(0)}
+                      {emp.lastName.charAt(0)}
                     </Avatar>
-                    <span>{emp.firstName} {emp.lastName}</span>
+                    <span>
+                      {emp.firstName} {emp.lastName}
+                    </span>
                   </div>
                 );
               }}
             >
               {activeEmployees.map((e) => (
-                <Option key={e.id} value={e.id} label={`${e.firstName} ${e.lastName}`}>
+                <Option
+                  key={e.id}
+                  value={e.id}
+                  label={`${e.firstName} ${e.lastName}`}
+                >
                   {e.firstName} {e.lastName}
                 </Option>
               ))}
             </Select>
             {/* Conflict hint */}
-            <div className="flex items-start gap-1.5 mt-2 rounded-md px-2 py-1.5" style={{ background: "var(--muted)" }}>
-              <AlertTriangle size={12} style={{ color: "var(--chart-3)", flexShrink: 0, marginTop: 1 }} />
+            <div
+              className="flex items-start gap-1.5 mt-2 rounded-md px-2 py-1.5"
+              style={{ background: "var(--muted)" }}
+            >
+              <AlertTriangle
+                size={12}
+                style={{ color: "var(--chart-3)", flexShrink: 0, marginTop: 1 }}
+              />
               <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}>
                 {isZh
                   ? "保存时将自动检测同一员工是否存在时间冲突（含跨天班次）"
@@ -1907,7 +2537,6 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               </span>
             </div>
           </div>
-
         </div>
       </Modal>
 
@@ -1917,7 +2546,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         onCancel={closeTemplateConflictModal}
         onOk={() => {
           if (!pendingTemplatePlan) return;
-          commitTemplateApplyPlan(pendingTemplatePlan, templateConflictStrategy);
+          commitTemplateApplyPlan(
+            pendingTemplatePlan,
+            templateConflictStrategy,
+          );
         }}
         okText={isZh ? "继续应用" : "Apply"}
         cancelText={isZh ? "取消" : "Cancel"}
@@ -1930,12 +2562,21 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               className="flex items-start gap-2 rounded-lg px-3 py-2.5"
               style={{ background: "var(--secondary)" }}
             >
-              <AlertTriangle size={16} style={{ color: "var(--chart-3)", flexShrink: 0, marginTop: 1 }} />
+              <AlertTriangle
+                size={16}
+                style={{ color: "var(--chart-3)", flexShrink: 0, marginTop: 1 }}
+              />
               <div className="flex-1">
-                <div className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                <div
+                  className="text-sm font-semibold"
+                  style={{ color: "var(--foreground)" }}
+                >
                   {pendingTemplatePlan.templateName}
                 </div>
-                <div className="text-xs mt-1" style={{ color: "var(--muted-foreground)", lineHeight: 1.6 }}>
+                <div
+                  className="text-xs mt-1"
+                  style={{ color: "var(--muted-foreground)", lineHeight: 1.6 }}
+                >
                   {isZh
                     ? `检测到当前排班区间已有数据。模版将从 ${pendingTemplatePlan.startDate} 开始对齐，并持续到 ${pendingTemplatePlan.endDate}。`
                     : `Existing schedule data was found in this range. The template will align from ${pendingTemplatePlan.startDate} to ${pendingTemplatePlan.endDate}.`}
@@ -1975,19 +2616,33 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   className="rounded-lg px-3 py-2"
                   style={{ background: "var(--muted)" }}
                 >
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{item.label}</div>
-                  <div className="text-sm font-semibold mt-1" style={{ color: "var(--foreground)" }}>{item.value}</div>
+                  <div
+                    style={{ fontSize: 11, color: "var(--muted-foreground)" }}
+                  >
+                    {item.label}
+                  </div>
+                  <div
+                    className="text-sm font-semibold mt-1"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    {item.value}
+                  </div>
                 </div>
               ))}
             </div>
 
             <div>
-              <div className="text-sm mb-2" style={{ color: "var(--foreground)" }}>
+              <div
+                className="text-sm mb-2"
+                style={{ color: "var(--foreground)" }}
+              >
                 {isZh ? "选择冲突处理方式" : "Choose a conflict strategy"}
               </div>
               <Radio.Group
                 value={templateConflictStrategy}
-                onChange={(event) => setTemplateConflictStrategy(event.target.value)}
+                onChange={(event) =>
+                  setTemplateConflictStrategy(event.target.value)
+                }
                 className="w-full"
               >
                 <div className="flex flex-col gap-2">
@@ -2001,21 +2656,27 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     },
                     {
                       value: "merge_old",
-                      title: isZh ? "合并数据，老数据优先" : "Merge, Old Data Wins",
+                      title: isZh
+                        ? "合并数据，老数据优先"
+                        : "Merge, Old Data Wins",
                       desc: isZh
                         ? "仅向空白格写入模版数据；已有旧数据的格子保持不变。"
                         : "Fill only empty slots and preserve existing schedule data.",
                     },
                     {
                       value: "merge_new",
-                      title: isZh ? "合并数据，新数据优先" : "Merge, New Data Wins",
+                      title: isZh
+                        ? "合并数据，新数据优先"
+                        : "Merge, New Data Wins",
                       desc: isZh
                         ? "保留其他旧数据，仅把与模版直接冲突的旧班次替换成新数据。"
                         : "Keep unrelated old shifts, but replace old shifts that directly conflict with the template.",
                     },
                     {
                       value: "replace_range",
-                      title: isZh ? "清空覆盖周期后重建" : "Clear Covered Range",
+                      title: isZh
+                        ? "清空覆盖周期后重建"
+                        : "Clear Covered Range",
                       desc: isZh
                         ? "清空模版覆盖周期内相关区域的旧数据，再按模版中非空内容重新生成排班。"
                         : "Clear old shifts in the covered range first, then rebuild using non-empty template data.",
@@ -2025,18 +2686,31 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                       key={option.value}
                       className="flex items-start gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-all"
                       style={{
-                        background: templateConflictStrategy === option.value ? "var(--secondary)" : "var(--muted)",
-                        border: templateConflictStrategy === option.value
-                          ? "1px solid var(--primary)"
-                          : "1px solid var(--border)",
+                        background:
+                          templateConflictStrategy === option.value
+                            ? "var(--secondary)"
+                            : "var(--muted)",
+                        border:
+                          templateConflictStrategy === option.value
+                            ? "1px solid var(--primary)"
+                            : "1px solid var(--border)",
                       }}
                     >
                       <Radio value={option.value} />
                       <div className="flex-1">
-                        <div className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                        <div
+                          className="text-sm font-semibold"
+                          style={{ color: "var(--foreground)" }}
+                        >
                           {option.title}
                         </div>
-                        <div className="text-xs mt-1" style={{ color: "var(--muted-foreground)", lineHeight: 1.6 }}>
+                        <div
+                          className="text-xs mt-1"
+                          style={{
+                            color: "var(--muted-foreground)",
+                            lineHeight: 1.6,
+                          }}
+                        >
                           {option.desc}
                         </div>
                       </div>
