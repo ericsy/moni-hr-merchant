@@ -170,7 +170,16 @@ export default function AppLayout({
     };
 
     const items = [homeMenuItem, ...buildMenuItems(permissions)];
-    return requiresFirstStore ? items.filter((item) => item?.key === "stores") : items;
+    if (!requiresFirstStore) return items;
+
+    const storeItems = items.filter((item) => item?.key === "stores");
+    return storeItems.length > 0
+      ? storeItems
+      : [{
+        key: "stores",
+        icon: iconMap.stores,
+        label: t.nav.stores,
+      }];
   }, [permissions, locale, t, requiresFirstStore]);
 
   const handlePageChange = (page: PageKey) => {

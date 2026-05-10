@@ -13,7 +13,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PermissionsProvider, usePermissions } from "./context/PermissionsContext";
 import { useData } from "./context/DataContext";
 import { useDynamicRoutes } from "./components/DynamicRoutes";
-import { getPagePath } from "./config/routes";
+import { getPagePath, getRouteConfigByPageKey } from "./config/routes";
 import AppLayout from "./components/Layout";
 import { APP_BASE_PATH } from "./config/appBase";
 import Home from "./pages/Home";
@@ -49,13 +49,17 @@ function AuthenticatedRoutes() {
   const { loading } = usePermissions();
   const { loading: dataLoading, stores, storesLoaded } = useData();
   const dynamicRoutes = useDynamicRoutes();
-  const isDefaultPage = location.pathname === "/" || location.pathname === "/home";
-  const isAuthPage = location.pathname === "/login" || location.pathname === "/activate";
+  const normalizedPathname = normalizeAppPathname(location.pathname);
+  const isDefaultPage = normalizedPathname === "/" || normalizedPathname === "/home";
+  const isAuthPage = normalizedPathname === "/login" || normalizedPathname === "/activate";
   const shouldWaitForPermissions = loading && !isDefaultPage && !isAuthPage;
   const requiresFirstStore = storesLoaded && !dataLoading && stores.length === 0;
   const storesPath = getPagePath("stores") || "/stores";
+  const storeRouteConfig = getRouteConfigByPageKey("stores");
+  const StoreComponent = storeRouteConfig?.component;
+  const storeRoutePath = storeRouteConfig?.path || "/stores";
 
-  if (shouldWaitForPermissions) {
+  if (shouldWaitForPermissions && !requiresFirstStore) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Spin size="large" />
@@ -63,7 +67,7 @@ function AuthenticatedRoutes() {
     );
   }
 
-  if (requiresFirstStore && location.pathname !== storesPath) {
+  if (requiresFirstStore && normalizedPathname !== storesPath) {
     return <Navigate to={storesPath} replace />;
   }
 
@@ -81,17 +85,37 @@ function AuthenticatedRoutes() {
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/activate" element={<Navigate to="/" replace />} />
       {dynamicRoutes}
+      {StoreComponent && (
+        <Route
+          path={storeRoutePath}
+          element={
+            <AppLayout currentPage="stores">
+              <React.Suspense fallback={<div className="p-6 text-sm text-muted-foreground">加载中...</div>}>
+                <StoreComponent />
+              </React.Suspense>
+            </AppLayout>
+          }
+        />
+      )}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
 
+function normalizeAppPathname(pathname: string) {
+  const basePath = String(APP_BASE_PATH);
+  if (basePath === "/" || !pathname.startsWith(basePath)) return pathname;
+  const nextPathname = pathname.slice(basePath.length) || "/";
+  return nextPathname.startsWith("/") ? nextPathname : `/${nextPathname}`;
+}
+
 function AuthGate() {
   const { status } = useAuth();
   const location = useLocation();
+  const normalizedPathname = normalizeAppPathname(location.pathname);
   console.log("[AuthGate] status:", status);
 
-  if (location.pathname === "/activate") {
+  if (normalizedPathname === "/activate") {
     return <Activate />;
   }
 
