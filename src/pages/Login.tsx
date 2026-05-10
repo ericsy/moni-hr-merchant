@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CalendarDays, Eye, EyeOff, Globe, Lock, LogIn, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { useLocale } from "../context/LocaleContext";
 
 const T = {
   en: {
@@ -16,9 +17,6 @@ const T = {
     submitBtn: "Sign In",
     signingIn: "Signing in...",
     toastError: "Sign in failed",
-    demoTitle: "Demo accounts:",
-    demoActive: "Activated: admin@moni-hr.com / admin123",
-    demoPending: "Pending: new@moni-hr.com (set password before first sign-in)",
     errEmailRequired: "Please enter your email address",
     errEmailInvalid: "Please enter a valid email address",
     errPasswordRequired: "Please enter your password",
@@ -34,9 +32,6 @@ const T = {
     submitBtn: "登录",
     signingIn: "登录中...",
     toastError: "登录失败",
-    demoTitle: "演示账户：",
-    demoActive: "已激活：admin@moni-hr.com / admin123",
-    demoPending: "待激活：new@moni-hr.com（首次登录需设置密码）",
     errEmailRequired: "请输入邮箱地址",
     errEmailInvalid: "请输入有效的邮箱地址",
     errPasswordRequired: "请输入密码",
@@ -47,14 +42,15 @@ type Lang = keyof typeof T;
 
 export default function Login() {
   const { login } = useAuth();
+  const { locale, setLocale } = useLocale();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [lang, setLang] = useState<Lang>("en");
   const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const lang: Lang = locale;
   const t = T[lang];
 
   console.log("[Login] render, loading:", loading, "lang:", lang);
@@ -138,7 +134,7 @@ export default function Login() {
         >
           <button
             type="button"
-            onClick={() => setLang("en")}
+            onClick={() => setLocale("en")}
             className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
             style={{
               background: lang === "en" ? "var(--primary)" : "transparent",
@@ -150,7 +146,7 @@ export default function Login() {
           </button>
           <button
             type="button"
-            onClick={() => setLang("zh")}
+            onClick={() => setLocale("zh")}
             className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
             style={{
               background: lang === "zh" ? "var(--primary)" : "transparent",
@@ -328,23 +324,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Demo hint */}
-          <div
-            className="mt-6 rounded-lg px-4 py-3 text-xs leading-relaxed"
-            style={{
-              background: "var(--accent)",
-              color: "var(--muted-foreground)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <span className="font-semibold" style={{ color: "var(--accent-foreground)" }}>
-              {t.demoTitle}
-            </span>
-            <br />
-            {t.demoActive}
-            <br />
-            {t.demoPending}
-          </div>
         </div>
       </div>
     </div>

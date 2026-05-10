@@ -9,20 +9,35 @@ interface LocaleContextType {
 }
 
 const LocaleContext = createContext<LocaleContextType>({
-  locale: "zh",
+  locale: "en",
   setLocale: () => {},
-  t: locales.zh,
+  t: locales.en,
 });
 
+const LOCALE_STORAGE_KEY = "moni_hr_locale";
+const DEFAULT_LOCALE: Locale = "en";
+
+function readStoredLocale(): Locale {
+  if (typeof window === "undefined") return DEFAULT_LOCALE;
+  const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  return stored === "zh" || stored === "en" ? stored : DEFAULT_LOCALE;
+}
+
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("zh");
+  const [locale, setLocaleState] = useState<Locale>(() => readStoredLocale());
   const t = locales[locale];
   const setLocale = (nextLocale: Locale) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
+    }
     setCurrentLanguage(nextLocale);
     setLocaleState(nextLocale);
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+    }
     setCurrentLanguage(locale);
   }, [locale]);
 

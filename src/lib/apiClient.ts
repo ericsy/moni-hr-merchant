@@ -1,6 +1,7 @@
 const ACCESS_TOKEN_STORAGE_KEY = "moni_hr_access_token";
 const DEFAULT_STORE_ID = "";
-const DEFAULT_LANGUAGE = "zh";
+const DEFAULT_LANGUAGE = "en";
+const AUTH_EXPIRED_EVENT = "moni_hr_auth_expired";
 
 type QueryValue = string | number | boolean | null | undefined;
 type ApiLanguage = "zh" | "en";
@@ -16,16 +17,16 @@ interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers"> {
 }
 
 interface ApiResult<T> {
-  code?: number;
+  code?: number | string;
   message?: string;
   data?: T;
 }
 
 export class ApiError extends Error {
   status?: number;
-  code?: number;
+  code?: number | string;
 
-  constructor(message: string, status?: number, code?: number) {
+  constructor(message: string, status?: number, code?: number | string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -49,6 +50,21 @@ export function setStoredAccessToken(token: string) {
 
 export function clearStoredAccessToken() {
   setStoredAccessToken("");
+}
+
+export function subscribeAuthExpired(handler: () => void) {
+  if (typeof window === "undefined") return () => {};
+
+  window.addEventListener(AUTH_EXPIRED_EVENT, handler);
+  return () => {
+    window.removeEventListener(AUTH_EXPIRED_EVENT, handler);
+  };
+}
+
+function notifyAuthExpired() {
+  clearStoredAccessToken();
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
 }
 
 export function setCurrentStoreId(storeId: string) {
@@ -94,6 +110,14 @@ function isApiResult<T>(payload: unknown): payload is ApiResult<T> {
   return !!payload && typeof payload === "object" && ("code" in payload || "data" in payload || "message" in payload);
 }
 
+function isUnauthorizedCode(code: unknown) {
+  return String(code) === "401";
+}
+
+function isSuccessCode(code: unknown) {
+  return ["0", "200", "201"].includes(String(code));
+}
+
 export async function apiRequest<T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { body, query, storeId, auth = true, headers, ...requestOptions } = options;
   const requestHeaders = new Headers(headers);
@@ -128,12 +152,18 @@ export async function apiRequest<T = unknown>(path: string, options: ApiRequestO
 
   if (!response.ok) {
     const message = isApiResult(payload) ? payload.message : response.statusText;
+    if (auth && response.status === 401) {
+      notifyAuthExpired();
+    }
     throw new ApiError(message || "Request failed", response.status);
   }
 
   if (isApiResult<T>(payload)) {
     const code = payload.code;
-    if (code !== undefined && ![0, 200, 201].includes(code)) {
+    if (code !== undefined && !isSuccessCode(code)) {
+      if (auth && isUnauthorizedCode(code)) {
+        notifyAuthExpired();
+      }
       throw new ApiError(payload.message || "Request failed", response.status, code);
     }
     return payload.data as T;

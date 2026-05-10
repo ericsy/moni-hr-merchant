@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { useLocale } from "../context/LocaleContext";
 import { merchantApi } from "../lib/merchantApi";
 
 // ── i18n strings ────────────────────────────────────────────────────────────
@@ -150,9 +151,9 @@ function StrengthBar({ password, lang }: { password: string; lang: Lang }) {
 // ── Main component ──────────────────────────────────────────────────────────
 export default function Activate() {
   const { user, activate } = useAuth();
+  const { locale, setLocale } = useLocale();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [lang, setLang] = useState<Lang>("en");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -165,6 +166,7 @@ export default function Activate() {
   const [tokenLoading, setTokenLoading] = useState(false);
   const [tokenLookupError, setTokenLookupError] = useState("");
 
+  const lang: Lang = locale;
   const t = T[lang];
   const token = useMemo(() => searchParams.get("token")?.trim() || "", [searchParams]);
   const email = activationEmail || user?.email || "";
@@ -295,7 +297,7 @@ export default function Activate() {
         >
           <button
             type="button"
-            onClick={() => setLang("en")}
+            onClick={() => setLocale("en")}
             className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
             style={{
               background: lang === "en" ? "var(--primary)" : "transparent",
@@ -307,7 +309,7 @@ export default function Activate() {
           </button>
           <button
             type="button"
-            onClick={() => setLang("zh")}
+            onClick={() => setLocale("zh")}
             className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
             style={{
               background: lang === "zh" ? "var(--primary)" : "transparent",

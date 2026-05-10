@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { clearStoredAccessToken, getStoredAccessToken, setStoredAccessToken } from "../lib/apiClient";
+import { clearStoredAccessToken, getStoredAccessToken, setStoredAccessToken, subscribeAuthExpired } from "../lib/apiClient";
 import { merchantApi } from "../lib/merchantApi";
 
 export type AuthStatus = "unauthenticated" | "needs_activation" | "authenticated";
@@ -92,6 +92,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("[AuthProvider] failed to persist auth session:", error);
     }
   }, [status, user, activationToken]);
+
+  useEffect(() => {
+    return subscribeAuthExpired(() => {
+      console.log("[AuthProvider] auth expired");
+      setStatus("unauthenticated");
+      setUser(null);
+      setActivationToken("");
+    });
+  }, []);
 
   useEffect(() => {
     if (status !== "authenticated" || !getStoredAccessToken()) return;
