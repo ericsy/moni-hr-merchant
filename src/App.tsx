@@ -157,7 +157,7 @@ const App = () => (
                   <AuthGate />
                 </ErrorBoundary>
               </BrowserRouter>
-              <Toaster position="top-right" richColors />
+              <Toaster position="top-center" className="app-toast-center" richColors />
             </StoreProvider>
           </DataProvider>
         </PermissionsProvider>

@@ -498,6 +498,7 @@ export default function Areas() {
         open={modalOpen}
         onCancel={closeModal}
         onOk={handleSave}
+        maskClosable={false}
         okText={editingArea ? copy.save : copy.create}
         cancelText={copy.cancel}
         destroyOnHidden

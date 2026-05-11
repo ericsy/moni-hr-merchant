@@ -256,11 +256,11 @@ function StoreModal({
       title={isEdit ? st.editStore : st.addStore}
       onOk={handleOk}
       onCancel={locked ? undefined : onCancel}
+      maskClosable={false}
       okText={t.save}
       cancelText={t.cancel}
       width={700}
       destroyOnClose
-      maskClosable={!locked}
       keyboard={!locked}
       closable={!locked}
       cancelButtonProps={{ style: { display: locked ? "none" : undefined } }}

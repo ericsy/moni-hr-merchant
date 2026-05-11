@@ -483,6 +483,7 @@ function ShiftModal({
       open={open}
       onCancel={onClose}
       onOk={onSave}
+      maskClosable={false}
       okText={copy.save}
       cancelText={copy.cancel}
       destroyOnHidden

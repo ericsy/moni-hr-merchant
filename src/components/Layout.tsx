@@ -504,6 +504,7 @@ function ChangePasswordModal({
       title={t.employee.changePasswordTitle}
       onOk={onOk}
       onCancel={onCancel}
+      maskClosable={false}
       okText={t.employee.changePassword}
       cancelText={t.cancel}
       confirmLoading={loading}

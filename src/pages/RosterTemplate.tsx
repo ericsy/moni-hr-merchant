@@ -1281,6 +1281,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         open={addAreaOpen}
         onCancel={() => { setAddAreaOpen(false); setSelectedAreaId(""); }}
         onOk={handleAddArea}
+        maskClosable={false}
         okText={locale === "zh" ? "添加" : "Add"}
         cancelText={locale === "zh" ? "取消" : "Cancel"}
         destroyOnHidden
@@ -1316,6 +1317,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         open={cellModalOpen}
         onCancel={() => setCellModalOpen(false)}
         onOk={handleSaveCell}
+        maskClosable={false}
         okText={locale === "zh" ? "保存" : "Save"}
         cancelText={locale === "zh" ? "取消" : "Cancel"}
         destroyOnHidden

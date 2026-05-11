@@ -2306,6 +2306,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={handleSaveShift}
+        maskClosable={false}
         okText={isZh ? "保存" : "Save"}
         cancelText={isZh ? "取消" : "Cancel"}
         destroyOnHidden
@@ -2551,6 +2552,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
             templateConflictStrategy,
           );
         }}
+        maskClosable={false}
         okText={isZh ? "继续应用" : "Apply"}
         cancelText={isZh ? "取消" : "Cancel"}
         destroyOnHidden

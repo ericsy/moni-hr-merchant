@@ -182,3 +182,25 @@
 .schedule-cell:hover {
   background: var(--accent) !important;
 }
+
+/* Center global toast messages in the viewport. */
+[data-sonner-toaster].app-toast-center {
+  left: 50% !important;
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, calc(-50% - var(--front-toast-height, 0px) / 2)) !important;
+}
+
+@media (max-width: 600px) {
+  [data-sonner-toaster].app-toast-center {
+    left: 50% !important;
+    right: auto !important;
+    width: min(356px, calc(100vw - 32px)) !important;
+    transform: translate(-50%, calc(-50% - var(--front-toast-height, 0px) / 2)) !important;
+  }
+
+  [data-sonner-toaster].app-toast-center [data-sonner-toast] {
+    width: min(356px, calc(100vw - 32px)) !important;
+  }
+}

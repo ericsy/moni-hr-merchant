@@ -423,7 +423,6 @@ export function EmployeeModal({
   };
 
   const et = t.employee as Record<string, unknown>;
-  const contractRequiredMessage = et.contractUploadRequired as string;
 
   const handleOk = async () => {
     try {
@@ -433,10 +432,8 @@ export function EmployeeModal({
       const shouldUseIdDocuments = selectedDocumentType === "id";
       const shouldUsePassportDocuments = selectedDocumentType === "passport";
 
-      if (uploadingContract || !contractDocumentKey) {
-        const message = uploadingContract
-          ? et.contractUploading as string
-          : contractRequiredMessage;
+      if (uploadingContract) {
+        const message = et.contractUploading as string;
         setActiveTabKey("employment");
         form.setFields([{ name: "contractDocumentKey", errors: [message] }]);
         toast.error(message);
@@ -492,7 +489,9 @@ export function EmployeeModal({
         workDayPattern: values.workDayPattern ?? defaultWorkDayPattern,
         contractType: values.contractType ?? "permanent",
         contractDocumentKey,
-        contractDocumentUrl: contractFileList[0]?.url ?? employee?.contractDocumentUrl ?? "",
+        contractDocumentUrl: contractDocumentKey
+          ? contractFileList[0]?.url ?? employee?.contractDocumentUrl ?? ""
+          : "",
         endDate: values.endDate ? dayjs(values.endDate).format("YYYY-MM-DD") : "",
         contractedHours: values.contractedHours ?? "",
         annualSalary: values.annualSalary ?? "",
@@ -501,12 +500,6 @@ export function EmployeeModal({
       await onSave(saved);
     } catch (err) {
       console.log("[EmployeeModal] save failed:", err);
-      const errorFields = (err as { errorFields?: Array<{ name?: Array<string | number> }> })?.errorFields ?? [];
-      const hasContractError = errorFields.some((field) => field.name?.includes("contractDocumentKey"));
-      if (hasContractError) {
-        setActiveTabKey("employment");
-        toast.error(contractRequiredMessage);
-      }
     }
   };
 
@@ -531,7 +524,6 @@ export function EmployeeModal({
       const nextFileList = [nextFile];
       setContractFileList(nextFileList);
       syncContractFormValue(nextFileList);
-      form.validateFields(["contractDocumentKey"]).catch(() => undefined);
       toast.success(et.contractUploadSuccess as string);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : et.contractUploadFailed as string);
@@ -889,7 +881,6 @@ export function EmployeeModal({
           <Form.Item
             name="contractDocumentKey"
             label={et.contractFile as string}
-            rules={[{ required: true, message: contractRequiredMessage }]}
             extra={et.contractUploadHint as string}
           >
             <div className="flex flex-col gap-3">
@@ -939,6 +930,7 @@ export function EmployeeModal({
       title={isEdit ? et.editEmployee as string : et.addEmployee as string}
       onOk={handleOk}
       onCancel={onCancel}
+      maskClosable={false}
       okText={t.save}
       cancelText={t.cancel}
       width={680}
