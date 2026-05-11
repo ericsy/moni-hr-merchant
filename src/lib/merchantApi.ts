@@ -8,6 +8,7 @@ import type {
   RosterTemplateCell,
   ScheduleShift,
   Store,
+  StoreWeekdayHours,
   WorkDayPattern,
 } from "../context/DataContext";
 
@@ -235,6 +236,44 @@ function normalizeCountry(country: unknown) {
   return asString(country, "nz").trim().toLowerCase() || "nz";
 }
 
+function mapStoreWeekdayHours(input: unknown): StoreWeekdayHours[] | undefined {
+  const weeklyHours = asArray(input)
+    .map((item) => {
+      const row = asRecord(item);
+      const weekday = asNumber(row.weekday);
+      if (weekday < 1 || weekday > 7) return null;
+
+      const openTime = asString(row.openTime).trim();
+      const closeTime = asString(row.closeTime).trim();
+      const closed = asBoolean(row.closed, false);
+
+      return compact({
+        weekday,
+        closed,
+        openTime: openTime || undefined,
+        closeTime: closeTime || undefined,
+      }) as StoreWeekdayHours;
+    })
+    .filter((item): item is StoreWeekdayHours => !!item)
+    .sort((a, b) => a.weekday - b.weekday);
+
+  return weeklyHours.length > 0 ? weeklyHours : undefined;
+}
+
+function serializeStoreWeekdayHours(weeklyHours: StoreWeekdayHours[] | undefined) {
+  return weeklyHours
+    ?.map((item) => {
+      const closed = item.closed === true;
+      return compact({
+        weekday: item.weekday,
+        closed,
+        openTime: closed ? undefined : item.openTime,
+        closeTime: closed ? undefined : item.closeTime,
+      });
+    })
+    .filter((item) => typeof item.weekday === "number");
+}
+
 function asBoolean(value: unknown, fallback = false) {
   if (typeof value === "boolean") return value;
   const normalized = asString(value).trim().toLowerCase();
@@ -270,6 +309,8 @@ export function isBackendId(id: string | undefined | null) {
 
 export function mapApiStore(input: unknown): Store {
   const raw = asRecord(input);
+  const weeklyHours = mapStoreWeekdayHours(raw.weeklyHours);
+  const firstBusinessDay = weeklyHours?.find((item) => !item.closed && item.openTime && item.closeTime);
   return {
     id: asString(raw.id),
     name: asString(raw.name),
@@ -280,9 +321,10 @@ export function mapApiStore(input: unknown): Store {
     phone: asString(raw.phone),
     email: asString(raw.email),
     manager: asString(raw.manager),
-    openTime: asString(raw.openTime, "09:00"),
-    closeTime: asString(raw.closeTime, "22:00"),
+    openTime: asString(raw.openTime, firstBusinessDay?.openTime || "09:00"),
+    closeTime: asString(raw.closeTime, firstBusinessDay?.closeTime || "22:00"),
     timezone: asString(raw.timezone, "Pacific/Auckland"),
+    weeklyHours,
     latitude: raw.latitude === undefined || raw.latitude === null ? undefined : asNumber(raw.latitude),
     longitude: raw.longitude === undefined || raw.longitude === null ? undefined : asNumber(raw.longitude),
     geofenceRadius: raw.geofenceRadius === undefined || raw.geofenceRadius === null ? undefined : asNumber(raw.geofenceRadius),
@@ -301,6 +343,7 @@ export function storeToApiPayload(store: Store) {
     manager: store.manager,
     openTime: store.openTime,
     closeTime: store.closeTime,
+    weeklyHours: serializeStoreWeekdayHours(store.weeklyHours),
     latitude: store.latitude,
     longitude: store.longitude,
     geofenceRadius: store.geofenceRadius,

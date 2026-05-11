@@ -82,10 +82,18 @@ export interface Store {
   openTime: string;
   closeTime: string;
   timezone: string;
+  weeklyHours?: StoreWeekdayHours[];
   // Geofence
   latitude?: number;
   longitude?: number;
   geofenceRadius?: number; // meters
+}
+
+export interface StoreWeekdayHours {
+  weekday: number; // 1=Mon,...7=Sun
+  closed?: boolean;
+  openTime?: string;
+  closeTime?: string;
 }
 
 export interface CountryOption {

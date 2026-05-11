@@ -9,6 +9,7 @@ import {
   TimePicker,
   Avatar,
   Tabs,
+  Switch,
 } from "antd";
 import {
   Plus,
@@ -28,9 +29,10 @@ import {
   UserCircle,
 } from "lucide-react";
 import { useLocale } from "../context/LocaleContext";
-import { useData, type CountryOption, type Store } from "../context/DataContext";
+import { useData, type CountryOption, type Store, type StoreWeekdayHours } from "../context/DataContext";
 import { toast } from "sonner";
 import dayjs from "dayjs";
+import type { Dayjs } from "dayjs";
 import GeoFenceMapPicker from "../components/GeoFenceMapPicker";
 
 const { Option } = Select;
@@ -75,6 +77,84 @@ function getStoreInitials(name = "") {
   return name.slice(0, 2).toUpperCase();
 }
 
+type StoreWeekdayHoursFormRow = {
+  weekday: number;
+  closed: boolean;
+  openTime: Dayjs | null;
+  closeTime: Dayjs | null;
+};
+
+const DEFAULT_OPEN_TIME = "09:00";
+const DEFAULT_CLOSE_TIME = "22:00";
+const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
+
+function timeValue(value?: string | null) {
+  return value ? dayjs(`2000-01-01 ${value}`, "YYYY-MM-DD HH:mm") : null;
+}
+
+function getStoreWeeklyHours(store?: Store | null): StoreWeekdayHours[] {
+  if (store?.weeklyHours?.length) {
+    const byWeekday = new Map(store.weeklyHours.map((item) => [item.weekday, item]));
+    return WEEKDAYS.map((weekday) => {
+      const item = byWeekday.get(weekday);
+      return {
+        weekday,
+        closed: item?.closed ?? false,
+        openTime: item?.openTime || store.openTime || DEFAULT_OPEN_TIME,
+        closeTime: item?.closeTime || store.closeTime || DEFAULT_CLOSE_TIME,
+      };
+    });
+  }
+
+  return WEEKDAYS.map((weekday) => ({
+    weekday,
+    closed: false,
+    openTime: store?.openTime || DEFAULT_OPEN_TIME,
+    closeTime: store?.closeTime || DEFAULT_CLOSE_TIME,
+  }));
+}
+
+function getWeeklyHoursFormRows(store?: Store | null): StoreWeekdayHoursFormRow[] {
+  return getStoreWeeklyHours(store).map((item) => ({
+    weekday: item.weekday,
+    closed: item.closed === true,
+    openTime: item.closed ? null : timeValue(item.openTime || DEFAULT_OPEN_TIME),
+    closeTime: item.closed ? null : timeValue(item.closeTime || DEFAULT_CLOSE_TIME),
+  }));
+}
+
+function serializeWeeklyHours(rows: StoreWeekdayHoursFormRow[] | undefined): StoreWeekdayHours[] {
+  const byWeekday = new Map((rows || []).map((row, index) => [Number(row.weekday) || index + 1, row]));
+  return WEEKDAYS.map((weekday) => {
+    const row = byWeekday.get(weekday);
+    const closed = row?.closed === true;
+    return {
+      weekday,
+      closed,
+      openTime: closed ? undefined : row?.openTime?.format("HH:mm") || DEFAULT_OPEN_TIME,
+      closeTime: closed ? undefined : row?.closeTime?.format("HH:mm") || DEFAULT_CLOSE_TIME,
+    };
+  });
+}
+
+function getPrimaryBusinessHours(weeklyHours: StoreWeekdayHours[]) {
+  const firstBusinessDay = weeklyHours.find((item) => !item.closed && item.openTime && item.closeTime);
+  return {
+    openTime: firstBusinessDay?.openTime || DEFAULT_OPEN_TIME,
+    closeTime: firstBusinessDay?.closeTime || DEFAULT_CLOSE_TIME,
+  };
+}
+
+function formatStoreWeeklyHours(store: Store, weekDayLabels: string[], closedLabel: string) {
+  return getStoreWeeklyHours(store)
+    .map((item) => {
+      const dayLabel = weekDayLabels[item.weekday - 1] || `${item.weekday}`;
+      const hours = item.closed ? closedLabel : `${item.openTime || DEFAULT_OPEN_TIME} - ${item.closeTime || DEFAULT_CLOSE_TIME}`;
+      return `${dayLabel} ${hours}`;
+    })
+    .join("\n");
+}
+
 // ─── Store Form Modal ───
 function StoreModal({
   open = false,
@@ -107,6 +187,8 @@ function StoreModal({
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
+      const weeklyHours = serializeWeeklyHours(values.weeklyHours);
+      const primaryHours = getPrimaryBusinessHours(weeklyHours);
       const saved: Store = {
         id: store?.id || `s${Date.now()}`,
         name: values.name,
@@ -117,8 +199,9 @@ function StoreModal({
         phone: values.phone || "",
         email: values.email || "",
         manager: values.manager || "",
-        openTime: values.openTime ? values.openTime.format("HH:mm") : "09:00",
-        closeTime: values.closeTime ? values.closeTime.format("HH:mm") : "22:00",
+        openTime: primaryHours.openTime,
+        closeTime: primaryHours.closeTime,
+        weeklyHours,
         timezone: store?.timezone || "Pacific/Auckland",
         ...(geofenceValue
           ? {
@@ -144,10 +227,11 @@ function StoreModal({
   const initialValues = store
     ? {
         ...store,
-        openTime: store.openTime ? dayjs(store.openTime, "HH:mm") : null,
-        closeTime: store.closeTime ? dayjs(store.closeTime, "HH:mm") : null,
+        weeklyHours: getWeeklyHoursFormRows(store),
       }
-    : {};
+    : {
+        weeklyHours: getWeeklyHoursFormRows(),
+      };
 
   const storeName = form.getFieldValue("name") as string | undefined;
   const watchedAddress = Form.useWatch("address", form) as string | undefined;
@@ -205,14 +289,23 @@ function StoreModal({
               <Input placeholder="store@example.com" />
             </Form.Item>
           </div>
-          <div className="flex gap-4">
-            <Form.Item name="openTime" label={st.openTime} style={{ flex: 1 }}>
-              <TimePicker format="HH:mm" style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item name="closeTime" label={st.closeTime} style={{ flex: 1 }}>
-              <TimePicker format="HH:mm" style={{ width: "100%" }} />
-            </Form.Item>
-          </div>
+          <Form.Item label={st.weeklyHours}>
+            <Form.List name="weeklyHours">
+              {(fields) => (
+                <div className="flex flex-col gap-2">
+                  {fields.map((field) => (
+                    <WeeklyHoursRow
+                      key={field.key}
+                      fieldName={field.name}
+                      st={st}
+                      weekDayLabel={st.weekDays[field.name] || `${field.name + 1}`}
+                      form={form}
+                    />
+                  ))}
+                </div>
+              )}
+            </Form.List>
+          </Form.Item>
           <div className="flex gap-4">
             <Form.Item name="manager" label={st.manager} style={{ flex: 1 }}>
               <Input placeholder={locale === "zh" ? `负责人姓名` : `Manager name`} />
@@ -291,6 +384,71 @@ function StoreModal({
   );
 }
 
+function WeeklyHoursRow({
+  fieldName,
+  weekDayLabel,
+  st,
+  form,
+}: {
+  fieldName: number;
+  weekDayLabel: string;
+  st: ReturnType<typeof useLocale>["t"]["store"];
+  form: ReturnType<typeof Form.useForm>[0];
+}) {
+  const closed = Form.useWatch(["weeklyHours", fieldName, "closed"], form) === true;
+
+  return (
+    <div
+      className="grid items-center gap-3 rounded-md px-3 py-2"
+      style={{
+        gridTemplateColumns: "72px 96px 1fr 1fr",
+        background: "var(--muted)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <Form.Item name={[fieldName, "weekday"]} hidden>
+        <Input />
+      </Form.Item>
+      <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+        {weekDayLabel}
+      </div>
+      <Switch
+        size="small"
+        checked={!closed}
+        checkedChildren={st.openStatus}
+        unCheckedChildren={st.closedStatus}
+        onChange={(checked) => {
+          form.setFieldValue(["weeklyHours", fieldName, "closed"], !checked);
+        }}
+      />
+      <Form.Item
+        name={[fieldName, "openTime"]}
+        style={{ marginBottom: 0 }}
+        rules={[{ required: !closed, message: st.openTimeRequired }]}
+      >
+        <TimePicker
+          disabled={closed}
+          format="HH:mm"
+          placeholder={st.openTime}
+          style={{ width: "100%" }}
+        />
+      </Form.Item>
+      <Form.Item
+        name={[fieldName, "closeTime"]}
+        style={{ marginBottom: 0 }}
+        rules={[{ required: !closed, message: st.closeTimeRequired }]}
+      >
+        <TimePicker
+          disabled={closed}
+          format="HH:mm"
+          placeholder={st.closeTime}
+          style={{ width: "100%" }}
+        />
+      </Form.Item>
+    </div>
+  );
+}
+
 function StoreInfoRow({
   icon,
   label,
@@ -352,8 +510,12 @@ function StoreDetailPanel({
           <StoreInfoRow icon={<UserCircle size={13} />} label={st.manager} value={store.manager} />
           <StoreInfoRow
             icon={<Clock size={13} />}
-            label={`${st.openTime} / ${st.closeTime}`}
-            value={`${store.openTime} – ${store.closeTime}`}
+            label={st.weeklyHours}
+            value={
+              <span style={{ whiteSpace: "pre-line" }}>
+                {formatStoreWeeklyHours(store, st.weekDays, st.closedStatus)}
+              </span>
+            }
           />
           <StoreInfoRow
             icon={<Users size={13} />}
