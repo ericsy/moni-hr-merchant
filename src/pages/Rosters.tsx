@@ -46,6 +46,8 @@ import {
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { calcShiftHours, datedShiftsOverlap } from "../lib/shift";
+import { isStoreClosedOnWeekday } from "../lib/storeHours";
+import { formatCountryDate } from "../lib/dateFormat";
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
@@ -494,7 +496,8 @@ interface DateColHeaderProps {
   date?: dayjs.Dayjs;
   dayLabel?: string;
   isToday?: boolean;
-  isWeekend?: boolean;
+  isClosedDay?: boolean;
+  dateFormatCountry?: string;
   onDropTemplate?: (templateId: string, dateStr: string) => void;
   shiftCount?: number;
 }
@@ -503,7 +506,8 @@ function DateColHeader({
   date,
   dayLabel = "",
   isToday = false,
-  isWeekend = false,
+  isClosedDay = false,
+  dateFormatCountry = "",
   onDropTemplate = () => {},
   shiftCount = 0,
 }: DateColHeaderProps) {
@@ -541,7 +545,7 @@ function DateColHeader({
           ? "var(--accent)"
           : isToday
             ? "var(--primary)"
-            : isWeekend
+            : isClosedDay
               ? "var(--workday-weekend-header)"
               : "var(--card)",
         cursor: isDragOver ? "copy" : "default",
@@ -571,12 +575,12 @@ function DateColHeader({
         style={{
           color: isToday
             ? "var(--primary-foreground)"
-            : isWeekend
+            : isClosedDay
               ? "var(--workday-weekend-text)"
               : "var(--muted-foreground)",
         }}
       >
-        {date ? date.format("MM/DD") : ""}
+        {date ? formatCountryDate(date, dateFormatCountry) : ""}
       </span>
       <span
         className="font-bold"
@@ -584,7 +588,7 @@ function DateColHeader({
           fontSize: 15,
           color: isToday
             ? "var(--primary-foreground)"
-            : isWeekend
+            : isClosedDay
               ? "var(--workday-weekend-text)"
               : "var(--foreground)",
         }}
@@ -633,7 +637,7 @@ interface AreaDateCellProps {
   onDropEmployeeToShift?: (empId: string, shift: ScheduleShift) => void;
   onDropTemplate?: (templateId: string) => void;
   isToday?: boolean;
-  isWeekend?: boolean;
+  isClosedDay?: boolean;
 }
 
 function AreaDateCell({
@@ -649,7 +653,7 @@ function AreaDateCell({
   onDropEmployeeToShift = () => {},
   onDropTemplate = () => {},
   isToday = false,
-  isWeekend = false,
+  isClosedDay = false,
 }: AreaDateCellProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale } = useLocale();
@@ -685,7 +689,7 @@ function AreaDateCell({
           ? "var(--secondary)"
           : isToday
             ? "var(--workday-active-bg)"
-            : isWeekend
+            : isClosedDay
               ? "var(--workday-weekend-header)"
               : "transparent",
         transition: "background 0.12s",
@@ -790,6 +794,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     weekStart.add(i, "day"),
   );
   const todayStr = dayjs().format("YYYY-MM-DD");
+  const selectedStore = stores.find((store) => store.id === selectedStoreId) || stores[0];
+  const dateFormatCountry = selectedStore?.country;
+  const isStoreClosedDate = (date: dayjs.Dayjs) =>
+    isStoreClosedOnWeekday(selectedStore, date.isoWeekday());
 
   // ── Left panel state ────────────────────────────────────────────────────────
   const [leftTab, setLeftTab] = useState<"templates" | "employees">(
@@ -1799,9 +1807,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               className="text-sm font-semibold"
               style={{ color: "var(--foreground)" }}
             >
-              {isZh
-                ? `${weekStart.format("YYYY年 M月D日")} — ${weekStart.add(6, "day").format("M月D日")}`
-                : `${weekStart.format("MMM D")} – ${weekStart.add(6, "day").format("MMM D, YYYY")}`}
+              {`${formatCountryDate(weekStart, dateFormatCountry)} - ${formatCountryDate(weekStart.add(6, "day"), dateFormatCountry)}`}
             </span>
             <span
               className="rounded-full px-2 py-0.5 text-xs font-medium"
@@ -2194,7 +2200,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               {/* Date columns */}
               {weekDates.map((d, i) => {
                 const isToday = d.format("YYYY-MM-DD") === todayStr;
-                const isWeekend = i >= 5;
+                const isClosedDay = isStoreClosedDate(d);
                 const cnt = dateTotalShifts(d.format("YYYY-MM-DD"));
                 return (
                   <DateColHeader
@@ -2202,7 +2208,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     date={d}
                     dayLabel={dayLabels[i]}
                     isToday={isToday}
-                    isWeekend={isWeekend}
+                    isClosedDay={isClosedDay}
+                    dateFormatCountry={dateFormatCountry}
                     onDropTemplate={handleDropTemplateToDate}
                     shiftCount={cnt}
                   />
@@ -2261,7 +2268,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   {weekDates.map((d, i) => {
                     const dateStr = d.format("YYYY-MM-DD");
                     const isToday = dateStr === todayStr;
-                    const isWeekend = i >= 5;
+                    const isClosedDay = isStoreClosedDate(d);
                     const cellShifts = getShifts(area.id, dateStr);
 
                     return (
@@ -2281,7 +2288,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                         onDropEmployeeToShift={handleDropEmployeeToShift}
                         onDropTemplate={handleDropTemplateToCurrentWeek}
                         isToday={isToday}
-                        isWeekend={isWeekend}
+                        isClosedDay={isClosedDay}
                       />
                     );
                   })}
@@ -2580,8 +2587,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   style={{ color: "var(--muted-foreground)", lineHeight: 1.6 }}
                 >
                   {isZh
-                    ? `检测到当前排班区间已有数据。模版将从 ${pendingTemplatePlan.startDate} 开始对齐，并持续到 ${pendingTemplatePlan.endDate}。`
-                    : `Existing schedule data was found in this range. The template will align from ${pendingTemplatePlan.startDate} to ${pendingTemplatePlan.endDate}.`}
+                    ? `检测到当前排班区间已有数据。模版将从 ${formatCountryDate(pendingTemplatePlan.startDate, dateFormatCountry)} 开始对齐，并持续到 ${formatCountryDate(pendingTemplatePlan.endDate, dateFormatCountry)}。`
+                    : `Existing schedule data was found in this range. The template will align from ${formatCountryDate(pendingTemplatePlan.startDate, dateFormatCountry)} to ${formatCountryDate(pendingTemplatePlan.endDate, dateFormatCountry)}.`}
                 </div>
               </div>
             </div>

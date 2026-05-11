@@ -245,7 +245,7 @@ function mapStoreWeekdayHours(input: unknown): StoreWeekdayHours[] | undefined {
 
       const openTime = asString(row.openTime).trim();
       const closeTime = asString(row.closeTime).trim();
-      const closed = asBoolean(row.closed, false);
+      const closed = asBoolean(row.closed ?? row.close, false);
 
       return compact({
         weekday,

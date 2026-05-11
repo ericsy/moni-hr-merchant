@@ -29,6 +29,7 @@ import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { EmployeeModal } from "./Employees";
 import { calcShiftHours, indexedShiftsOverlap } from "../lib/shift";
+import { isStoreClosedOnDayIndex } from "../lib/storeHours";
 import { ColorSwatchPicker, DEFAULT_COLOR_KEY, getSoftColorStyle } from "../components/ColorSwatchPicker";
 import { toast } from "sonner";
 import dayjs from "dayjs";
@@ -374,6 +375,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     : visibleTemplates[0]?.id || "";
   const activeTemplate = visibleTemplates.find((template) => template.id === resolvedActiveTemplateId) || null;
   const activeTemplateStoreId = activeTemplate?.storeId || selectedStoreId;
+  const activeTemplateStore = stores.find((store) => store.id === activeTemplateStoreId);
   const activeTemplateTotalDays = activeTemplate?.totalDays || 7;
   const activeTemplateVisibleCells = (activeTemplate?.cells || []).filter(
     (cell) => cell.dayIndex >= 0 && cell.dayIndex < activeTemplateTotalDays
@@ -1101,22 +1103,30 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               </div>
 
               {/* Day columns */}
-              {totalDaysList.map((day) => (
-                <div
-                  key={day}
-                  className="flex-shrink-0 flex items-center justify-center"
-                  style={{
-                    width: 160,
-                    minHeight: 44,
-                    borderRight: "1px solid var(--border)",
-                    background: (day - 1) % 7 >= 5 ? "var(--muted)" : "var(--card)",
-                  }}
-                >
-                  <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                    {getWeekdayLabel(day - 1, locale)}
-                  </span>
-                </div>
-              ))}
+              {totalDaysList.map((day) => {
+                const dayIndex = day - 1;
+                const isStoreClosed = isStoreClosedOnDayIndex(activeTemplateStore, dayIndex);
+
+                return (
+                  <div
+                    key={day}
+                    className="flex-shrink-0 flex items-center justify-center"
+                    style={{
+                      width: 160,
+                      minHeight: 44,
+                      borderRight: "1px solid var(--border)",
+                      background: isStoreClosed ? "var(--workday-weekend-header)" : "var(--card)",
+                    }}
+                  >
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: isStoreClosed ? "var(--workday-weekend-text)" : "var(--foreground)" }}
+                    >
+                      {getWeekdayLabel(dayIndex, locale)}
+                    </span>
+                  </div>
+                );
+              })}
 
               {/* +/- columns */}
               <div className="flex items-center px-2" style={{ minWidth: 44, minHeight: 44 }}>
@@ -1174,6 +1184,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                 {/* Day cells */}
                 {totalDaysList.map((day) => {
                   const dayIndex = day - 1;
+                  const isStoreClosed = isStoreClosedOnDayIndex(activeTemplateStore, dayIndex);
                   const cellsInSlot = activeTemplateVisibleCells.filter(
                     (c) => c.areaId === area.id && c.dayIndex === dayIndex
                   );
@@ -1186,7 +1197,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                         width: 160,
                         borderRight: "1px solid var(--border)",
                         minHeight: 88,
-                        background: (day - 1) % 7 >= 5 ? "var(--workday-weekend-header)" : "transparent",
+                        background: isStoreClosed ? "var(--workday-weekend-header)" : "transparent",
                       }}
                       onDragOver={(e) => e.preventDefault()}
                     >

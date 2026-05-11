@@ -50,6 +50,7 @@ import { toast } from "sonner";
 import WorkDaysCalendar from "../components/WorkDaysCalendar";
 import { ColorSwatchPicker, DEFAULT_COLOR_VALUE } from "../components/ColorSwatchPicker";
 import { extractUploadKey, merchantApi } from "../lib/merchantApi";
+import { formatApiDate, formatCountryDate, getCountryDateFormat } from "../lib/dateFormat";
 
 const { Option } = Select;
 
@@ -288,7 +289,7 @@ export function EmployeeModal({
 }: {
   open?: boolean;
   employee?: Employee | null;
-  stores?: { id: string; name: string }[];
+  stores?: { id: string; name: string; country?: string }[];
   defaultStoreIds?: string[];
   onSave?: (emp: Employee) => void | Promise<void>;
   onCancel?: () => void;
@@ -297,6 +298,9 @@ export function EmployeeModal({
 }) {
   const [form] = Form.useForm();
   const isEdit = !!employee;
+  const initialStoreId = employee?.storeIds?.[0] || defaultStoreIds[0] || "";
+  const initialStore = stores.find((store) => store.id === initialStoreId);
+  const dateDisplayFormat = getCountryDateFormat(initialStore?.country);
   const [activeTabKey, setActiveTabKey] = useState("general");
   const [uploadingContract, setUploadingContract] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -449,7 +453,7 @@ export function EmployeeModal({
         phone: values.phone ?? "",
         email: values.email ?? "",
         status: values.status ?? "active",
-        startDate: values.startDate ? dayjs(values.startDate).format("YYYY-MM-DD") : "",
+        startDate: formatApiDate(values.startDate),
         storeIds: values.storeIds ?? [],
         assignedStores: values.storeIds ?? [],
         hourlyRate: employee?.hourlyRate ?? 0,
@@ -458,7 +462,7 @@ export function EmployeeModal({
         avatarPreviewUrl: avatarKey ? avatarFileList[0]?.url ?? fallbackAvatarPreviewUrl : "",
         employeeColor: values.employeeColor ?? DEFAULT_COLOR_VALUE,
         address: values.address ?? "",
-        dateOfBirth: values.dateOfBirth ? dayjs(values.dateOfBirth).format("YYYY-MM-DD") : "",
+        dateOfBirth: formatApiDate(values.dateOfBirth),
         gender: values.gender ?? "",
         maritalStatus: values.maritalStatus ?? "",
         identityDocumentType: selectedDocumentType,
@@ -488,7 +492,7 @@ export function EmployeeModal({
         contractDocumentUrl: contractDocumentKey
           ? contractFileList[0]?.url ?? employee?.contractDocumentUrl ?? ""
           : "",
-        endDate: values.endDate ? dayjs(values.endDate).format("YYYY-MM-DD") : "",
+        endDate: formatApiDate(values.endDate),
         contractedHours: values.contractedHours ?? "",
         annualSalary: values.annualSalary ?? "",
         defaultHourlyRate: values.defaultHourlyRate ?? "",
@@ -716,10 +720,10 @@ export function EmployeeModal({
           </div>
           <div className="flex gap-4">
             <Form.Item name="startDate" label={et.startDate as string} style={{ flex: 1 }}>
-              <DatePicker style={{ width: "100%" }} />
+              <DatePicker format={dateDisplayFormat} style={{ width: "100%" }} />
             </Form.Item>
             <Form.Item name="dateOfBirth" label={et.dateOfBirth as string} style={{ flex: 1 }}>
-              <DatePicker style={{ width: "100%" }} />
+              <DatePicker format={dateDisplayFormat} style={{ width: "100%" }} />
             </Form.Item>
           </div>
           <div className="flex gap-4">
@@ -818,7 +822,7 @@ export function EmployeeModal({
               </Select>
             </Form.Item>
             <Form.Item name="endDate" label={et.endDate as string} style={{ flex: 1 }}>
-              <DatePicker style={{ width: "100%" }} />
+              <DatePicker format={dateDisplayFormat} style={{ width: "100%" }} />
             </Form.Item>
           </div>
           <div className="flex gap-4">
@@ -930,7 +934,7 @@ function DetailPanel({
   t,
 }: {
   employee: Employee;
-  stores?: { id: string; name: string }[];
+  stores?: { id: string; name: string; country?: string }[];
   onEdit?: () => void;
   onDelete?: () => void;
   t: ReturnType<typeof useLocale>["t"];
@@ -940,6 +944,8 @@ function DetailPanel({
   const assignedStoreNames = (employee.storeIds ?? [])
     .map((id) => stores.find((s) => s.id === id)?.name)
     .filter(Boolean) as string[];
+  const primaryStore = stores.find((store) => store.id === employee.storeIds?.[0]) || stores[0];
+  const formatEmployeeDate = (value?: string) => formatCountryDate(value, primaryStore?.country);
 
   const workDays = employee.workDayPattern ?? defaultWorkDayPattern;
   const weekDays = et.weekDays as string[];
@@ -986,8 +992,8 @@ function DetailPanel({
           <InfoRow icon={<Briefcase size={13} />} label={et.role as string} value={roleLabel} />
           <InfoRow icon={<Phone size={13} />} label={et.phone as string} value={employee.phone} />
           <InfoRow icon={<Mail size={13} />} label={et.email as string} value={employee.email} />
-          <InfoRow icon={<CalendarDays size={13} />} label={et.startDate as string} value={employee.startDate} />
-          <InfoRow icon={<Cake size={13} />} label={et.dateOfBirth as string} value={employee.dateOfBirth ?? ""} />
+          <InfoRow icon={<CalendarDays size={13} />} label={et.startDate as string} value={formatEmployeeDate(employee.startDate)} />
+          <InfoRow icon={<Cake size={13} />} label={et.dateOfBirth as string} value={formatEmployeeDate(employee.dateOfBirth)} />
           <InfoRow icon={<User size={13} />} label={et.gender as string} value={getOptionLabel("genderOptions", employee.gender)} />
           <InfoRow icon={<BadgeCheck size={13} />} label={et.maritalStatus as string} value={getOptionLabel("maritalStatusOptions", employee.maritalStatus)} />
           <InfoRow icon={<MapPin size={13} />} label={et.address as string} value={employee.address ?? ""} />
@@ -1043,7 +1049,7 @@ function DetailPanel({
       children: (
         <div className="flex flex-col">
           <InfoRow icon={<FileText size={13} />} label={et.contractType as string} value={contractTypeLabel} />
-          <InfoRow icon={<CalendarDays size={13} />} label={et.endDate as string} value={employee.endDate ?? ""} />
+          <InfoRow icon={<CalendarDays size={13} />} label={et.endDate as string} value={formatEmployeeDate(employee.endDate)} />
           <InfoRow icon={<Clock size={13} />} label={et.contractedHours as string} value={employee.contractedHours ? `${employee.contractedHours} ${t.hours}` : ""} />
           <InfoRow icon={<DollarSign size={13} />} label={et.annualSalary as string} value={employee.annualSalary ? `$${employee.annualSalary}` : ""} />
           <InfoRow icon={<DollarSign size={13} />} label={et.defaultHourlyRate as string} value={employee.defaultHourlyRate ? `$${employee.defaultHourlyRate} ${et.nzd as string}` : ""} />
