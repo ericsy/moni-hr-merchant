@@ -91,10 +91,6 @@ const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   passportDocumentKey: "",
   irdNumber: "",
   taxCode: "",
-  kiwiSaverStatus: "Enrolled",
-  employeeContributionRate: "3%",
-  employerContributionRate: "3",
-  esctRate: undefined,
   bankAccountNumber: "",
   payrollEmployeeId: "",
   positionIds: [],
@@ -477,10 +473,10 @@ export function EmployeeModal({
         passportDocumentUrl: shouldUsePassportDocuments && values.passportDocumentKey ? documentFileLists.passportDocument[0]?.url ?? employee?.passportDocumentUrl ?? "" : "",
         irdNumber: values.irdNumber ?? "",
         taxCode: values.taxCode ?? "",
-        kiwiSaverStatus: values.kiwiSaverStatus ?? "",
-        employeeContributionRate: values.employeeContributionRate ?? "3%",
-        employerContributionRate: values.employerContributionRate ?? "3",
-        esctRate: values.esctRate ?? "",
+        kiwiSaverStatus: employee?.kiwiSaverStatus ?? "",
+        employeeContributionRate: employee?.employeeContributionRate ?? "",
+        employerContributionRate: employee?.employerContributionRate ?? "",
+        esctRate: employee?.esctRate ?? "",
         bankAccountNumber: values.bankAccountNumber ?? "",
         payrollEmployeeId: values.payrollEmployeeId ?? "",
         areaIds: employee?.areaIds ?? [],
@@ -784,31 +780,6 @@ export function EmployeeModal({
               <Input />
             </Form.Item>
           </div>
-          <div className="flex gap-4">
-            <Form.Item name="kiwiSaverStatus" label={et.kiwiSaverStatus as string} style={{ flex: 1 }}>
-              <Select>
-                <Option value="Enrolled">{(et.kiwiSaverOptions as Record<string, string>).enrolled}</Option>
-                <Option value="Non-enrolled">{(et.kiwiSaverOptions as Record<string, string>).nonEnrolled}</Option>
-                <Option value="Opted Out">{(et.kiwiSaverOptions as Record<string, string>).optedOut}</Option>
-                <Option value="Exempt">{(et.kiwiSaverOptions as Record<string, string>).exempt}</Option>
-              </Select>
-            </Form.Item>
-            <Form.Item name="employeeContributionRate" label={et.employeeContributionRate as string} style={{ flex: 1 }}>
-              <Select>
-                {["3%", "4%", "6%", "8%", "10%"].map((r) => (
-                  <Option key={r} value={r}>{r}</Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </div>
-          <div className="flex gap-4">
-            <Form.Item name="employerContributionRate" label={et.employerContributionRate as string} style={{ flex: 1 }}>
-              <InputNumber min={0} max={100} step={0.5} style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item name="esctRate" label={et.esctRate as string} style={{ flex: 1 }}>
-              <InputNumber min={0} max={100} step={0.5} style={{ width: "100%" }} />
-            </Form.Item>
-          </div>
           <Form.Item name="bankAccountNumber" label={et.bankAccountNumber as string}>
             <Input prefix={<Banknote size={13} />} />
           </Form.Item>
@@ -1046,10 +1017,6 @@ function DetailPanel({
         <div className="flex flex-col">
           <InfoRow icon={<BadgeCheck size={13} />} label={et.irdNumber as string} value={employee.irdNumber ?? ""} />
           <InfoRow icon={<FileText size={13} />} label={et.taxCode as string} value={employee.taxCode ?? ""} />
-          <InfoRow icon={<BadgeCheck size={13} />} label={et.kiwiSaverStatus as string} value={employee.kiwiSaverStatus ?? ""} />
-          <InfoRow icon={<DollarSign size={13} />} label={et.employeeContributionRate as string} value={employee.employeeContributionRate ?? ""} />
-          <InfoRow icon={<DollarSign size={13} />} label={et.employerContributionRate as string} value={employee.employerContributionRate ? `${employee.employerContributionRate}%` : ""} />
-          <InfoRow icon={<DollarSign size={13} />} label={et.esctRate as string} value={employee.esctRate ? `${employee.esctRate}%` : ""} />
           <InfoRow icon={<Banknote size={13} />} label={et.bankAccountNumber as string} value={employee.bankAccountNumber ?? ""} />
           <InfoRow icon={<BadgeCheck size={13} />} label={et.payrollEmployeeId as string} value={employee.payrollEmployeeId ?? ""} />
         </div>
