@@ -171,6 +171,7 @@ const EMPLOYEE_DOCUMENT_FIELDS_BY_TYPE: Record<EmployeeIdentityDocumentType, Emp
   id: ["idDocumentFront", "idDocumentBack"],
   passport: ["passportDocument", "visaDocument"],
 };
+const EMPLOYEE_DOCUMENT_KEY_FIELDS = Object.values(EMPLOYEE_DOCUMENT_FIELDS).map((field) => field.keyField);
 
 const getEmployeeDocumentFieldsByType = (type?: string): EmployeeDocumentField[] =>
   type === "id" || type === "passport" ? EMPLOYEE_DOCUMENT_FIELDS_BY_TYPE[type] : [];
@@ -419,19 +420,15 @@ export function EmployeeModal({
 
   const syncDocumentFormValue = (field: EmployeeDocumentField, fileList: UploadFile[]) => {
     const uploaded = fileList[0];
-    form.setFieldValue(EMPLOYEE_DOCUMENT_FIELDS[field].keyField, uploaded?.response?.key || uploaded?.uid || "");
+    const fieldName = EMPLOYEE_DOCUMENT_FIELDS[field].keyField;
+    form.setFieldValue(fieldName, uploaded?.response?.key || uploaded?.uid || "");
+    form.validateFields([fieldName]).catch(() => {});
   };
 
   const et = t.employee as Record<string, unknown>;
 
   const handleOk = async () => {
     try {
-      const values = await form.validateFields();
-      const contractDocumentKey = String(values.contractDocumentKey || "").trim();
-      const selectedDocumentType = String(values.identityDocumentType || "");
-      const shouldUseIdDocuments = selectedDocumentType === "id";
-      const shouldUsePassportDocuments = selectedDocumentType === "passport";
-
       if (uploadingContract) {
         const message = et.contractUploading as string;
         setActiveTabKey("employment");
@@ -439,6 +436,24 @@ export function EmployeeModal({
         toast.error(message);
         return;
       }
+
+      const selectedDocumentTypeBeforeValidation = String(form.getFieldValue("identityDocumentType") || "");
+      const requiredDocumentFields = getEmployeeDocumentFieldsByType(selectedDocumentTypeBeforeValidation);
+      const uploadingDocumentField = requiredDocumentFields.find((field) => uploadingDocuments[field]);
+      if (uploadingDocumentField) {
+        const meta = EMPLOYEE_DOCUMENT_FIELDS[uploadingDocumentField];
+        const message = et.documentUploading as string;
+        setActiveTabKey("employment");
+        form.setFields([{ name: meta.keyField, errors: [message] }]);
+        toast.error(message);
+        return;
+      }
+
+      const values = await form.validateFields();
+      const contractDocumentKey = String(values.contractDocumentKey || "").trim();
+      const selectedDocumentType = String(values.identityDocumentType || "");
+      const shouldUseIdDocuments = selectedDocumentType === "id";
+      const shouldUsePassportDocuments = selectedDocumentType === "passport";
 
       const avatarKey = extractUploadKey(values.avatar);
       const fallbackAvatarPreviewUrl =
@@ -499,6 +514,10 @@ export function EmployeeModal({
       };
       await onSave(saved);
     } catch (err) {
+      const errorFields = (err as { errorFields?: Array<{ name?: Array<string | number> }> })?.errorFields || [];
+      if (errorFields.some((field) => EMPLOYEE_DOCUMENT_KEY_FIELDS.includes(field.name?.[0] as keyof Employee))) {
+        setActiveTabKey("employment");
+      }
       console.log("[EmployeeModal] save failed:", err);
     }
   };
@@ -603,6 +622,12 @@ export function EmployeeModal({
         name={meta.keyField}
         label={et[meta.labelKey] as string}
         extra={et.documentUploadHint as string}
+        rules={[
+          {
+            required: true,
+            message: `${et.documentUploadRequired as string}${et[meta.labelKey] as string}`,
+          },
+        ]}
       >
         <div className="flex flex-col gap-3">
           <Upload
@@ -898,18 +923,42 @@ export function EmployeeModal({
       ),
     },
   ];
+  const activeTabIndex = Math.max(0, tabItems.findIndex((item) => item.key === activeTabKey));
+  const isFirstTab = activeTabIndex === 0;
+  const isLastTab = activeTabIndex === tabItems.length - 1;
+  const goToTabByOffset = (offset: number) => {
+    const nextTab = tabItems[activeTabIndex + offset];
+    if (nextTab) setActiveTabKey(nextTab.key);
+  };
 
   return (
     <Modal
       open={open}
       title={isEdit ? et.editEmployee as string : et.addEmployee as string}
-      onOk={handleOk}
       onCancel={onCancel}
       maskClosable={false}
-      okText={t.save}
-      cancelText={t.cancel}
       width={680}
       destroyOnClose
+      footer={[
+        <Button key="cancel" onClick={onCancel}>
+          {t.cancel}
+        </Button>,
+        !isFirstTab && (
+          <Button key="prev" onClick={() => goToTabByOffset(-1)}>
+            {t.previousPage}
+          </Button>
+        ),
+        !isLastTab && (
+          <Button key="next" type="primary" onClick={() => goToTabByOffset(1)}>
+            {t.nextPage}
+          </Button>
+        ),
+        isLastTab && (
+          <Button key="save" type="primary" onClick={handleOk}>
+            {t.save}
+          </Button>
+        ),
+      ]}
     >
       <Form
         key={formInstanceKey}

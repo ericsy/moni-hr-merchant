@@ -203,7 +203,17 @@ const pageKeyAliases: Record<string, KnownPageKey> = {
 const componentPathFields = ["componentPath", "component", "viewPath", "componentUrl", "componentName"];
 const routePathFields = ["routePath", "path", "menuPath", "pagePath", "frontendPath", "frontPath"];
 const pageKeyFields = ["pageKey", "key", "code", "permissionCode", "featureCode", "nameEn", "name"];
+const explicitPageKeyFields = ["pageKey", "key", "code", "permissionCode", "featureCode"];
 const nestedFieldContainers = ["meta", "metadata", "extra", "options"];
+const routeHintFields = [
+  ...componentPathFields,
+  ...routePathFields,
+  ...explicitPageKeyFields,
+  "requestUrl",
+  "requestPath",
+  "apiUrl",
+  "apiPath",
+];
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -358,6 +368,16 @@ function getRouteTemplateForFeature(node: MerchantFeatureTreeNode) {
   return getRouteTemplateByFeatureUrl(node.url);
 }
 
+function isStructuralFeatureGroup(node: MerchantFeatureTreeNode) {
+  if (!node.children?.length) return false;
+  if (getStringField(node, routeHintFields)) return false;
+
+  const featureUrl = String(node.url || "").trim();
+  if (!featureUrl) return true;
+  if (isRequestLikePath(featureUrl)) return false;
+  return !getRouteTemplateByFeatureUrl(featureUrl);
+}
+
 function isRequestLikePath(path?: string | null) {
   return isApiRequestPath(path) || /^https?:\/\//i.test(String(path || "").trim());
 }
@@ -397,6 +417,8 @@ function getPageKeyFromFeature(
 }
 
 export function resolveRouteConfigFromFeature(node: MerchantFeatureTreeNode): MerchantRouteConfig | undefined {
+  if (isStructuralFeatureGroup(node)) return undefined;
+
   const routeTemplate = getRouteTemplateForFeature(node);
   const serverComponentPath = getStringField(node, componentPathFields);
   const componentPath = normalizeComponentPath(serverComponentPath || routeTemplate?.componentPath);
@@ -421,6 +443,12 @@ export function resolveRouteConfigFromFeature(node: MerchantFeatureTreeNode): Me
     component,
     featureId: node.id,
   };
+}
+
+export function getFeaturePageKeyHint(node: MerchantFeatureTreeNode): KnownPageKey | undefined {
+  const explicitPageKey = getKnownPageKey(getStringField(node, pageKeyFields));
+  if (explicitPageKey) return explicitPageKey;
+  return getRouteTemplateForFeature(node)?.pageKey;
 }
 
 export function getPagePath(pageKey?: PageKey | null, routes?: MerchantRouteConfig[]) {

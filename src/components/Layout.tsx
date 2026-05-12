@@ -27,6 +27,7 @@ import { usePermissions } from "../context/PermissionsContext";
 import { merchantApi, type MerchantFeatureTreeNode } from "../lib/merchantApi";
 import { toast } from "sonner";
 import {
+  getFeaturePageKeyHint,
   getPagePath,
   resolveRouteConfigFromFeature,
   type PageKey,
@@ -72,6 +73,7 @@ export default function AppLayout({
   const { logout, user } = useAuth();
   const { permissions } = usePermissions();
   const [collapsed, setCollapsed] = useState(false);
+  const [openMenuKeys, setOpenMenuKeys] = useState<string[]>([]);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordForm] = Form.useForm<ChangePasswordFormValues>();
@@ -116,8 +118,9 @@ export default function AppLayout({
     return map;
   }, [permissions]);
 
-  const menuItems = useMemo(() => {
+  const { items: menuItems, defaultOpenKeys: defaultOpenMenuKeys } = useMemo(() => {
     const seenPageKeys = new Set<PageKey>();
+    const defaultOpenKeys = new Set<string>();
     const iconMap: Record<string, React.ReactNode> = {
       home: <House size={18} />,
       dashboard: <LayoutDashboard size={18} />,
@@ -135,6 +138,9 @@ export default function AppLayout({
       return node.nameEn || node.nameZh || fallback;
     };
 
+    const getFeatureMenuKey = (node: MerchantFeatureTreeNode, label: string) =>
+      `feature-${node.id ?? node.url ?? label}`;
+
     const buildMenuItems = (nodes: MerchantFeatureTreeNode[]): MenuItem[] => {
       return [...nodes]
         .filter((node) => node.status === 1)
@@ -149,9 +155,14 @@ export default function AppLayout({
             const groupLabel = locale === "zh"
               ? node.nameZh || node.nameEn || ""
               : node.nameEn || node.nameZh || "";
+            const groupKey = getFeatureMenuKey(node, groupLabel);
+            const groupPageKey = getFeaturePageKeyHint(node);
+
+            defaultOpenKeys.add(groupKey);
 
             return [{
-              key: `feature-${node.id ?? node.url ?? groupLabel}`,
+              key: groupKey,
+              icon: groupPageKey ? iconMap[groupPageKey] : undefined,
               label: groupLabel,
               children,
             }];
@@ -180,17 +191,31 @@ export default function AppLayout({
     };
 
     const items = [homeMenuItem, ...buildMenuItems(permissions)];
-    if (!requiresFirstStore) return items;
+    if (!requiresFirstStore) {
+      return { items, defaultOpenKeys: [...defaultOpenKeys] };
+    }
 
     const storeItems = items.filter((item) => item?.key === "stores");
-    return storeItems.length > 0
+    const firstStoreItems = storeItems.length > 0
       ? storeItems
       : [{
         key: "stores",
         icon: iconMap.stores,
         label: t.nav.stores,
       }];
+
+    return { items: firstStoreItems, defaultOpenKeys: [] };
   }, [permissions, locale, t, requiresFirstStore]);
+
+  useEffect(() => {
+    setOpenMenuKeys((previousKeys) => {
+      const nextKeys = new Set([...previousKeys, ...defaultOpenMenuKeys]);
+      if (nextKeys.size === previousKeys.length && previousKeys.every((key) => nextKeys.has(key))) {
+        return previousKeys;
+      }
+      return [...nextKeys];
+    });
+  }, [defaultOpenMenuKeys]);
 
   const handlePageChange = (page: PageKey) => {
     if (requiresFirstStore && page !== "stores") return;
@@ -317,6 +342,8 @@ export default function AppLayout({
           <Menu
             mode="inline"
             selectedKeys={[currentPage]}
+            openKeys={openMenuKeys}
+            onOpenChange={setOpenMenuKeys}
             items={menuItems}
             onClick={({ key }) => handlePageChange(key as PageKey)}
             style={{

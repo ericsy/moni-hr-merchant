@@ -48,15 +48,9 @@ const FALLBACK_COUNTRIES: CountryOption[] = [
   { code: "au", nameZh: "澳大利亚", nameEn: "Australia", dialCode: "61" },
 ];
 
-function getCountryFlag(code = "") {
-  const normalized = code.trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(normalized)) return "";
-  return String.fromCodePoint(...[...normalized].map((char) => char.charCodeAt(0) + 127397));
-}
-
 function getCountryLabel(country: CountryOption, locale: string) {
   const name = locale === "zh" ? country.nameZh || country.nameEn : country.nameEn || country.nameZh;
-  return `${getCountryFlag(country.code)} ${name || country.code.toUpperCase()}`.trim();
+  return name || country.code.toUpperCase();
 }
 
 function getCountrySearchName(code: string, countries: CountryOption[], locale: string) {
@@ -70,7 +64,7 @@ function getStoreCountryLabel(code: string, countries: CountryOption[], locale: 
   const normalized = code.toLowerCase();
   const country = countries.find((item) => item.code.toLowerCase() === normalized);
   if (country) return getCountryLabel(country, locale);
-  return `${getCountryFlag(normalized)} ${fallbackLabels[normalized] ?? normalized.toUpperCase()}`.trim();
+  return fallbackLabels[normalized] ?? normalized.toUpperCase();
 }
 
 function getStoreInitials(name = "") {
@@ -145,11 +139,12 @@ function getPrimaryBusinessHours(weeklyHours: StoreWeekdayHours[]) {
   };
 }
 
-function formatStoreWeeklyHours(store: Store, weekDayLabels: string[], closedLabel: string) {
+function formatStoreWeeklyHours(store: Store, weekDayLabels: string[]) {
   return getStoreWeeklyHours(store)
+    .filter((item) => !item.closed)
     .map((item) => {
       const dayLabel = weekDayLabels[item.weekday - 1] || `${item.weekday}`;
-      const hours = item.closed ? closedLabel : `${item.openTime || DEFAULT_OPEN_TIME} - ${item.closeTime || DEFAULT_CLOSE_TIME}`;
+      const hours = `${item.openTime || DEFAULT_OPEN_TIME} - ${item.closeTime || DEFAULT_CLOSE_TIME}`;
       return `${dayLabel} ${hours}`;
     })
     .join("\n");
@@ -486,6 +481,7 @@ function StoreDetailPanel({
   locale?: string;
 }) {
   const st = t.store;
+  const weeklyHoursText = formatStoreWeeklyHours(store, st.weekDays);
   const hasGeofence =
     store.latitude !== undefined &&
     store.longitude !== undefined &&
@@ -513,7 +509,7 @@ function StoreDetailPanel({
             label={st.weeklyHours}
             value={
               <span style={{ whiteSpace: "pre-line" }}>
-                {formatStoreWeeklyHours(store, st.weekDays, st.closedStatus)}
+                {weeklyHoursText || "-"}
               </span>
             }
           />
@@ -800,7 +796,7 @@ export default function Stores() {
                       {store.name}
                     </div>
                     <div className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-                      {getCountryFlag(store.country)} {store.city} · {store.code}
+                      {store.city} · {store.code}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-xs flex items-center gap-0.5" style={{ color: "var(--muted-foreground)" }}>

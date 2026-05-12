@@ -5,6 +5,8 @@ export const locales = {
     // Common
     save: "保存",
     cancel: "取消",
+    previousPage: "上一页",
+    nextPage: "下一页",
     edit: "编辑",
     delete: "删除",
     add: "添加",
@@ -140,6 +142,8 @@ export const locales = {
       documentUploadReplace: "重新上传",
       documentUploadSuccess: "文件上传成功",
       documentUploadFailed: "文件上传失败",
+      documentUploadRequired: "请上传",
+      documentUploading: "文件上传中...",
       documentView: "查看文件",
       genderOptions: {
         male: "男",
@@ -312,6 +316,8 @@ export const locales = {
   en: {
     save: "Save",
     cancel: "Cancel",
+    previousPage: "Previous",
+    nextPage: "Next",
     edit: "Edit",
     delete: "Delete",
     add: "Add",
@@ -437,12 +443,14 @@ export const locales = {
       idDocumentFront: "ID Front",
       idDocumentBack: "ID Back",
       visaDocument: "Visa Document",
-      passportDocument: "Passport Image",
+      passportDocument: "Passport Document",
       documentUploadHint: "Supports images and PDF files",
       documentUploadButton: "Upload File",
       documentUploadReplace: "Replace File",
       documentUploadSuccess: "File uploaded successfully",
       documentUploadFailed: "Failed to upload file",
+      documentUploadRequired: "Please upload ",
+      documentUploading: "Uploading file...",
       documentView: "View File",
       genderOptions: {
         male: "Male",
