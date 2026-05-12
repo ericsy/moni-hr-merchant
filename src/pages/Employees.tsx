@@ -1,56 +1,67 @@
-import { useState, useMemo, useEffect } from "react";
 import {
-  Button,
-  Input,
-  Select,
-  Tag,
   Avatar,
-  Tabs,
-  Form,
+  Button,
   DatePicker,
+  Form,
+  Input,
   InputNumber,
-  Popconfirm,
   Modal,
+  Popconfirm,
+  Select,
+  Tabs,
+  Tag,
   Upload,
   type UploadFile,
   type UploadProps,
 } from "antd";
+import dayjs from "dayjs";
 import {
-  Search,
-  Plus,
-  Pencil,
-  Trash2,
-  User,
-  Phone,
-  Mail,
-  CalendarDays,
-  Building2,
-  DollarSign,
-  FileText,
-  ChevronRight,
   BadgeCheck,
   Banknote,
-  MapPin,
-  Cake,
   Briefcase,
-  Clock,
-  X,
+  Building2,
+  Cake,
+  CalendarDays,
   Check,
-  Minus,
-  Upload as UploadIcon,
+  ChevronRight,
+  Clock,
+  DollarSign,
   ExternalLink,
-  Paperclip,
+  FileText,
   IdCard,
+  Mail,
+  MapPin,
+  Minus,
+  Paperclip,
+  Pencil,
+  Phone,
+  Plus,
+  Search,
+  Trash2,
+  Upload as UploadIcon,
+  User,
+  X,
 } from "lucide-react";
-import dayjs from "dayjs";
-import { useData, type Employee, type WorkDayPattern } from "../context/DataContext";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  ColorSwatchPicker,
+  DEFAULT_COLOR_VALUE,
+} from "../components/ColorSwatchPicker";
+import WorkDaysCalendar from "../components/WorkDaysCalendar";
+import {
+  useData,
+  type Employee,
+  type WorkDayPattern,
+} from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
-import { toast } from "sonner";
-import WorkDaysCalendar from "../components/WorkDaysCalendar";
-import { ColorSwatchPicker, DEFAULT_COLOR_VALUE } from "../components/ColorSwatchPicker";
+import {
+  formatApiDate,
+  formatCountryDate,
+  getCountryDateFormat,
+} from "../lib/dateFormat";
 import { extractUploadKey, merchantApi } from "../lib/merchantApi";
-import { formatApiDate, formatCountryDate, getCountryDateFormat } from "../lib/dateFormat";
 
 const { Option } = Select;
 
@@ -64,8 +75,9 @@ const defaultWorkDayPattern: WorkDayPattern[] = [
   { dayIndex: 6, state: "off", hours: 0 },
 ];
 
-const cloneWorkDayPattern = (pattern: WorkDayPattern[] = defaultWorkDayPattern) =>
-  pattern.map((day) => ({ ...day }));
+const cloneWorkDayPattern = (
+  pattern: WorkDayPattern[] = defaultWorkDayPattern,
+) => pattern.map((day) => ({ ...day }));
 
 const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   firstName: "",
@@ -92,6 +104,10 @@ const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   passportDocumentKey: "",
   irdNumber: "",
   taxCode: "",
+  kiwiSaverStatus: "Enrolled",
+  employeeContributionRate: "3%",
+  employerContributionRate: "3",
+  esctRate: undefined,
   bankAccountNumber: "",
   payrollEmployeeId: "",
   positionIds: [],
@@ -117,7 +133,9 @@ function getEmployeeAvatarKey(employee?: Pick<Employee, "avatar"> | null) {
   return extractUploadKey(employee?.avatar);
 }
 
-function getEmployeeAvatarUrl(employee?: Pick<Employee, "avatar" | "avatarPreviewUrl"> | null) {
+function getEmployeeAvatarUrl(
+  employee?: Pick<Employee, "avatar" | "avatarPreviewUrl"> | null,
+) {
   if (!employee) return "";
   const previewUrl = employee.avatarPreviewUrl || "";
   if (isHttpUrl(previewUrl)) return previewUrl;
@@ -135,12 +153,15 @@ type EmployeeDocumentField =
 type EmployeeDocumentUploadKind = "id-front" | "id-back" | "visa" | "passport";
 type EmployeeIdentityDocumentType = "id" | "passport";
 
-const EMPLOYEE_DOCUMENT_FIELDS: Record<EmployeeDocumentField, {
-  keyField: keyof Employee;
-  urlField: keyof Employee;
-  uploadKind: EmployeeDocumentUploadKind;
-  labelKey: string;
-}> = {
+const EMPLOYEE_DOCUMENT_FIELDS: Record<
+  EmployeeDocumentField,
+  {
+    keyField: keyof Employee;
+    urlField: keyof Employee;
+    uploadKind: EmployeeDocumentUploadKind;
+    labelKey: string;
+  }
+> = {
   idDocumentFront: {
     keyField: "idDocumentFrontKey",
     urlField: "idDocumentFrontUrl",
@@ -167,14 +188,67 @@ const EMPLOYEE_DOCUMENT_FIELDS: Record<EmployeeDocumentField, {
   },
 };
 
-const EMPLOYEE_DOCUMENT_FIELDS_BY_TYPE: Record<EmployeeIdentityDocumentType, EmployeeDocumentField[]> = {
+const EMPLOYEE_DOCUMENT_FIELDS_BY_TYPE: Record<
+  EmployeeIdentityDocumentType,
+  EmployeeDocumentField[]
+> = {
   id: ["idDocumentFront", "idDocumentBack"],
   passport: ["passportDocument", "visaDocument"],
 };
-const EMPLOYEE_DOCUMENT_KEY_FIELDS = Object.values(EMPLOYEE_DOCUMENT_FIELDS).map((field) => field.keyField);
+type EmployeeFormTabKey = "general" | "payroll" | "workdays" | "employment";
 
-const getEmployeeDocumentFieldsByType = (type?: string): EmployeeDocumentField[] =>
-  type === "id" || type === "passport" ? EMPLOYEE_DOCUMENT_FIELDS_BY_TYPE[type] : [];
+const EMPLOYEE_FORM_FIELD_TAB: Record<string, EmployeeFormTabKey> = {
+  avatar: "general",
+  firstName: "general",
+  lastName: "general",
+  employeeId: "general",
+  role: "general",
+  phone: "general",
+  email: "general",
+  startDate: "general",
+  dateOfBirth: "general",
+  gender: "general",
+  maritalStatus: "general",
+  address: "general",
+  status: "general",
+  storeIds: "general",
+  employeeColor: "general",
+  notes: "general",
+  irdNumber: "payroll",
+  taxCode: "payroll",
+  kiwiSaverStatus: "payroll",
+  employeeContributionRate: "payroll",
+  employerContributionRate: "payroll",
+  esctRate: "payroll",
+  bankAccountNumber: "payroll",
+  payrollEmployeeId: "payroll",
+  paidHoursPerDay: "workdays",
+  workDayPattern: "workdays",
+  contractType: "employment",
+  endDate: "employment",
+  contractedHours: "employment",
+  annualSalary: "employment",
+  defaultHourlyRate: "employment",
+  identityDocumentType: "employment",
+  identityDocumentNumber: "employment",
+  idDocumentFrontKey: "employment",
+  idDocumentBackKey: "employment",
+  visaDocumentKey: "employment",
+  passportDocumentKey: "employment",
+  contractDocumentKey: "employment",
+};
+
+const getEmployeeDocumentFieldsByType = (
+  type?: string,
+): EmployeeDocumentField[] =>
+  type === "id" || type === "passport"
+    ? EMPLOYEE_DOCUMENT_FIELDS_BY_TYPE[type]
+    : [];
+
+const getEmployeeFieldTabKey = (
+  fieldName?: string | number,
+): EmployeeFormTabKey =>
+  EMPLOYEE_FORM_FIELD_TAB[String(fieldName || "")] || "general";
 
 // ─── WorkDayEditor component ───
 function WorkDayEditor({
@@ -210,7 +284,10 @@ function WorkDayEditor({
           className="flex flex-col items-center gap-1"
           style={{ minWidth: 52 }}
         >
-          <span className="text-xs font-medium" style={{ color: "var(--muted-foreground)" }}>
+          <span
+            className="text-xs font-medium"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             {weekDays[day.dayIndex]}
           </span>
           <button
@@ -225,8 +302,8 @@ function WorkDayEditor({
                 day.state === "on"
                   ? "var(--primary)"
                   : day.state === "off"
-                  ? "var(--muted)"
-                  : "transparent",
+                    ? "var(--muted)"
+                    : "transparent",
               color:
                 day.state === "on"
                   ? "var(--primary-foreground)"
@@ -269,10 +346,28 @@ function InfoRow({
   value: string | React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
-      <span className="mt-0.5 flex-shrink-0" style={{ color: "var(--muted-foreground)" }}>{icon}</span>
-      <span className="text-xs flex-shrink-0 w-36" style={{ color: "var(--muted-foreground)" }}>{label}</span>
-      <span className="text-xs font-medium flex-1" style={{ color: "var(--foreground)" }}>{value || "-"}</span>
+    <div
+      className="flex items-start gap-2 py-2"
+      style={{ borderBottom: "1px solid var(--border)" }}
+    >
+      <span
+        className="mt-0.5 flex-shrink-0"
+        style={{ color: "var(--muted-foreground)" }}
+      >
+        {icon}
+      </span>
+      <span
+        className="text-xs flex-shrink-0 w-36"
+        style={{ color: "var(--muted-foreground)" }}
+      >
+        {label}
+      </span>
+      <span
+        className="text-xs font-medium flex-1"
+        style={{ color: "var(--foreground)" }}
+      >
+        {value || "-"}
+      </span>
     </div>
   );
 }
@@ -305,62 +400,103 @@ export function EmployeeModal({
   const [activeTabKey, setActiveTabKey] = useState("general");
   const [uploadingContract, setUploadingContract] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [uploadingDocuments, setUploadingDocuments] = useState<Record<EmployeeDocumentField, boolean>>({
+  const [uploadingDocuments, setUploadingDocuments] = useState<
+    Record<EmployeeDocumentField, boolean>
+  >({
     idDocumentFront: false,
     idDocumentBack: false,
     visaDocument: false,
     passportDocument: false,
   });
   const identityDocumentType = Form.useWatch("identityDocumentType", form);
-  const visibleDocumentFields = getEmployeeDocumentFieldsByType(identityDocumentType);
+  const kiwiSaverStatus = Form.useWatch("kiwiSaverStatus", form);
+  const showKiwiSaverFields = kiwiSaverStatus === "Enrolled";
+  const visibleDocumentFields =
+    getEmployeeDocumentFieldsByType(identityDocumentType);
   const formInitialValues = employee
     ? {
         ...getEmptyEmployeeFormValues(defaultStoreIds),
         ...employee,
         startDate: employee.startDate ? dayjs(employee.startDate) : undefined,
-        dateOfBirth: employee.dateOfBirth ? dayjs(employee.dateOfBirth) : undefined,
+        dateOfBirth: employee.dateOfBirth
+          ? dayjs(employee.dateOfBirth)
+          : undefined,
         endDate: employee.endDate ? dayjs(employee.endDate) : undefined,
-        workDayPattern: cloneWorkDayPattern(employee.workDayPattern ?? defaultWorkDayPattern),
+        workDayPattern: cloneWorkDayPattern(
+          employee.workDayPattern ?? defaultWorkDayPattern,
+        ),
         avatar: getEmployeeAvatarKey(employee),
-        contractDocumentKey: employee.contractDocumentKey || employee.contractDocumentUrl || "",
-        idDocumentFrontKey: employee.idDocumentFrontKey || employee.idDocumentFrontUrl || "",
-        idDocumentBackKey: employee.idDocumentBackKey || employee.idDocumentBackUrl || "",
-        visaDocumentKey: employee.visaDocumentKey || employee.visaDocumentUrl || "",
-        passportDocumentKey: employee.passportDocumentKey || employee.passportDocumentUrl || "",
+        contractDocumentKey:
+          employee.contractDocumentKey || employee.contractDocumentUrl || "",
+        idDocumentFrontKey:
+          employee.idDocumentFrontKey || employee.idDocumentFrontUrl || "",
+        idDocumentBackKey:
+          employee.idDocumentBackKey || employee.idDocumentBackUrl || "",
+        visaDocumentKey:
+          employee.visaDocumentKey || employee.visaDocumentUrl || "",
+        passportDocumentKey:
+          employee.passportDocumentKey || employee.passportDocumentUrl || "",
       }
     : getEmptyEmployeeFormValues(defaultStoreIds);
-  const formInstanceKey = employee ? `edit-${employee.id}` : `new-${defaultStoreIds.join("|") || "none"}`;
-  const buildContractFileList = (targetEmployee: Employee | null): UploadFile[] => {
-    if (!targetEmployee?.contractDocumentKey && !targetEmployee?.contractDocumentUrl) return [];
-    return [{
-      uid: targetEmployee.contractDocumentKey || targetEmployee.contractDocumentUrl || "contract-file",
-      name: targetEmployee.contractDocumentKey?.split("/").pop() || "contract",
-      status: "done",
-      url: targetEmployee.contractDocumentUrl || undefined,
-    }];
+  const formInstanceKey = employee
+    ? `edit-${employee.id}`
+    : `new-${defaultStoreIds.join("|") || "none"}`;
+  const buildContractFileList = (
+    targetEmployee: Employee | null,
+  ): UploadFile[] => {
+    if (
+      !targetEmployee?.contractDocumentKey &&
+      !targetEmployee?.contractDocumentUrl
+    )
+      return [];
+    return [
+      {
+        uid:
+          targetEmployee.contractDocumentKey ||
+          targetEmployee.contractDocumentUrl ||
+          "contract-file",
+        name:
+          targetEmployee.contractDocumentKey?.split("/").pop() || "contract",
+        status: "done",
+        url: targetEmployee.contractDocumentUrl || undefined,
+      },
+    ];
   };
-  const buildDocumentFileList = (targetEmployee: Employee | null, field: EmployeeDocumentField): UploadFile[] => {
+  const buildDocumentFileList = (
+    targetEmployee: Employee | null,
+    field: EmployeeDocumentField,
+  ): UploadFile[] => {
     const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
     const key = String(targetEmployee?.[meta.keyField] || "");
     const url = String(targetEmployee?.[meta.urlField] || "");
     if (!key && !url) return [];
-    return [{
-      uid: key || url || `${field}-file`,
-      name: key.split("/").pop() || url.split("/").pop() || field,
-      status: "done",
-      url: url || undefined,
-    }];
+    return [
+      {
+        uid: key || url || `${field}-file`,
+        name: key.split("/").pop() || url.split("/").pop() || field,
+        status: "done",
+        url: url || undefined,
+      },
+    ];
   };
   const [contractFileList, setContractFileList] = useState<UploadFile[]>(() => {
-    if (!employee?.contractDocumentKey && !employee?.contractDocumentUrl) return [];
-    return [{
-      uid: employee.contractDocumentKey || employee.contractDocumentUrl || "contract-file",
-      name: employee.contractDocumentKey?.split("/").pop() || "contract",
-      status: "done",
-      url: employee.contractDocumentUrl || undefined,
-    }];
+    if (!employee?.contractDocumentKey && !employee?.contractDocumentUrl)
+      return [];
+    return [
+      {
+        uid:
+          employee.contractDocumentKey ||
+          employee.contractDocumentUrl ||
+          "contract-file",
+        name: employee.contractDocumentKey?.split("/").pop() || "contract",
+        status: "done",
+        url: employee.contractDocumentUrl || undefined,
+      },
+    ];
   });
-  const [documentFileLists, setDocumentFileLists] = useState<Record<EmployeeDocumentField, UploadFile[]>>(() => ({
+  const [documentFileLists, setDocumentFileLists] = useState<
+    Record<EmployeeDocumentField, UploadFile[]>
+  >(() => ({
     idDocumentFront: buildDocumentFileList(employee, "idDocumentFront"),
     idDocumentBack: buildDocumentFileList(employee, "idDocumentBack"),
     visaDocument: buildDocumentFileList(employee, "visaDocument"),
@@ -389,19 +525,28 @@ export function EmployeeModal({
     setActiveTabKey("general");
   }, [open, employee?.id, defaultStoreIds.join("|")]);
 
-  const buildAvatarFileList = (targetEmployee: Employee | null): UploadFile[] => {
+  const buildAvatarFileList = (
+    targetEmployee: Employee | null,
+  ): UploadFile[] => {
     const avatarUrl = getEmployeeAvatarUrl(targetEmployee);
     const avatarKey = getEmployeeAvatarKey(targetEmployee);
     if (!avatarUrl && !avatarKey) return [];
-    return [{
-      uid: avatarKey || "avatar-file",
-      name: avatarKey.split("/").pop() || avatarUrl.split("/").pop() || "avatar",
-      status: "done",
-      url: avatarUrl || undefined,
-      response: avatarKey ? { key: avatarKey, downloadUrl: avatarUrl } : undefined,
-    }];
+    return [
+      {
+        uid: avatarKey || "avatar-file",
+        name:
+          avatarKey.split("/").pop() || avatarUrl.split("/").pop() || "avatar",
+        status: "done",
+        url: avatarUrl || undefined,
+        response: avatarKey
+          ? { key: avatarKey, downloadUrl: avatarUrl }
+          : undefined,
+      },
+    ];
   };
-  const [avatarFileList, setAvatarFileList] = useState<UploadFile[]>(() => buildAvatarFileList(employee));
+  const [avatarFileList, setAvatarFileList] = useState<UploadFile[]>(() =>
+    buildAvatarFileList(employee),
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -410,18 +555,30 @@ export function EmployeeModal({
 
   const syncContractFormValue = (fileList: UploadFile[]) => {
     const uploaded = fileList[0];
-    form.setFieldValue("contractDocumentKey", uploaded?.response?.key || uploaded?.uid || "");
+    form.setFieldValue(
+      "contractDocumentKey",
+      uploaded?.response?.key || uploaded?.uid || "",
+    );
   };
 
   const syncAvatarFormValue = (fileList: UploadFile[]) => {
     const uploaded = fileList[0];
-    form.setFieldValue("avatar", uploaded?.response?.key || extractUploadKey(uploaded?.uid));
+    form.setFieldValue(
+      "avatar",
+      uploaded?.response?.key || extractUploadKey(uploaded?.uid),
+    );
   };
 
-  const syncDocumentFormValue = (field: EmployeeDocumentField, fileList: UploadFile[]) => {
+  const syncDocumentFormValue = (
+    field: EmployeeDocumentField,
+    fileList: UploadFile[],
+  ) => {
     const uploaded = fileList[0];
     const fieldName = EMPLOYEE_DOCUMENT_FIELDS[field].keyField;
-    form.setFieldValue(fieldName, uploaded?.response?.key || uploaded?.uid || "");
+    form.setFieldValue(
+      fieldName,
+      uploaded?.response?.key || uploaded?.uid || "",
+    );
     form.validateFields([fieldName]).catch(() => {});
   };
 
@@ -437,9 +594,15 @@ export function EmployeeModal({
         return;
       }
 
-      const selectedDocumentTypeBeforeValidation = String(form.getFieldValue("identityDocumentType") || "");
-      const requiredDocumentFields = getEmployeeDocumentFieldsByType(selectedDocumentTypeBeforeValidation);
-      const uploadingDocumentField = requiredDocumentFields.find((field) => uploadingDocuments[field]);
+      const selectedDocumentTypeBeforeValidation = String(
+        form.getFieldValue("identityDocumentType") || "",
+      );
+      const requiredDocumentFields = getEmployeeDocumentFieldsByType(
+        selectedDocumentTypeBeforeValidation,
+      );
+      const uploadingDocumentField = requiredDocumentFields.find(
+        (field) => uploadingDocuments[field],
+      );
       if (uploadingDocumentField) {
         const meta = EMPLOYEE_DOCUMENT_FIELDS[uploadingDocumentField];
         const message = et.documentUploading as string;
@@ -450,7 +613,9 @@ export function EmployeeModal({
       }
 
       const values = await form.validateFields();
-      const contractDocumentKey = String(values.contractDocumentKey || "").trim();
+      const contractDocumentKey = String(
+        values.contractDocumentKey || "",
+      ).trim();
       const selectedDocumentType = String(values.identityDocumentType || "");
       const shouldUseIdDocuments = selectedDocumentType === "id";
       const shouldUsePassportDocuments = selectedDocumentType === "passport";
@@ -474,7 +639,9 @@ export function EmployeeModal({
         hourlyRate: employee?.hourlyRate ?? 0,
         notes: values.notes ?? "",
         avatar: avatarKey,
-        avatarPreviewUrl: avatarKey ? avatarFileList[0]?.url ?? fallbackAvatarPreviewUrl : "",
+        avatarPreviewUrl: avatarKey
+          ? (avatarFileList[0]?.url ?? fallbackAvatarPreviewUrl)
+          : "",
         employeeColor: values.employeeColor ?? DEFAULT_COLOR_VALUE,
         address: values.address ?? "",
         dateOfBirth: formatApiDate(values.dateOfBirth),
@@ -482,20 +649,48 @@ export function EmployeeModal({
         maritalStatus: values.maritalStatus ?? "",
         identityDocumentType: selectedDocumentType,
         identityDocumentNumber: values.identityDocumentNumber ?? "",
-        idDocumentFrontKey: shouldUseIdDocuments ? values.idDocumentFrontKey ?? "" : "",
-        idDocumentFrontUrl: shouldUseIdDocuments && values.idDocumentFrontKey ? documentFileLists.idDocumentFront[0]?.url ?? employee?.idDocumentFrontUrl ?? "" : "",
-        idDocumentBackKey: shouldUseIdDocuments ? values.idDocumentBackKey ?? "" : "",
-        idDocumentBackUrl: shouldUseIdDocuments && values.idDocumentBackKey ? documentFileLists.idDocumentBack[0]?.url ?? employee?.idDocumentBackUrl ?? "" : "",
-        visaDocumentKey: shouldUsePassportDocuments ? values.visaDocumentKey ?? "" : "",
-        visaDocumentUrl: shouldUsePassportDocuments && values.visaDocumentKey ? documentFileLists.visaDocument[0]?.url ?? employee?.visaDocumentUrl ?? "" : "",
-        passportDocumentKey: shouldUsePassportDocuments ? values.passportDocumentKey ?? "" : "",
-        passportDocumentUrl: shouldUsePassportDocuments && values.passportDocumentKey ? documentFileLists.passportDocument[0]?.url ?? employee?.passportDocumentUrl ?? "" : "",
+        idDocumentFrontKey: shouldUseIdDocuments
+          ? (values.idDocumentFrontKey ?? "")
+          : "",
+        idDocumentFrontUrl:
+          shouldUseIdDocuments && values.idDocumentFrontKey
+            ? (documentFileLists.idDocumentFront[0]?.url ??
+              employee?.idDocumentFrontUrl ??
+              "")
+            : "",
+        idDocumentBackKey: shouldUseIdDocuments
+          ? (values.idDocumentBackKey ?? "")
+          : "",
+        idDocumentBackUrl:
+          shouldUseIdDocuments && values.idDocumentBackKey
+            ? (documentFileLists.idDocumentBack[0]?.url ??
+              employee?.idDocumentBackUrl ??
+              "")
+            : "",
+        visaDocumentKey: shouldUsePassportDocuments
+          ? (values.visaDocumentKey ?? "")
+          : "",
+        visaDocumentUrl:
+          shouldUsePassportDocuments && values.visaDocumentKey
+            ? (documentFileLists.visaDocument[0]?.url ??
+              employee?.visaDocumentUrl ??
+              "")
+            : "",
+        passportDocumentKey: shouldUsePassportDocuments
+          ? (values.passportDocumentKey ?? "")
+          : "",
+        passportDocumentUrl:
+          shouldUsePassportDocuments && values.passportDocumentKey
+            ? (documentFileLists.passportDocument[0]?.url ??
+              employee?.passportDocumentUrl ??
+              "")
+            : "",
         irdNumber: values.irdNumber ?? "",
         taxCode: values.taxCode ?? "",
-        kiwiSaverStatus: employee?.kiwiSaverStatus ?? "",
-        employeeContributionRate: employee?.employeeContributionRate ?? "",
-        employerContributionRate: employee?.employerContributionRate ?? "",
-        esctRate: employee?.esctRate ?? "",
+        kiwiSaverStatus: values.kiwiSaverStatus ?? "",
+        employeeContributionRate: values.employeeContributionRate ?? "3%",
+        employerContributionRate: values.employerContributionRate ?? "3",
+        esctRate: values.esctRate ?? "",
         bankAccountNumber: values.bankAccountNumber ?? "",
         payrollEmployeeId: values.payrollEmployeeId ?? "",
         areaIds: employee?.areaIds ?? [],
@@ -505,7 +700,7 @@ export function EmployeeModal({
         contractType: values.contractType ?? "permanent",
         contractDocumentKey,
         contractDocumentUrl: contractDocumentKey
-          ? contractFileList[0]?.url ?? employee?.contractDocumentUrl ?? ""
+          ? (contractFileList[0]?.url ?? employee?.contractDocumentUrl ?? "")
           : "",
         endDate: formatApiDate(values.endDate),
         contractedHours: values.contractedHours ?? "",
@@ -514,20 +709,32 @@ export function EmployeeModal({
       };
       await onSave(saved);
     } catch (err) {
-      const errorFields = (err as { errorFields?: Array<{ name?: Array<string | number> }> })?.errorFields || [];
-      if (errorFields.some((field) => EMPLOYEE_DOCUMENT_KEY_FIELDS.includes(field.name?.[0] as keyof Employee))) {
-        setActiveTabKey("employment");
+      const errorFields =
+        (err as { errorFields?: Array<{ name?: Array<string | number> }> })
+          ?.errorFields || [];
+      if (errorFields.length > 0) {
+        const firstErrorName = errorFields[0]?.name || [];
+        setActiveTabKey(getEmployeeFieldTabKey(firstErrorName[0]));
+        toast.error(et.requiredFieldsMissing as string);
+        window.setTimeout(() => {
+          form.scrollToField(firstErrorName, { block: "center" });
+        }, 0);
+        return;
       }
       console.log("[EmployeeModal] save failed:", err);
     }
   };
 
   const contractUploadText = uploadingContract
-    ? et.contractUploading as string
-    : (contractFileList.length > 0 ? et.contractUploadReplace as string : et.contractUploadButton as string);
+    ? (et.contractUploading as string)
+    : contractFileList.length > 0
+      ? (et.contractUploadReplace as string)
+      : (et.contractUploadButton as string);
   const avatarUploadText = uploadingAvatar
-    ? et.contractUploading as string
-    : (avatarFileList.length > 0 ? et.avatarUploadReplace as string : et.avatarUploadButton as string);
+    ? (et.contractUploading as string)
+    : avatarFileList.length > 0
+      ? (et.avatarUploadReplace as string)
+      : (et.avatarUploadButton as string);
 
   const handleContractUpload: UploadProps["beforeUpload"] = async (file) => {
     try {
@@ -545,7 +752,11 @@ export function EmployeeModal({
       syncContractFormValue(nextFileList);
       toast.success(et.contractUploadSuccess as string);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : et.contractUploadFailed as string);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : (et.contractUploadFailed as string),
+      );
     } finally {
       setUploadingContract(false);
     }
@@ -573,7 +784,11 @@ export function EmployeeModal({
       syncAvatarFormValue(nextFileList);
       toast.success(et.avatarUploadSuccess as string);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : et.avatarUploadFailed as string);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : (et.avatarUploadFailed as string),
+      );
     } finally {
       setUploadingAvatar(false);
     }
@@ -585,29 +800,38 @@ export function EmployeeModal({
     syncAvatarFormValue([]);
   };
 
-  const handleDocumentUpload = (field: EmployeeDocumentField): UploadProps["beforeUpload"] => async (file) => {
-    const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
-    try {
-      setUploadingDocuments((prev) => ({ ...prev, [field]: true }));
-      const uploaded = await merchantApi.uploadEmployeeDocument(meta.uploadKind, file);
-      const nextFile: UploadFile = {
-        uid: uploaded.key || `${file.name}-${Date.now()}`,
-        name: file.name,
-        status: "done",
-        url: uploaded.downloadUrl || undefined,
-        response: uploaded,
-      };
-      const nextFileList = [nextFile];
-      setDocumentFileLists((prev) => ({ ...prev, [field]: nextFileList }));
-      syncDocumentFormValue(field, nextFileList);
-      toast.success(et.documentUploadSuccess as string);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : et.documentUploadFailed as string);
-    } finally {
-      setUploadingDocuments((prev) => ({ ...prev, [field]: false }));
-    }
-    return Upload.LIST_IGNORE;
-  };
+  const handleDocumentUpload =
+    (field: EmployeeDocumentField): UploadProps["beforeUpload"] =>
+    async (file) => {
+      const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
+      try {
+        setUploadingDocuments((prev) => ({ ...prev, [field]: true }));
+        const uploaded = await merchantApi.uploadEmployeeDocument(
+          meta.uploadKind,
+          file,
+        );
+        const nextFile: UploadFile = {
+          uid: uploaded.key || `${file.name}-${Date.now()}`,
+          name: file.name,
+          status: "done",
+          url: uploaded.downloadUrl || undefined,
+          response: uploaded,
+        };
+        const nextFileList = [nextFile];
+        setDocumentFileLists((prev) => ({ ...prev, [field]: nextFileList }));
+        syncDocumentFormValue(field, nextFileList);
+        toast.success(et.documentUploadSuccess as string);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : (et.documentUploadFailed as string),
+        );
+      } finally {
+        setUploadingDocuments((prev) => ({ ...prev, [field]: false }));
+      }
+      return Upload.LIST_IGNORE;
+    };
 
   const handleRemoveDocument = (field: EmployeeDocumentField) => {
     setDocumentFileLists((prev) => ({ ...prev, [field]: [] }));
@@ -644,11 +868,17 @@ export function EmployeeModal({
               showRemoveIcon: true,
             }}
             onPreview={(file) => {
-              if (file.url) window.open(file.url, "_blank", "noopener,noreferrer");
+              if (file.url)
+                window.open(file.url, "_blank", "noopener,noreferrer");
             }}
           >
-            <Button icon={<UploadIcon size={14} />} loading={uploadingDocuments[field]}>
-              {fileList.length > 0 ? et.documentUploadReplace as string : et.documentUploadButton as string}
+            <Button
+              icon={<UploadIcon size={14} />}
+              loading={uploadingDocuments[field]}
+            >
+              {fileList.length > 0
+                ? (et.documentUploadReplace as string)
+                : (et.documentUploadButton as string)}
             </Button>
           </Upload>
           {fileList[0]?.url && (
@@ -672,26 +902,39 @@ export function EmployeeModal({
     {
       key: "general",
       label: et.tabGeneral as string,
+      forceRender: true,
       children: (
         <div className="flex flex-col gap-0">
           <Form.Item name="avatar" hidden>
             <Input />
           </Form.Item>
-          <Form.Item label={et.avatar as string} extra={et.avatarHint as string}>
+          <Form.Item
+            label={et.avatar as string}
+            extra={et.avatarHint as string}
+          >
             <div className="flex items-center gap-4">
               <Avatar
                 size={64}
                 src={avatarFileList[0]?.url}
                 style={{
-                  background: (form.getFieldValue("employeeColor") || employee?.employeeColor || DEFAULT_COLOR_VALUE),
+                  background:
+                    form.getFieldValue("employeeColor") ||
+                    employee?.employeeColor ||
+                    DEFAULT_COLOR_VALUE,
                   fontSize: 22,
                   fontWeight: 700,
                   flexShrink: 0,
                 }}
               >
-                {getInitials(form.getFieldValue("firstName") || employee?.firstName || "", form.getFieldValue("lastName") || employee?.lastName || "")}
+                {getInitials(
+                  form.getFieldValue("firstName") || employee?.firstName || "",
+                  form.getFieldValue("lastName") || employee?.lastName || "",
+                )}
               </Avatar>
-              <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+              <div
+                className="flex items-center gap-2"
+                style={{ flexWrap: "wrap" }}
+              >
                 <Upload
                   fileList={avatarFileList}
                   maxCount={1}
@@ -703,7 +946,10 @@ export function EmployeeModal({
                   accept="image/*"
                   showUploadList={false}
                 >
-                  <Button icon={<UploadIcon size={14} />} loading={uploadingAvatar}>
+                  <Button
+                    icon={<UploadIcon size={14} />}
+                    loading={uploadingAvatar}
+                  >
                     {avatarUploadText}
                   </Button>
                 </Upload>
@@ -716,53 +962,116 @@ export function EmployeeModal({
             </div>
           </Form.Item>
           <div className="flex gap-4">
-            <Form.Item name="firstName" label={et.firstName as string} rules={[{ required: true, message: t.required }]} style={{ flex: 1 }}>
+            <Form.Item
+              name="firstName"
+              label={et.firstName as string}
+              rules={[{ required: true, message: t.required }]}
+              style={{ flex: 1 }}
+            >
               <Input prefix={<User size={13} />} />
             </Form.Item>
-            <Form.Item name="lastName" label={et.lastName as string} rules={[{ required: true, message: t.required }]} style={{ flex: 1 }}>
+            <Form.Item
+              name="lastName"
+              label={et.lastName as string}
+              rules={[{ required: true, message: t.required }]}
+              style={{ flex: 1 }}
+            >
               <Input />
             </Form.Item>
           </div>
           <div className="flex gap-4">
-            <Form.Item name="employeeId" label={et.employeeId as string} rules={[{ required: true, message: t.required }]} style={{ flex: 1 }}>
+            <Form.Item
+              name="employeeId"
+              label={et.employeeId as string}
+              rules={[{ required: true, message: t.required }]}
+              style={{ flex: 1 }}
+            >
               <Input />
             </Form.Item>
-            <Form.Item name="role" label={et.role as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="role"
+              label={et.role as string}
+              style={{ flex: 1 }}
+            >
               <Select>
                 {Object.entries(t.employee.roles).map(([k, v]) => (
-                  <Option key={k} value={k}>{v}</Option>
+                  <Option key={k} value={k}>
+                    {v}
+                  </Option>
                 ))}
               </Select>
             </Form.Item>
           </div>
           <div className="flex gap-4">
-            <Form.Item name="phone" label={et.phone as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="phone"
+              label={et.phone as string}
+              style={{ flex: 1 }}
+            >
               <Input prefix={<Phone size={13} />} />
             </Form.Item>
-            <Form.Item name="email" label={et.email as string} rules={[{ required: true, message: t.required }, { type: "email", message: et.invalidEmail as string }]} style={{ flex: 1 }}>
+            <Form.Item
+              name="email"
+              label={et.email as string}
+              rules={[
+                { required: true, message: t.required },
+                { type: "email", message: et.invalidEmail as string },
+              ]}
+              style={{ flex: 1 }}
+            >
               <Input prefix={<Mail size={13} />} />
             </Form.Item>
           </div>
           <div className="flex gap-4">
-            <Form.Item name="startDate" label={et.startDate as string} style={{ flex: 1 }}>
-              <DatePicker format={dateDisplayFormat} style={{ width: "100%" }} />
+            <Form.Item
+              name="startDate"
+              label={et.startDate as string}
+              style={{ flex: 1 }}
+            >
+              <DatePicker
+                format={dateDisplayFormat}
+                style={{ width: "100%" }}
+              />
             </Form.Item>
-            <Form.Item name="dateOfBirth" label={et.dateOfBirth as string} style={{ flex: 1 }}>
-              <DatePicker format={dateDisplayFormat} style={{ width: "100%" }} />
+            <Form.Item
+              name="dateOfBirth"
+              label={et.dateOfBirth as string}
+              style={{ flex: 1 }}
+            >
+              <DatePicker
+                format={dateDisplayFormat}
+                style={{ width: "100%" }}
+              />
             </Form.Item>
           </div>
           <div className="flex gap-4">
-            <Form.Item name="gender" label={et.gender as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="gender"
+              label={et.gender as string}
+              style={{ flex: 1 }}
+            >
               <Select allowClear placeholder={t.selectPlaceholder}>
-                {Object.entries(et.genderOptions as Record<string, string>).map(([key, label]) => (
-                  <Option key={key} value={key}>{label}</Option>
-                ))}
+                {Object.entries(et.genderOptions as Record<string, string>).map(
+                  ([key, label]) => (
+                    <Option key={key} value={key}>
+                      {label}
+                    </Option>
+                  ),
+                )}
               </Select>
             </Form.Item>
-            <Form.Item name="maritalStatus" label={et.maritalStatus as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="maritalStatus"
+              label={et.maritalStatus as string}
+              style={{ flex: 1 }}
+            >
               <Select allowClear placeholder={t.selectPlaceholder}>
-                {Object.entries(et.maritalStatusOptions as Record<string, string>).map(([key, label]) => (
-                  <Option key={key} value={key}>{label}</Option>
+                {Object.entries(
+                  et.maritalStatusOptions as Record<string, string>,
+                ).map(([key, label]) => (
+                  <Option key={key} value={key}>
+                    {label}
+                  </Option>
                 ))}
               </Select>
             </Form.Item>
@@ -771,16 +1080,26 @@ export function EmployeeModal({
             <Input prefix={<MapPin size={13} />} />
           </Form.Item>
           <div className="flex gap-4">
-            <Form.Item name="status" label={et.status as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="status"
+              label={et.status as string}
+              style={{ flex: 1 }}
+            >
               <Select>
                 <Option value="active">{t.active}</Option>
                 <Option value="inactive">{t.inactive}</Option>
               </Select>
             </Form.Item>
-            <Form.Item name="storeIds" label={et.assignedStores as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="storeIds"
+              label={et.assignedStores as string}
+              style={{ flex: 1 }}
+            >
               <Select mode="multiple" placeholder={t.selectPlaceholder}>
                 {stores.map((s) => (
-                  <Option key={s.id} value={s.id}>{s.name}</Option>
+                  <Option key={s.id} value={s.id}>
+                    {s.name}
+                  </Option>
                 ))}
               </Select>
             </Form.Item>
@@ -799,20 +1118,100 @@ export function EmployeeModal({
     {
       key: "payroll",
       label: et.tabPayroll as string,
+      forceRender: true,
       children: (
         <div className="flex flex-col gap-0">
           <div className="flex gap-4">
-            <Form.Item name="irdNumber" label={et.irdNumber as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="irdNumber"
+              label={et.irdNumber as string}
+              style={{ flex: 1 }}
+            >
               <Input />
             </Form.Item>
-            <Form.Item name="taxCode" label={et.taxCode as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="taxCode"
+              label={et.taxCode as string}
+              style={{ flex: 1 }}
+            >
               <Input />
             </Form.Item>
           </div>
-          <Form.Item name="bankAccountNumber" label={et.bankAccountNumber as string}>
+          <div className="flex gap-4">
+            <Form.Item
+              name="kiwiSaverStatus"
+              label={et.kiwiSaverStatus as string}
+              style={{ flex: 1 }}
+            >
+              <Select>
+                <Option value="Enrolled">
+                  {(et.kiwiSaverOptions as Record<string, string>).enrolled}
+                </Option>
+                <Option value="Non-enrolled">
+                  {(et.kiwiSaverOptions as Record<string, string>).nonEnrolled}
+                </Option>
+                <Option value="Opted Out">
+                  {(et.kiwiSaverOptions as Record<string, string>).optedOut}
+                </Option>
+                <Option value="Exempt">
+                  {(et.kiwiSaverOptions as Record<string, string>).exempt}
+                </Option>
+              </Select>
+            </Form.Item>
+            {showKiwiSaverFields && (
+              <Form.Item
+                name="employeeContributionRate"
+                label={et.employeeContributionRate as string}
+                style={{ flex: 1 }}
+              >
+                <Select>
+                  {["3%", "4%", "6%", "8%", "10%"].map((r) => (
+                    <Option key={r} value={r}>
+                      {r}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            )}
+          </div>
+          {showKiwiSaverFields && (
+            <div className="flex gap-4">
+              <Form.Item
+                name="employerContributionRate"
+                label={et.employerContributionRate as string}
+                style={{ flex: 1 }}
+              >
+                <InputNumber
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  style={{ width: "100%" }}
+                />
+              </Form.Item>
+              <Form.Item
+                name="esctRate"
+                label={et.esctRate as string}
+                style={{ flex: 1 }}
+              >
+                <InputNumber
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  style={{ width: "100%" }}
+                />
+              </Form.Item>
+            </div>
+          )}
+          <Form.Item
+            name="bankAccountNumber"
+            label={et.bankAccountNumber as string}
+          >
             <Input prefix={<Banknote size={13} />} />
           </Form.Item>
-          <Form.Item name="payrollEmployeeId" label={et.payrollEmployeeId as string}>
+          <Form.Item
+            name="payrollEmployeeId"
+            label={et.payrollEmployeeId as string}
+          >
             <Input />
           </Form.Item>
         </div>
@@ -821,9 +1220,13 @@ export function EmployeeModal({
     {
       key: "workdays",
       label: et.tabWorkDays as string,
+      forceRender: true,
       children: (
         <div className="flex flex-col gap-4">
-          <Form.Item name="paidHoursPerDay" label={et.paidHoursPerDay as string}>
+          <Form.Item
+            name="paidHoursPerDay"
+            label={et.paidHoursPerDay as string}
+          >
             <InputNumber min={0} max={24} step={0.5} style={{ width: 140 }} />
           </Form.Item>
           <Form.Item name="workDayPattern" label={et.workDayPattern as string}>
@@ -839,43 +1242,98 @@ export function EmployeeModal({
       children: (
         <div className="flex flex-col gap-0">
           <div className="flex gap-4">
-            <Form.Item name="contractType" label={et.contractType as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="contractType"
+              label={et.contractType as string}
+              style={{ flex: 1 }}
+            >
               <Select>
-                {Object.entries((et.contractTypes as Record<string, string>)).map(([k, v]) => (
-                  <Option key={k} value={k}>{v}</Option>
-                ))}
+                {Object.entries(et.contractTypes as Record<string, string>).map(
+                  ([k, v]) => (
+                    <Option key={k} value={k}>
+                      {v}
+                    </Option>
+                  ),
+                )}
               </Select>
             </Form.Item>
-            <Form.Item name="endDate" label={et.endDate as string} style={{ flex: 1 }}>
-              <DatePicker format={dateDisplayFormat} style={{ width: "100%" }} />
+            <Form.Item
+              name="endDate"
+              label={et.endDate as string}
+              style={{ flex: 1 }}
+            >
+              <DatePicker
+                format={dateDisplayFormat}
+                style={{ width: "100%" }}
+              />
             </Form.Item>
           </div>
           <div className="flex gap-4">
-            <Form.Item name="contractedHours" label={et.contractedHours as string} style={{ flex: 1 }}>
-              <InputNumber min={0} max={168} step={0.5} style={{ width: "100%" }} />
+            <Form.Item
+              name="contractedHours"
+              label={et.contractedHours as string}
+              style={{ flex: 1 }}
+            >
+              <InputNumber
+                min={0}
+                max={168}
+                step={0.5}
+                style={{ width: "100%" }}
+              />
             </Form.Item>
-            <Form.Item name="annualSalary" label={et.annualSalary as string} style={{ flex: 1 }}>
-              <InputNumber min={0} step={1000} style={{ width: "100%" }} addonAfter="$" />
+            <Form.Item
+              name="annualSalary"
+              label={et.annualSalary as string}
+              style={{ flex: 1 }}
+            >
+              <InputNumber
+                min={0}
+                step={1000}
+                style={{ width: "100%" }}
+                addonAfter="$"
+              />
             </Form.Item>
           </div>
-          <Form.Item name="defaultHourlyRate" label={et.defaultHourlyRate as string}>
-            <InputNumber min={0} step={0.5} style={{ width: "100%" }} addonAfter={et.nzd as string} />
+          <Form.Item
+            name="defaultHourlyRate"
+            label={et.defaultHourlyRate as string}
+          >
+            <InputNumber
+              min={0}
+              step={0.5}
+              style={{ width: "100%" }}
+              addonAfter={et.nzd as string}
+            />
           </Form.Item>
           <div className="flex gap-4">
-            <Form.Item name="identityDocumentType" label={et.identityDocumentType as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="identityDocumentType"
+              label={et.identityDocumentType as string}
+              style={{ flex: 1 }}
+            >
               <Select allowClear placeholder={t.selectPlaceholder}>
-                {Object.entries(et.identityDocumentTypeOptions as Record<string, string>).map(([key, label]) => (
-                  <Option key={key} value={key}>{label}</Option>
+                {Object.entries(
+                  et.identityDocumentTypeOptions as Record<string, string>,
+                ).map(([key, label]) => (
+                  <Option key={key} value={key}>
+                    {label}
+                  </Option>
                 ))}
               </Select>
             </Form.Item>
-            <Form.Item name="identityDocumentNumber" label={et.identityDocumentNumber as string} style={{ flex: 1 }}>
+            <Form.Item
+              name="identityDocumentNumber"
+              label={et.identityDocumentNumber as string}
+              style={{ flex: 1 }}
+            >
               <Input />
             </Form.Item>
           </div>
           {visibleDocumentFields.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2">
-              {visibleDocumentFields.map((field) => renderDocumentUpload(field))}
+              {visibleDocumentFields.map((field) =>
+                renderDocumentUpload(field),
+              )}
             </div>
           )}
           <Form.Item
@@ -898,10 +1356,14 @@ export function EmployeeModal({
                   showRemoveIcon: true,
                 }}
                 onPreview={(file) => {
-                  if (file.url) window.open(file.url, "_blank", "noopener,noreferrer");
+                  if (file.url)
+                    window.open(file.url, "_blank", "noopener,noreferrer");
                 }}
               >
-                <Button icon={<UploadIcon size={14} />} loading={uploadingContract}>
+                <Button
+                  icon={<UploadIcon size={14} />}
+                  loading={uploadingContract}
+                >
                   {contractUploadText}
                 </Button>
               </Upload>
@@ -923,7 +1385,10 @@ export function EmployeeModal({
       ),
     },
   ];
-  const activeTabIndex = Math.max(0, tabItems.findIndex((item) => item.key === activeTabKey));
+  const activeTabIndex = Math.max(
+    0,
+    tabItems.findIndex((item) => item.key === activeTabKey),
+  );
   const isFirstTab = activeTabIndex === 0;
   const isLastTab = activeTabIndex === tabItems.length - 1;
   const goToTabByOffset = (offset: number) => {
@@ -934,7 +1399,7 @@ export function EmployeeModal({
   return (
     <Modal
       open={open}
-      title={isEdit ? et.editEmployee as string : et.addEmployee as string}
+      title={isEdit ? (et.editEmployee as string) : (et.addEmployee as string)}
       onCancel={onCancel}
       maskClosable={false}
       width={680}
@@ -968,7 +1433,11 @@ export function EmployeeModal({
         preserve={false}
         size="small"
       >
-        <Tabs activeKey={activeTabKey} onChange={setActiveTabKey} items={tabItems} />
+        <Tabs
+          activeKey={activeTabKey}
+          onChange={setActiveTabKey}
+          items={tabItems}
+        />
       </Form>
     </Modal>
   );
@@ -993,8 +1462,10 @@ function DetailPanel({
   const assignedStoreNames = (employee.storeIds ?? [])
     .map((id) => stores.find((s) => s.id === id)?.name)
     .filter(Boolean) as string[];
-  const primaryStore = stores.find((store) => store.id === employee.storeIds?.[0]) || stores[0];
-  const formatEmployeeDate = (value?: string) => formatCountryDate(value, primaryStore?.country);
+  const primaryStore =
+    stores.find((store) => store.id === employee.storeIds?.[0]) || stores[0];
+  const formatEmployeeDate = (value?: string) =>
+    formatCountryDate(value, primaryStore?.country);
 
   const workDays = employee.workDayPattern ?? defaultWorkDayPattern;
   const weekDays = et.weekDays as string[];
@@ -1002,16 +1473,20 @@ function DetailPanel({
   const roleLabel =
     (et.roles as Record<string, string>)[employee.role] ?? employee.role;
 
-  const contractTypeLabel =
-    employee.contractType
-      ? ((et.contractTypes as Record<string, string>)[employee.contractType] ?? employee.contractType)
-      : "-";
+  const contractTypeLabel = employee.contractType
+    ? ((et.contractTypes as Record<string, string>)[employee.contractType] ??
+      employee.contractType)
+    : "-";
   const contractFileName = employee.contractDocumentKey?.split("/").pop() || "";
   const avatarUrl = getEmployeeAvatarUrl(employee);
-  const visibleDocumentFields = getEmployeeDocumentFieldsByType(employee.identityDocumentType);
+  const visibleDocumentFields = getEmployeeDocumentFieldsByType(
+    employee.identityDocumentType,
+  );
   const getOptionLabel = (optionsKey: string, value?: string) => {
     if (!value) return "";
-    return ((et[optionsKey] as Record<string, string> | undefined)?.[value] ?? value);
+    return (
+      (et[optionsKey] as Record<string, string> | undefined)?.[value] ?? value
+    );
   };
   const documentLink = (url?: string, key?: string) => {
     if (!url) return "-";
@@ -1025,7 +1500,7 @@ function DetailPanel({
         style={{ color: "var(--primary)" }}
       >
         <ExternalLink size={12} />
-        {fileName || et.documentView as string}
+        {fileName || (et.documentView as string)}
       </a>
     );
   };
@@ -1036,16 +1511,59 @@ function DetailPanel({
       label: et.tabGeneral as string,
       children: (
         <div className="flex flex-col">
-          <InfoRow icon={<User size={13} />} label={et.fullName as string} value={`${employee.firstName} ${employee.lastName}`} />
-          <InfoRow icon={<BadgeCheck size={13} />} label={et.employeeId as string} value={employee.employeeId} />
-          <InfoRow icon={<Briefcase size={13} />} label={et.role as string} value={roleLabel} />
-          <InfoRow icon={<Phone size={13} />} label={et.phone as string} value={employee.phone} />
-          <InfoRow icon={<Mail size={13} />} label={et.email as string} value={employee.email} />
-          <InfoRow icon={<CalendarDays size={13} />} label={et.startDate as string} value={formatEmployeeDate(employee.startDate)} />
-          <InfoRow icon={<Cake size={13} />} label={et.dateOfBirth as string} value={formatEmployeeDate(employee.dateOfBirth)} />
-          <InfoRow icon={<User size={13} />} label={et.gender as string} value={getOptionLabel("genderOptions", employee.gender)} />
-          <InfoRow icon={<BadgeCheck size={13} />} label={et.maritalStatus as string} value={getOptionLabel("maritalStatusOptions", employee.maritalStatus)} />
-          <InfoRow icon={<MapPin size={13} />} label={et.address as string} value={employee.address ?? ""} />
+          <InfoRow
+            icon={<User size={13} />}
+            label={et.fullName as string}
+            value={`${employee.firstName} ${employee.lastName}`}
+          />
+          <InfoRow
+            icon={<BadgeCheck size={13} />}
+            label={et.employeeId as string}
+            value={employee.employeeId}
+          />
+          <InfoRow
+            icon={<Briefcase size={13} />}
+            label={et.role as string}
+            value={roleLabel}
+          />
+          <InfoRow
+            icon={<Phone size={13} />}
+            label={et.phone as string}
+            value={employee.phone}
+          />
+          <InfoRow
+            icon={<Mail size={13} />}
+            label={et.email as string}
+            value={employee.email}
+          />
+          <InfoRow
+            icon={<CalendarDays size={13} />}
+            label={et.startDate as string}
+            value={formatEmployeeDate(employee.startDate)}
+          />
+          <InfoRow
+            icon={<Cake size={13} />}
+            label={et.dateOfBirth as string}
+            value={formatEmployeeDate(employee.dateOfBirth)}
+          />
+          <InfoRow
+            icon={<User size={13} />}
+            label={et.gender as string}
+            value={getOptionLabel("genderOptions", employee.gender)}
+          />
+          <InfoRow
+            icon={<BadgeCheck size={13} />}
+            label={et.maritalStatus as string}
+            value={getOptionLabel(
+              "maritalStatusOptions",
+              employee.maritalStatus,
+            )}
+          />
+          <InfoRow
+            icon={<MapPin size={13} />}
+            label={et.address as string}
+            value={employee.address ?? ""}
+          />
           <InfoRow
             icon={<Building2 size={13} />}
             label={et.assignedStores as string}
@@ -1053,14 +1571,22 @@ function DetailPanel({
               assignedStoreNames.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {assignedStoreNames.map((name) => (
-                    <Tag key={name} style={{ fontSize: 11, margin: 0 }}>{name}</Tag>
+                    <Tag key={name} style={{ fontSize: 11, margin: 0 }}>
+                      {name}
+                    </Tag>
                   ))}
                 </div>
-              ) : "-"
+              ) : (
+                "-"
+              )
             }
           />
           {employee.notes && (
-            <InfoRow icon={<FileText size={13} />} label={et.notes as string} value={employee.notes} />
+            <InfoRow
+              icon={<FileText size={13} />}
+              label={et.notes as string}
+              value={employee.notes}
+            />
           )}
         </div>
       ),
@@ -1070,10 +1596,50 @@ function DetailPanel({
       label: et.tabPayroll as string,
       children: (
         <div className="flex flex-col">
-          <InfoRow icon={<BadgeCheck size={13} />} label={et.irdNumber as string} value={employee.irdNumber ?? ""} />
-          <InfoRow icon={<FileText size={13} />} label={et.taxCode as string} value={employee.taxCode ?? ""} />
-          <InfoRow icon={<Banknote size={13} />} label={et.bankAccountNumber as string} value={employee.bankAccountNumber ?? ""} />
-          <InfoRow icon={<BadgeCheck size={13} />} label={et.payrollEmployeeId as string} value={employee.payrollEmployeeId ?? ""} />
+          <InfoRow
+            icon={<BadgeCheck size={13} />}
+            label={et.irdNumber as string}
+            value={employee.irdNumber ?? ""}
+          />
+          <InfoRow
+            icon={<FileText size={13} />}
+            label={et.taxCode as string}
+            value={employee.taxCode ?? ""}
+          />
+          <InfoRow
+            icon={<BadgeCheck size={13} />}
+            label={et.kiwiSaverStatus as string}
+            value={employee.kiwiSaverStatus ?? ""}
+          />
+          <InfoRow
+            icon={<DollarSign size={13} />}
+            label={et.employeeContributionRate as string}
+            value={employee.employeeContributionRate ?? ""}
+          />
+          <InfoRow
+            icon={<DollarSign size={13} />}
+            label={et.employerContributionRate as string}
+            value={
+              employee.employerContributionRate
+                ? `${employee.employerContributionRate}%`
+                : ""
+            }
+          />
+          <InfoRow
+            icon={<DollarSign size={13} />}
+            label={et.esctRate as string}
+            value={employee.esctRate ? `${employee.esctRate}%` : ""}
+          />
+          <InfoRow
+            icon={<Banknote size={13} />}
+            label={et.bankAccountNumber as string}
+            value={employee.bankAccountNumber ?? ""}
+          />
+          <InfoRow
+            icon={<BadgeCheck size={13} />}
+            label={et.payrollEmployeeId as string}
+            value={employee.payrollEmployeeId ?? ""}
+          />
         </div>
       ),
     },
@@ -1097,13 +1663,52 @@ function DetailPanel({
       label: et.tabEmployment as string,
       children: (
         <div className="flex flex-col">
-          <InfoRow icon={<FileText size={13} />} label={et.contractType as string} value={contractTypeLabel} />
-          <InfoRow icon={<CalendarDays size={13} />} label={et.endDate as string} value={formatEmployeeDate(employee.endDate)} />
-          <InfoRow icon={<Clock size={13} />} label={et.contractedHours as string} value={employee.contractedHours ? `${employee.contractedHours} ${t.hours}` : ""} />
-          <InfoRow icon={<DollarSign size={13} />} label={et.annualSalary as string} value={employee.annualSalary ? `$${employee.annualSalary}` : ""} />
-          <InfoRow icon={<DollarSign size={13} />} label={et.defaultHourlyRate as string} value={employee.defaultHourlyRate ? `$${employee.defaultHourlyRate} ${et.nzd as string}` : ""} />
-          <InfoRow icon={<IdCard size={13} />} label={et.identityDocumentType as string} value={getOptionLabel("identityDocumentTypeOptions", employee.identityDocumentType)} />
-          <InfoRow icon={<BadgeCheck size={13} />} label={et.identityDocumentNumber as string} value={employee.identityDocumentNumber ?? ""} />
+          <InfoRow
+            icon={<FileText size={13} />}
+            label={et.contractType as string}
+            value={contractTypeLabel}
+          />
+          <InfoRow
+            icon={<CalendarDays size={13} />}
+            label={et.endDate as string}
+            value={formatEmployeeDate(employee.endDate)}
+          />
+          <InfoRow
+            icon={<Clock size={13} />}
+            label={et.contractedHours as string}
+            value={
+              employee.contractedHours
+                ? `${employee.contractedHours} ${t.hours}`
+                : ""
+            }
+          />
+          <InfoRow
+            icon={<DollarSign size={13} />}
+            label={et.annualSalary as string}
+            value={employee.annualSalary ? `$${employee.annualSalary}` : ""}
+          />
+          <InfoRow
+            icon={<DollarSign size={13} />}
+            label={et.defaultHourlyRate as string}
+            value={
+              employee.defaultHourlyRate
+                ? `$${employee.defaultHourlyRate} ${et.nzd as string}`
+                : ""
+            }
+          />
+          <InfoRow
+            icon={<IdCard size={13} />}
+            label={et.identityDocumentType as string}
+            value={getOptionLabel(
+              "identityDocumentTypeOptions",
+              employee.identityDocumentType,
+            )}
+          />
+          <InfoRow
+            icon={<BadgeCheck size={13} />}
+            label={et.identityDocumentNumber as string}
+            value={employee.identityDocumentNumber ?? ""}
+          />
           {visibleDocumentFields.map((field) => {
             const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
             return (
@@ -1121,18 +1726,22 @@ function DetailPanel({
           <InfoRow
             icon={<Paperclip size={13} />}
             label={et.contractFile as string}
-            value={employee.contractDocumentUrl ? (
-              <a
-                href={employee.contractDocumentUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1"
-                style={{ color: "var(--primary)" }}
-              >
-                <ExternalLink size={12} />
-                {contractFileName || et.contractView as string}
-              </a>
-            ) : "-"}
+            value={
+              employee.contractDocumentUrl ? (
+                <a
+                  href={employee.contractDocumentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1"
+                  style={{ color: "var(--primary)" }}
+                >
+                  <ExternalLink size={12} />
+                  {contractFileName || (et.contractView as string)}
+                </a>
+              ) : (
+                "-"
+              )
+            }
           />
         </div>
       ),
@@ -1144,7 +1753,10 @@ function DetailPanel({
       {/* Header */}
       <div
         className="flex items-center gap-4 px-6 py-5"
-        style={{ borderBottom: "1px solid var(--border)", background: "var(--card)" }}
+        style={{
+          borderBottom: "1px solid var(--border)",
+          background: "var(--card)",
+        }}
       >
         <Avatar
           size={56}
@@ -1159,11 +1771,19 @@ function DetailPanel({
           {getInitials(employee.firstName, employee.lastName)}
         </Avatar>
         <div className="flex-1 min-w-0">
-          <div className="font-bold text-base leading-tight truncate" style={{ color: "var(--foreground)" }}>
+          <div
+            className="font-bold text-base leading-tight truncate"
+            style={{ color: "var(--foreground)" }}
+          >
             {employee.firstName} {employee.lastName}
           </div>
-          <div className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-            {(et.roles as Record<string, string>)[employee.role] ?? employee.role} · {employee.employeeId}
+          <div
+            className="text-sm mt-0.5"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            {(et.roles as Record<string, string>)[employee.role] ??
+              employee.role}{" "}
+            · {employee.employeeId}
           </div>
           <div className="mt-1.5">
             <Tag
@@ -1190,7 +1810,12 @@ function DetailPanel({
             okText={t.yes}
             cancelText={t.no}
           >
-            <Button type="default" size="small" danger icon={<Trash2 size={13} />}>
+            <Button
+              type="default"
+              size="small"
+              danger
+              icon={<Trash2 size={13} />}
+            >
               {t.delete}
             </Button>
           </Popconfirm>
@@ -1218,7 +1843,14 @@ export default function Employees() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
-  console.log("[Employees] selectedId:", selectedId, "total:", employees.length, "globalStore:", selectedStoreId);
+  console.log(
+    "[Employees] selectedId:",
+    selectedId,
+    "total:",
+    employees.length,
+    "globalStore:",
+    selectedStoreId,
+  );
 
   const filtered = useMemo(() => {
     return employees.filter((emp) => {
@@ -1228,13 +1860,15 @@ export default function Employees() {
         `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(q) ||
         emp.email.toLowerCase().includes(q) ||
         emp.employeeId.toLowerCase().includes(q);
-      const matchStore = !selectedStoreId || emp.storeIds.includes(selectedStoreId);
+      const matchStore =
+        !selectedStoreId || emp.storeIds.includes(selectedStoreId);
       const matchStatus = !filterStatus || emp.status === filterStatus;
       return matchSearch && matchStore && matchStatus;
     });
   }, [employees, search, selectedStoreId, filterStatus]);
 
-  const selectedEmployee = filtered.find((e) => e.id === selectedId) ?? filtered[0] ?? null;
+  const selectedEmployee =
+    filtered.find((e) => e.id === selectedId) ?? filtered[0] ?? null;
 
   useEffect(() => {
     const nextSelectedId = selectedEmployee?.id ?? "";
@@ -1258,10 +1892,14 @@ export default function Employees() {
     if (!selectedEmployee) return;
     try {
       await deleteEmployee(selectedEmployee.id);
-      setSelectedId(filtered.find((e) => e.id !== selectedEmployee.id)?.id ?? "");
+      setSelectedId(
+        filtered.find((e) => e.id !== selectedEmployee.id)?.id ?? "",
+      );
       toast.success(et.deleteSuccess as string);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : et.deleteFailed as string);
+      toast.error(
+        error instanceof Error ? error.message : (et.deleteFailed as string),
+      );
     }
   };
 
@@ -1272,12 +1910,18 @@ export default function Employees() {
       setModalOpen(false);
       toast.success(et.saveSuccess as string);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : et.saveFailed as string);
+      toast.error(
+        error instanceof Error ? error.message : (et.saveFailed as string),
+      );
     }
   };
 
   return (
-    <div data-cmp="Employees" className="flex flex-col h-full" style={{ minHeight: "calc(100vh - 112px)" }}>
+    <div
+      data-cmp="Employees"
+      className="flex flex-col h-full"
+      style={{ minHeight: "calc(100vh - 112px)" }}
+    >
       {/* ─── Top bar ─── */}
       <div
         className="flex items-center justify-between px-0 pb-4"
@@ -1285,7 +1929,9 @@ export default function Employees() {
       >
         <div className="flex items-center gap-2 flex-1">
           <Input
-            prefix={<Search size={14} style={{ color: "var(--muted-foreground)" }} />}
+            prefix={
+              <Search size={14} style={{ color: "var(--muted-foreground)" }} />
+            }
             placeholder={et.searchPlaceholder as string}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -1302,15 +1948,14 @@ export default function Employees() {
             <Option value="active">{t.active}</Option>
             <Option value="inactive">{t.inactive}</Option>
           </Select>
-          <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+          <span
+            className="text-xs"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             {t.total} {filtered.length} {t.items}
           </span>
         </div>
-        <Button
-          type="primary"
-          icon={<Plus size={14} />}
-          onClick={handleAdd}
-        >
+        <Button type="primary" icon={<Plus size={14} />} onClick={handleAdd}>
           {et.addEmployee as string}
         </Button>
       </div>
@@ -1329,7 +1974,10 @@ export default function Employees() {
           }}
         >
           {filtered.length === 0 ? (
-            <div className="flex items-center justify-center flex-1 text-sm" style={{ color: "var(--muted-foreground)", padding: 32 }}>
+            <div
+              className="flex items-center justify-center flex-1 text-sm"
+              style={{ color: "var(--muted-foreground)", padding: 32 }}
+            >
               {t.noData}
             </div>
           ) : (
@@ -1343,7 +1991,9 @@ export default function Employees() {
                   className="flex items-center gap-3 px-4 py-3 text-left transition-all"
                   style={{
                     background: isActive ? "var(--muted)" : "transparent",
-                    borderLeft: isActive ? `3px solid ${emp.employeeColor ?? "var(--primary)"}` : "3px solid transparent",
+                    borderLeft: isActive
+                      ? `3px solid ${emp.employeeColor ?? "var(--primary)"}`
+                      : "3px solid transparent",
                     borderBottom: "1px solid var(--border)",
                     cursor: "pointer",
                     width: "100%",
@@ -1368,19 +2018,30 @@ export default function Employees() {
                     >
                       {emp.firstName} {emp.lastName}
                     </div>
-                    <div className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-                      {(et.roles as Record<string, string>)[emp.role] ?? emp.role}
+                    <div
+                      className="text-xs truncate"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {(et.roles as Record<string, string>)[emp.role] ??
+                        emp.role}
                     </div>
                     <div className="mt-0.5">
                       <Tag
                         color={emp.status === "active" ? "success" : "default"}
-                        style={{ fontSize: 10, padding: "0 4px", lineHeight: "16px" }}
+                        style={{
+                          fontSize: 10,
+                          padding: "0 4px",
+                          lineHeight: "16px",
+                        }}
                       >
                         {emp.status === "active" ? t.active : t.inactive}
                       </Tag>
                     </div>
                   </div>
-                  <ChevronRight size={14} style={{ color: "var(--muted-foreground)", flexShrink: 0 }} />
+                  <ChevronRight
+                    size={14}
+                    style={{ color: "var(--muted-foreground)", flexShrink: 0 }}
+                  />
                 </button>
               );
             })
@@ -1405,7 +2066,10 @@ export default function Employees() {
               t={t}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-sm" style={{ color: "var(--muted-foreground)" }}>
+            <div
+              className="flex items-center justify-center h-full text-sm"
+              style={{ color: "var(--muted-foreground)" }}
+            >
               {t.noData}
             </div>
           )}
