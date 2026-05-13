@@ -273,6 +273,41 @@ const dedupeById = <T extends { id: string }>(items: T[]) => {
   return Array.from(map.values());
 };
 
+const getShiftDefinitionKey = (
+  shift: Pick<ScheduleShift, "shiftId" | "shiftName" | "startTime" | "endTime" | "breakMinutes" | "color" | "storeId" | "shiftType">
+) => {
+  const scope = (shift.shiftType || "store") === "general" ? "general" : `store:${shift.storeId || ""}`;
+  return [
+    scope,
+    (shift.shiftName || "").trim().toLowerCase(),
+    shift.startTime || "",
+    shift.endTime || "",
+    String(shift.breakMinutes ?? 0),
+    shift.color || "",
+  ].join("|");
+};
+
+const getShiftIdentityKey = (
+  shift: Pick<ScheduleShift, "shiftId" | "shiftName" | "startTime" | "endTime" | "breakMinutes" | "color" | "storeId" | "shiftType">
+) => shift.shiftId ? `id:${shift.shiftId}` : getShiftDefinitionKey(shift);
+
+const dedupeScheduleShifts = (items: ScheduleShift[]) => {
+  const map = new Map<string, ScheduleShift>();
+
+  items.forEach((item) => {
+    const key = item.isGlobalPreset
+      ? `global:${getShiftDefinitionKey(item)}`
+      : `schedule:${item.id || getShiftIdentityKey(item)}`;
+    if (!key) return;
+    const existing = map.get(key);
+    if (!existing || (!existing.shiftId && item.shiftId)) {
+      map.set(key, item);
+    }
+  });
+
+  return Array.from(map.values());
+};
+
 const mergeFetchedRosterTemplates = (fetched: RosterTemplate[], current: RosterTemplate[]) => {
   const localDrafts = current.filter((template) => !isBackendId(template.id));
   return dedupeById([...fetched, ...localDrafts]);
@@ -405,6 +440,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const currentStoreContextRef = useRef("");
   const loadSeqRef = useRef(0);
   const inFlightLoadRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
+  const inFlightGlobalShiftSaveRef = useRef<Map<string, Promise<ScheduleShift>>>(new Map());
 
   const setLastStoreId = useCallback((nextLastStoreId: string) => {
     if (lastStoreIdRef.current === nextLastStoreId) return;
@@ -527,10 +563,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (globalShiftResult.ok || scheduleResult.ok) {
-        setScheduleShifts(dedupeById([
+        setScheduleShifts(dedupeScheduleShifts(dedupeById([
           ...(globalShiftResult.ok ? globalShiftResult.value : []),
           ...(scheduleResult.ok ? scheduleResult.value.flat() : []),
-        ]));
+        ])));
       }
     } catch (loadError) {
       const message = getOperationMessage(loadError, "加载数据失败");
@@ -648,12 +684,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const saveGlobalShift = useCallback(async (shift: ScheduleShift, existingShiftId?: string) => {
-    const saved = existingShiftId
-      ? await merchantApi.updateGlobalShift(existingShiftId, shift)
-      : await merchantApi.createGlobalShift(shift);
-    setScheduleShifts((prev) => existingShiftId
-      ? prev.map((item) => item.shiftId === existingShiftId ? saved : item)
-      : dedupeById([...prev, saved]));
+    const saveKey = existingShiftId
+      ? `update:${existingShiftId}`
+      : `create:${getShiftDefinitionKey(shift)}`;
+    const inFlightSave = inFlightGlobalShiftSaveRef.current.get(saveKey);
+    if (inFlightSave) return inFlightSave;
+
+    const promise = (async () => {
+      const saved = existingShiftId
+        ? await merchantApi.updateGlobalShift(existingShiftId, shift)
+        : await merchantApi.createGlobalShift(shift);
+      setScheduleShifts((prev) => {
+        const next = existingShiftId
+          ? prev.map((item) => item.shiftId === existingShiftId ? saved : item)
+          : [...prev, saved];
+        return dedupeScheduleShifts(dedupeById(next));
+      });
+      return saved;
+    })().finally(() => {
+      inFlightGlobalShiftSaveRef.current.delete(saveKey);
+    });
+
+    inFlightGlobalShiftSaveRef.current.set(saveKey, promise);
+    const saved = await promise;
     return saved;
   }, []);
 

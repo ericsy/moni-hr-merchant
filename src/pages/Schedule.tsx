@@ -133,6 +133,7 @@ export default function Schedule() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<ScheduleShift | null>(null);
   const [selectedShiftId, setSelectedShiftId] = useState("");
+  const [savingShift, setSavingShift] = useState(false);
   const [form, setForm] = useState<ScheduleFormState>(() => buildDefaultForm(selectedStoreId));
 
   const getStoreLabel = (shift: Pick<ScheduleShift, "shiftType" | "storeId">) => {
@@ -193,6 +194,8 @@ export default function Schedule() {
   };
 
   const handleSaveShift = async () => {
+    if (savingShift) return;
+
     if (!form.shiftName.trim()) {
       toast.error(copy.nameRequired);
       return;
@@ -233,12 +236,15 @@ export default function Schedule() {
     };
 
     try {
+      setSavingShift(true);
       const saved = await saveGlobalShift(shiftData, editingShift?.shiftId);
       setSelectedShiftId(saved.id);
       closeModal();
       toast.success(copy.saved);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Save failed");
+    } finally {
+      setSavingShift(false);
     }
   };
 
@@ -420,6 +426,7 @@ export default function Schedule() {
         currentStoreId={selectedStoreId}
         onClose={closeModal}
         onSave={handleSaveShift}
+        saving={savingShift}
         locale={locale}
         copy={copy}
       />
@@ -436,6 +443,7 @@ interface ShiftModalProps {
   currentStoreId: string;
   onClose: () => void;
   onSave: () => void;
+  saving: boolean;
   locale: string;
   copy: {
     addShiftDialog: string;
@@ -468,6 +476,7 @@ function ShiftModal({
   currentStoreId,
   onClose,
   onSave,
+  saving,
   locale,
   copy,
 }: ShiftModalProps) {
@@ -483,6 +492,7 @@ function ShiftModal({
       open={open}
       onCancel={onClose}
       onOk={onSave}
+      confirmLoading={saving}
       maskClosable={false}
       okText={copy.save}
       cancelText={copy.cancel}
