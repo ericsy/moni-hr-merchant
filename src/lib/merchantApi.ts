@@ -9,6 +9,7 @@ import type {
   ScheduleShift,
   Store,
   StoreWeekdayHours,
+  TimeSlot,
   WorkDayPattern,
 } from "../context/DataContext";
 
@@ -207,19 +208,59 @@ function uploadMerchantFile(path: string, file: File) {
 }
 
 function normalizeWorkDayState(state: unknown): WorkDayPattern["state"] {
-  if (state === true || state === "true" || state === "on") return "on";
-  if (state === false || state === "false" || state === "off") return "off";
+  if (state === true || state === "true" || state === "on" || state === 1 || state === "1") return "on";
+  if (state === false || state === "false" || state === "off" || state === 0 || state === "0") return "off";
   return "none";
+}
+
+function normalizeWeeklyWorkDayState(state: unknown): "on" | "off" {
+  return normalizeWorkDayState(state) === "on" ? "on" : "off";
+}
+
+function normalizeTime(value: unknown) {
+  const raw = asString(value).trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return "";
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return "";
+  if (hours < 0 || hours > 24 || minutes < 0 || minutes > 59 || (hours === 24 && minutes > 0)) return "";
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function timeToMinutes(value: unknown) {
+  const normalized = normalizeTime(value);
+  if (!normalized) return 0;
+  const [hours, minutes] = normalized.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function calcHoursFromSlots(slots: TimeSlot[]) {
+  return slots.reduce((total, slot) => {
+    const diff = timeToMinutes(slot.end) - timeToMinutes(slot.start);
+    return total + (diff > 0 ? diff / 60 : 0);
+  }, 0);
 }
 
 function mapWorkDayPattern(pattern: unknown): WorkDayPattern[] | undefined {
   if (!Array.isArray(pattern)) return undefined;
   return pattern.map((item) => {
     const row = asRecord(item);
+    const timeSlots = asArray(row.timeSlots || row.slots || row.weeklyWorkSlots)
+      .map((slot) => {
+        const slotRow = asRecord(slot);
+        return {
+          id: slotRow.id as string | number | null | undefined,
+          start: normalizeTime(slotRow.start || slotRow.startTime),
+          end: normalizeTime(slotRow.end || slotRow.endTime),
+        };
+      })
+      .filter((slot) => slot.start && slot.end && timeToMinutes(slot.end) > timeToMinutes(slot.start));
     return {
       dayIndex: asNumber(row.dayIndex),
       state: normalizeWorkDayState(row.state),
-      hours: asNumber(row.hours),
+      hours: row.hours === undefined ? calcHoursFromSlots(timeSlots) : asNumber(row.hours),
+      timeSlots,
     };
   });
 }
@@ -230,6 +271,91 @@ function serializeWorkDayPattern(pattern: WorkDayPattern[] | undefined) {
     state: item.state === "on" ? true : item.state === "off" ? false : "none",
     hours: item.hours,
   }));
+}
+
+function mapEmployeeWeeklyWorkSlots(input: unknown) {
+  return asArray(input)
+    .map((item) => {
+      const row = asRecord(item);
+      return {
+        id: row.id as string | number | null | undefined,
+        weekday: asNumber(row.weekday),
+        startTime: normalizeTime(row.startTime),
+        endTime: normalizeTime(row.endTime),
+      };
+    })
+    .filter((item) =>
+      item.weekday >= 0 &&
+      item.weekday <= 6 &&
+      item.startTime &&
+      item.endTime &&
+      timeToMinutes(item.endTime) > timeToMinutes(item.startTime)
+    );
+}
+
+function mapEmployeeWeeklyWorkDays(input: unknown) {
+  return asArray(input)
+    .map((item) => {
+      const row = asRecord(item);
+      return {
+        weekday: asNumber(row.weekday),
+        state: normalizeWeeklyWorkDayState(row.state),
+      };
+    })
+    .filter((item) => item.weekday >= 0 && item.weekday <= 6);
+}
+
+function buildWorkDayPatternFromWeekly(inputDays: unknown, inputSlots: unknown): WorkDayPattern[] | undefined {
+  const days = mapEmployeeWeeklyWorkDays(inputDays);
+  const slots = mapEmployeeWeeklyWorkSlots(inputSlots);
+  if (days.length === 0 && slots.length === 0) return undefined;
+
+  return Array.from({ length: 7 }, (_, dayIndex) => {
+    const matchingSlots = slots
+      .filter((slot) => slot.weekday === dayIndex)
+      .map((slot) => ({
+        id: slot.id,
+        start: slot.startTime,
+        end: slot.endTime,
+      }));
+    const day = days.find((item) => item.weekday === dayIndex);
+    const hasSlots = matchingSlots.length > 0;
+    const state = day?.state ?? (hasSlots ? "on" : "off");
+
+    return {
+      dayIndex,
+      state,
+      hours: state === "on" ? calcHoursFromSlots(matchingSlots) : 0,
+      timeSlots: state === "on" ? matchingSlots : [],
+    };
+  });
+}
+
+function serializeEmployeeWeeklyWorkDays(pattern: WorkDayPattern[] | undefined) {
+  return pattern?.map((item) => ({
+    weekday: item.dayIndex,
+    state: item.state === "on" ? "on" : "off",
+  }));
+}
+
+function serializeEmployeeWeeklyWorkSlots(pattern: WorkDayPattern[] | undefined) {
+  return pattern
+    ?.flatMap((item) =>
+      item.state === "on"
+        ? (item.timeSlots || []).map((slot) =>
+            compact({
+              id: slot.id === "" ? undefined : slot.id,
+              weekday: item.dayIndex,
+              startTime: normalizeTime(slot.start),
+              endTime: normalizeTime(slot.end),
+            })
+          )
+        : []
+    )
+    .filter((slot) => {
+      const row = asRecord(slot);
+      return row.startTime && row.endTime && timeToMinutes(row.endTime) > timeToMinutes(row.startTime);
+    });
 }
 
 function normalizeCountry(country: unknown) {
@@ -392,6 +518,11 @@ export function mapApiEmployee(input: unknown): Employee {
     .filter((item) => item.id);
   const storeIds = rawStoreIds.length > 0 ? rawStoreIds : storeDetails.map((item) => item.id);
   const assignedStores = asArray(raw.assignedStores).map((id) => asString(id));
+  const weeklyWorkDays = mapEmployeeWeeklyWorkDays(raw.weeklyWorkDays);
+  const weeklyWorkSlots = mapEmployeeWeeklyWorkSlots(raw.weeklyWorkSlots);
+  const workDayPattern =
+    buildWorkDayPatternFromWeekly(raw.weeklyWorkDays, raw.weeklyWorkSlots) ??
+    mapWorkDayPattern(raw.workDayPattern);
 
   return {
     id: asString(raw.id),
@@ -417,6 +548,8 @@ export function mapApiEmployee(input: unknown): Employee {
     employeeColor: asString(raw.employeeColor, "#60a5fa"),
     address: asString(raw.address),
     dateOfBirth: asString(raw.dateOfBirth),
+    emergencyContact: asString(raw.emergencyContact),
+    emergencyContactPhone: asString(raw.emergencyContactPhone),
     gender: asString(raw.gender),
     maritalStatus: asString(raw.maritalStatus),
     identityDocumentType: asString(raw.identityDocumentType),
@@ -429,6 +562,8 @@ export function mapApiEmployee(input: unknown): Employee {
     visaDocumentUrl: asString(raw.visaDocumentUrl),
     passportDocumentKey: asString(raw.passportDocumentKey),
     passportDocumentUrl: asString(raw.passportDocumentUrl),
+    visaType: asString(raw.visaType),
+    visaExpiryDate: asString(raw.visaExpiryDate),
     irdNumber: asString(raw.irdNumber),
     taxCode: asString(raw.taxCode),
     kiwiSaverStatus: asString(raw.kiwiSaverStatus),
@@ -440,7 +575,9 @@ export function mapApiEmployee(input: unknown): Employee {
     areaIds: asArray(raw.areaIds).map((id) => asString(id)),
     positionIds: asArray(raw.positionIds).map((id) => asString(id)),
     paidHoursPerDay: raw.paidHoursPerDay === undefined ? undefined : asNumber(raw.paidHoursPerDay),
-    workDayPattern: mapWorkDayPattern(raw.workDayPattern),
+    workDayPattern,
+    weeklyWorkDays,
+    weeklyWorkSlots,
     contractType: normalizeEmployeeContractType(raw.contractType),
     contractDocumentKey: asString(raw.contractDocumentKey),
     endDate: asString(raw.endDate),
@@ -471,6 +608,8 @@ export function employeeToApiPayload(employee: Employee & { password?: string },
     employeeColor: employee.employeeColor,
     address: employee.address,
     dateOfBirth: employee.dateOfBirth,
+    emergencyContact: employee.emergencyContact,
+    emergencyContactPhone: employee.emergencyContactPhone,
     gender: employee.gender,
     maritalStatus: employee.maritalStatus,
     identityDocumentType: employee.identityDocumentType,
@@ -479,6 +618,8 @@ export function employeeToApiPayload(employee: Employee & { password?: string },
     idDocumentBackKey: documentPayload.idDocumentBackKey,
     visaDocumentKey: documentPayload.visaDocumentKey,
     passportDocumentKey: documentPayload.passportDocumentKey,
+    visaType: employee.identityDocumentType === "passport" ? employee.visaType : undefined,
+    visaExpiryDate: employee.identityDocumentType === "passport" ? employee.visaExpiryDate : undefined,
     irdNumber: employee.irdNumber,
     taxCode: employee.taxCode,
     kiwiSaverStatus: employee.kiwiSaverStatus,
@@ -489,6 +630,8 @@ export function employeeToApiPayload(employee: Employee & { password?: string },
     payrollEmployeeId: employee.payrollEmployeeId,
     paidHoursPerDay: employee.paidHoursPerDay,
     workDayPattern: serializeWorkDayPattern(employee.workDayPattern),
+    weeklyWorkDays: serializeEmployeeWeeklyWorkDays(employee.workDayPattern),
+    weeklyWorkSlots: serializeEmployeeWeeklyWorkSlots(employee.workDayPattern),
     contractType: normalizeEmployeeContractType(employee.contractType),
     contractDocumentKey: employee.contractDocumentKey,
     endDate: employee.endDate,

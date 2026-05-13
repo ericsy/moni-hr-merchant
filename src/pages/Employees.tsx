@@ -22,7 +22,6 @@ import {
   Building2,
   Cake,
   CalendarDays,
-  Check,
   ChevronRight,
   Clock,
   DollarSign,
@@ -31,7 +30,6 @@ import {
   IdCard,
   Mail,
   MapPin,
-  Minus,
   Paperclip,
   Pencil,
   Phone,
@@ -40,7 +38,6 @@ import {
   Trash2,
   Upload as UploadIcon,
   User,
-  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -48,10 +45,12 @@ import {
   ColorSwatchPicker,
   DEFAULT_COLOR_VALUE,
 } from "../components/ColorSwatchPicker";
+import TimelineSlotPicker from "../components/TimelineSlotPicker";
 import WorkDaysCalendar from "../components/WorkDaysCalendar";
 import {
   useData,
   type Employee,
+  type TimeSlot,
   type WorkDayPattern,
 } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
@@ -66,18 +65,21 @@ import { extractUploadKey, merchantApi } from "../lib/merchantApi";
 const { Option } = Select;
 
 const defaultWorkDayPattern: WorkDayPattern[] = [
-  { dayIndex: 0, state: "on", hours: 7.5 },
-  { dayIndex: 1, state: "on", hours: 7.5 },
-  { dayIndex: 2, state: "on", hours: 7.5 },
-  { dayIndex: 3, state: "on", hours: 7.5 },
-  { dayIndex: 4, state: "on", hours: 7.5 },
-  { dayIndex: 5, state: "off", hours: 0 },
-  { dayIndex: 6, state: "off", hours: 0 },
+  { dayIndex: 0, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
+  { dayIndex: 1, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
+  { dayIndex: 2, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
+  { dayIndex: 3, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
+  { dayIndex: 4, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
+  { dayIndex: 5, state: "off", hours: 0, timeSlots: [] },
+  { dayIndex: 6, state: "off", hours: 0, timeSlots: [] },
 ];
 
 const cloneWorkDayPattern = (
   pattern: WorkDayPattern[] = defaultWorkDayPattern,
-) => pattern.map((day) => ({ ...day }));
+) => pattern.map((day) => ({
+  ...day,
+  timeSlots: (day.timeSlots || []).map((slot) => ({ ...slot })),
+}));
 
 const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   firstName: "",
@@ -89,6 +91,8 @@ const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   startDate: undefined,
   dateOfBirth: undefined,
   address: "",
+  emergencyContact: "",
+  emergencyContactPhone: "",
   status: "active",
   storeIds: [...defaultStoreIds],
   avatar: "",
@@ -102,6 +106,8 @@ const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   idDocumentBackKey: "",
   visaDocumentKey: "",
   passportDocumentKey: "",
+  visaType: undefined,
+  visaExpiryDate: undefined,
   irdNumber: "",
   taxCode: "",
   kiwiSaverStatus: "Enrolled",
@@ -214,6 +220,8 @@ const EMPLOYEE_FORM_FIELD_TAB: Record<string, EmployeeFormTabKey> = {
   storeIds: "general",
   employeeColor: "general",
   notes: "general",
+  emergencyContact: "general",
+  emergencyContactPhone: "general",
   irdNumber: "payroll",
   taxCode: "payroll",
   kiwiSaverStatus: "payroll",
@@ -222,7 +230,6 @@ const EMPLOYEE_FORM_FIELD_TAB: Record<string, EmployeeFormTabKey> = {
   esctRate: "payroll",
   bankAccountNumber: "payroll",
   payrollEmployeeId: "payroll",
-  paidHoursPerDay: "workdays",
   workDayPattern: "workdays",
   contractType: "employment",
   endDate: "employment",
@@ -235,6 +242,8 @@ const EMPLOYEE_FORM_FIELD_TAB: Record<string, EmployeeFormTabKey> = {
   idDocumentBackKey: "employment",
   visaDocumentKey: "employment",
   passportDocumentKey: "employment",
+  visaType: "employment",
+  visaExpiryDate: "employment",
   contractDocumentKey: "employment",
 };
 
@@ -250,6 +259,170 @@ const getEmployeeFieldTabKey = (
 ): EmployeeFormTabKey =>
   EMPLOYEE_FORM_FIELD_TAB[String(fieldName || "")] || "general";
 
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function calcHoursFromSlots(slots: TimeSlot[]): number {
+  return slots.reduce((total, slot) => {
+    const diff = timeToMinutes(slot.end) - timeToMinutes(slot.start);
+    return total + (diff > 0 ? diff / 60 : 0);
+  }, 0);
+}
+
+function minutesToTime(minutes: number): string {
+  const clamped = Math.max(0, Math.min(24 * 60, Math.round(minutes)));
+  const hours = Math.floor(clamped / 60);
+  const mins = clamped % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+}
+
+function defaultSlotsFromHours(hours: number): TimeSlot[] {
+  if (hours <= 0) return [];
+  const start = 9 * 60;
+  const end = Math.min(24 * 60, start + Math.round(hours * 60));
+  return [{ start: minutesToTime(start), end: minutesToTime(end) }];
+}
+
+function formatHours(hours: number): string {
+  return hours % 1 === 0 ? String(hours) : hours.toFixed(1);
+}
+
+function normalizeWorkDayPattern(pattern: WorkDayPattern[] = defaultWorkDayPattern): WorkDayPattern[] {
+  return Array.from({ length: 7 }, (_, dayIndex) => {
+    const fallback = defaultWorkDayPattern[dayIndex];
+    const day = pattern.find((item) => item.dayIndex === dayIndex) ?? fallback;
+    const fallbackHours = day.hours || 0;
+    const rawTimeSlots = (day.timeSlots || []).map((slot) => ({ ...slot }));
+    const timeSlots =
+      rawTimeSlots.length > 0
+        ? rawTimeSlots
+        : day.state === "on"
+          ? defaultSlotsFromHours(fallbackHours)
+          : [];
+    const hours = timeSlots.length > 0 ? calcHoursFromSlots(timeSlots) : fallbackHours;
+    const state: WorkDayPattern["state"] =
+      day.state === "on" && (timeSlots.length > 0 || hours > 0) ? "on" : "off";
+
+    return {
+      ...day,
+      dayIndex,
+      state,
+      hours: state === "on" ? hours : 0,
+      timeSlots: state === "on" ? timeSlots : [],
+    };
+  });
+}
+
+function hasOverlappingSlots(pattern: WorkDayPattern[]): boolean {
+  return pattern.some((day) => {
+    const slots = [...(day.timeSlots || [])].sort(
+      (a, b) => timeToMinutes(a.start) - timeToMinutes(b.start),
+    );
+
+    return slots.some((slot, index) => {
+      const next = slots[index + 1];
+      return next ? timeToMinutes(slot.end) > timeToMinutes(next.start) : false;
+    });
+  });
+}
+
+function DaySlotRow({
+  day,
+  dayLabel = "Mon",
+  onChange = () => {},
+}: {
+  day: WorkDayPattern;
+  dayLabel?: string;
+  onChange?: (day: WorkDayPattern) => void;
+}) {
+  const isOn = day.state === "on";
+
+  const toggleOn = () => {
+    if (isOn) {
+      onChange({ ...day, state: "off", hours: 0, timeSlots: [] });
+      return;
+    }
+
+    const defaultSlots: TimeSlot[] = [{ start: "09:00", end: "17:00" }];
+    onChange({
+      ...day,
+      state: "on",
+      timeSlots: defaultSlots,
+      hours: calcHoursFromSlots(defaultSlots),
+    });
+  };
+
+  const handleSlotsChange = (newSlots: TimeSlot[]) => {
+    const hours = calcHoursFromSlots(newSlots);
+    onChange({
+      ...day,
+      timeSlots: newSlots,
+      hours,
+      state: newSlots.length === 0 ? "off" : "on",
+    });
+  };
+
+  return (
+    <div className="flex items-start gap-3 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+      <button
+        type="button"
+        onClick={toggleOn}
+        className="flex-shrink-0 rounded-lg text-xs font-bold flex items-center justify-center"
+        style={{
+          width: 48,
+          height: 28,
+          marginTop: 8,
+          border: "1.5px solid var(--border)",
+          background: isOn ? "var(--primary)" : "var(--muted)",
+          color: isOn ? "var(--primary-foreground)" : "var(--muted-foreground)",
+          cursor: "pointer",
+        }}
+      >
+        {dayLabel}
+      </button>
+
+      <div className="flex-1 min-w-0">
+        {!isOn ? (
+          <div className="flex items-center" style={{ height: 44 }}>
+            <span
+              className="text-xs px-3 py-1 rounded-full"
+              style={{
+                background: "var(--muted)",
+                color: "var(--muted-foreground)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              Day Off
+            </span>
+          </div>
+        ) : (
+          <TimelineSlotPicker
+            slots={day.timeSlots ?? []}
+            onChange={handleSlotsChange}
+            color="var(--primary)"
+          />
+        )}
+      </div>
+
+      <div
+        className="flex-shrink-0 flex items-center justify-center rounded-lg text-xs font-semibold"
+        style={{
+          width: 44,
+          height: 28,
+          marginTop: 8,
+          background: isOn ? "var(--workday-active-bg, #dbeafe)" : "transparent",
+          color: isOn ? "var(--workday-active-text, #1d4ed8)" : "var(--muted-foreground)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        {isOn ? `${formatHours(day.hours)}h` : "-"}
+      </div>
+    </div>
+  );
+}
+
 // ─── WorkDayEditor component ───
 function WorkDayEditor({
   value = defaultWorkDayPattern,
@@ -260,76 +433,41 @@ function WorkDayEditor({
   onChange?: (v: WorkDayPattern[]) => void;
   weekDays?: string[];
 }) {
-  const stateOrder: Array<"on" | "off" | "none"> = ["on", "off", "none"];
-
-  const cycleState = (idx: number) => {
-    const next = value.map((d) => {
-      if (d.dayIndex !== idx) return d;
-      const cur = stateOrder.indexOf(d.state);
-      const nextState = stateOrder[(cur + 1) % stateOrder.length];
-      return { ...d, state: nextState, hours: nextState === "on" ? 7.5 : 0 };
-    });
-    onChange(next);
-  };
-
-  const setHours = (idx: number, hours: number) => {
-    onChange(value.map((d) => (d.dayIndex === idx ? { ...d, hours } : d)));
-  };
+  const normalizedValue = normalizeWorkDayPattern(value);
+  const totalHours = normalizedValue.reduce(
+    (total, day) => total + (day.state === "on" ? day.hours : 0),
+    0,
+  );
 
   return (
-    <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
-      {value.map((day) => (
-        <div
-          key={day.dayIndex}
-          className="flex flex-col items-center gap-1"
-          style={{ minWidth: 52 }}
+    <div className="flex flex-col" style={{ gap: 0 }}>
+      <div
+        className="flex items-center justify-between px-1 pb-2 mb-1"
+        style={{ borderBottom: "2px solid var(--border)" }}
+      >
+        <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+          Weekly Work Schedule
+        </span>
+        <span
+          className="text-xs font-semibold px-2 py-0.5 rounded-lg"
+          style={{
+            background: "var(--workday-active-bg, #dbeafe)",
+            color: "var(--workday-active-text, #1d4ed8)",
+          }}
         >
-          <span
-            className="text-xs font-medium"
-            style={{ color: "var(--muted-foreground)" }}
-          >
-            {weekDays[day.dayIndex]}
-          </span>
-          <button
-            type="button"
-            onClick={() => cycleState(day.dayIndex)}
-            className="rounded-lg flex items-center justify-center text-xs font-semibold transition-all"
-            style={{
-              width: 44,
-              height: 36,
-              border: "1.5px solid var(--border)",
-              background:
-                day.state === "on"
-                  ? "var(--primary)"
-                  : day.state === "off"
-                    ? "var(--muted)"
-                    : "transparent",
-              color:
-                day.state === "on"
-                  ? "var(--primary-foreground)"
-                  : "var(--muted-foreground)",
-            }}
-          >
-            {day.state === "on" ? (
-              <Check size={14} />
-            ) : day.state === "off" ? (
-              <X size={14} />
-            ) : (
-              <Minus size={14} />
-            )}
-          </button>
-          {day.state === "on" && (
-            <InputNumber
-              size="small"
-              min={0}
-              max={24}
-              step={0.5}
-              value={day.hours}
-              onChange={(v) => setHours(day.dayIndex, v ?? 0)}
-              style={{ width: 52, fontSize: 11 }}
-            />
-          )}
-        </div>
+          {formatHours(totalHours)}h / week
+        </span>
+      </div>
+
+      {normalizedValue.map((day) => (
+        <DaySlotRow
+          key={day.dayIndex}
+          day={day}
+          dayLabel={weekDays[day.dayIndex] ?? `D${day.dayIndex}`}
+          onChange={(updated) =>
+            onChange(normalizedValue.map((item) => (item.dayIndex === day.dayIndex ? updated : item)))
+          }
+        />
       ))}
     </div>
   );
@@ -422,6 +560,9 @@ export function EmployeeModal({
           ? dayjs(employee.dateOfBirth)
           : undefined,
         endDate: employee.endDate ? dayjs(employee.endDate) : undefined,
+        visaExpiryDate: employee.visaExpiryDate
+          ? dayjs(employee.visaExpiryDate)
+          : undefined,
         workDayPattern: cloneWorkDayPattern(
           employee.workDayPattern ?? defaultWorkDayPattern,
         ),
@@ -613,6 +754,19 @@ export function EmployeeModal({
       }
 
       const values = await form.validateFields();
+      const workDayPattern = normalizeWorkDayPattern(
+        values.workDayPattern ?? defaultWorkDayPattern,
+      );
+      if (hasOverlappingSlots(workDayPattern)) {
+        const message =
+          locale === "zh"
+            ? "同一天的工作时间段不能重叠，请调整后再保存。"
+            : "Work slots on the same day cannot overlap.";
+        setActiveTabKey("workdays");
+        form.setFields([{ name: "workDayPattern", errors: [message] }]);
+        toast.error(message);
+        return;
+      }
       const contractDocumentKey = String(
         values.contractDocumentKey || "",
       ).trim();
@@ -645,6 +799,8 @@ export function EmployeeModal({
         employeeColor: values.employeeColor ?? DEFAULT_COLOR_VALUE,
         address: values.address ?? "",
         dateOfBirth: formatApiDate(values.dateOfBirth),
+        emergencyContact: values.emergencyContact ?? "",
+        emergencyContactPhone: values.emergencyContactPhone ?? "",
         gender: values.gender ?? "",
         maritalStatus: values.maritalStatus ?? "",
         identityDocumentType: selectedDocumentType,
@@ -685,6 +841,10 @@ export function EmployeeModal({
               employee?.passportDocumentUrl ??
               "")
             : "",
+        visaType: shouldUsePassportDocuments ? (values.visaType ?? "") : "",
+        visaExpiryDate: shouldUsePassportDocuments
+          ? formatApiDate(values.visaExpiryDate)
+          : "",
         irdNumber: values.irdNumber ?? "",
         taxCode: values.taxCode ?? "",
         kiwiSaverStatus: values.kiwiSaverStatus ?? "",
@@ -696,7 +856,7 @@ export function EmployeeModal({
         areaIds: employee?.areaIds ?? [],
         positionIds: employee?.positionIds ?? [],
         paidHoursPerDay: values.paidHoursPerDay ?? 8,
-        workDayPattern: values.workDayPattern ?? defaultWorkDayPattern,
+        workDayPattern,
         contractType: values.contractType ?? "permanent",
         contractDocumentKey,
         contractDocumentUrl: contractDocumentKey
@@ -1081,6 +1241,22 @@ export function EmployeeModal({
           </Form.Item>
           <div className="flex gap-4">
             <Form.Item
+              name="emergencyContact"
+              label={et.emergencyContact as string}
+              style={{ flex: 1 }}
+            >
+              <Input prefix={<User size={13} />} />
+            </Form.Item>
+            <Form.Item
+              name="emergencyContactPhone"
+              label={et.emergencyContactPhone as string}
+              style={{ flex: 1 }}
+            >
+              <Input prefix={<Phone size={13} />} />
+            </Form.Item>
+          </div>
+          <div className="flex gap-4">
+            <Form.Item
               name="status"
               label={et.status as string}
               style={{ flex: 1 }}
@@ -1223,13 +1399,7 @@ export function EmployeeModal({
       forceRender: true,
       children: (
         <div className="flex flex-col gap-4">
-          <Form.Item
-            name="paidHoursPerDay"
-            label={et.paidHoursPerDay as string}
-          >
-            <InputNumber min={0} max={24} step={0.5} style={{ width: 140 }} />
-          </Form.Item>
-          <Form.Item name="workDayPattern" label={et.workDayPattern as string}>
+          <Form.Item name="workDayPattern">
             <WorkDayEditor weekDays={et.weekDays as string[]} />
           </Form.Item>
         </div>
@@ -1329,6 +1499,35 @@ export function EmployeeModal({
               <Input />
             </Form.Item>
           </div>
+          {identityDocumentType === "passport" && (
+            <div className="flex gap-4">
+              <Form.Item
+                name="visaType"
+                label={et.visaType as string}
+                style={{ flex: 1 }}
+              >
+                <Select allowClear placeholder={t.selectPlaceholder}>
+                  {Object.entries(et.visaTypeOptions as Record<string, string>).map(
+                    ([key, label]) => (
+                      <Option key={key} value={key}>
+                        {label}
+                      </Option>
+                    ),
+                  )}
+                </Select>
+              </Form.Item>
+              <Form.Item
+                name="visaExpiryDate"
+                label={et.visaExpiryDate as string}
+                style={{ flex: 1 }}
+              >
+                <DatePicker
+                  format={dateDisplayFormat}
+                  style={{ width: "100%" }}
+                />
+              </Form.Item>
+            </div>
+          )}
           {visibleDocumentFields.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2">
               {visibleDocumentFields.map((field) =>
@@ -1565,6 +1764,16 @@ function DetailPanel({
             value={employee.address ?? ""}
           />
           <InfoRow
+            icon={<User size={13} />}
+            label={et.emergencyContact as string}
+            value={employee.emergencyContact ?? ""}
+          />
+          <InfoRow
+            icon={<Phone size={13} />}
+            label={et.emergencyContactPhone as string}
+            value={employee.emergencyContactPhone ?? ""}
+          />
+          <InfoRow
             icon={<Building2 size={13} />}
             label={et.assignedStores as string}
             value={
@@ -1709,6 +1918,20 @@ function DetailPanel({
             label={et.identityDocumentNumber as string}
             value={employee.identityDocumentNumber ?? ""}
           />
+          {employee.identityDocumentType === "passport" && (
+            <>
+              <InfoRow
+                icon={<FileText size={13} />}
+                label={et.visaType as string}
+                value={getOptionLabel("visaTypeOptions", employee.visaType)}
+              />
+              <InfoRow
+                icon={<CalendarDays size={13} />}
+                label={et.visaExpiryDate as string}
+                value={formatEmployeeDate(employee.visaExpiryDate)}
+              />
+            </>
+          )}
           {visibleDocumentFields.map((field) => {
             const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
             return (

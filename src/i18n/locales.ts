@@ -122,6 +122,8 @@ export const locales = {
       avatarPreview: "头像预览",
       address: "家庭地址",
       dateOfBirth: "出生日期",
+      emergencyContact: "紧急联系人",
+      emergencyContactPhone: "紧急联系人电话",
       invalidEmail: "请输入有效邮箱",
       // Tabs
       tabGeneral: "基本信息",
@@ -138,6 +140,8 @@ export const locales = {
       idDocumentBack: "ID 背面照片",
       visaDocument: "签证文件",
       passportDocument: "护照照片",
+      visaType: "签证类型",
+      visaExpiryDate: "签证过期时间",
       documentUploadHint: "支持图片、PDF 文件",
       documentUploadButton: "上传文件",
       documentUploadReplace: "重新上传",
@@ -157,6 +161,15 @@ export const locales = {
       identityDocumentTypeOptions: {
         id: "ID",
         passport: "护照",
+      },
+      visaTypeOptions: {
+        not_applicable: "不适用",
+        work_visa: "工作签证",
+        student_visa: "学生签证",
+        visitor_visa: "访问签证",
+        partnership_dependent: "配偶/伴侣陪工签证",
+        working_holiday: "工作假期签证",
+        other: "其他",
       },
       // Payroll
       irdNumber: "IRD 编号",
@@ -430,6 +443,8 @@ export const locales = {
       avatarPreview: "Avatar Preview",
       address: "Home Address",
       dateOfBirth: "Date of Birth",
+      emergencyContact: "Emergency Contact",
+      emergencyContactPhone: "Emergency Contact Phone",
       invalidEmail: "Invalid email",
       // Tabs
       tabGeneral: "General",
@@ -446,6 +461,8 @@ export const locales = {
       idDocumentBack: "ID Back",
       visaDocument: "Visa Document",
       passportDocument: "Passport Document",
+      visaType: "Visa Type",
+      visaExpiryDate: "Visa Expiry Date",
       documentUploadHint: "Supports images and PDF files",
       documentUploadButton: "Upload File",
       documentUploadReplace: "Replace File",
@@ -465,6 +482,15 @@ export const locales = {
       identityDocumentTypeOptions: {
         id: "ID",
         passport: "Passport",
+      },
+      visaTypeOptions: {
+        not_applicable: "Not Applicable",
+        work_visa: "Work Visa",
+        student_visa: "Student Visa",
+        visitor_visa: "Visitor Visa",
+        partnership_dependent: "Partnership Dependent",
+        working_holiday: "Working Holiday",
+        other: "Other",
       },
       // Payroll
       irdNumber: "IRD Number",

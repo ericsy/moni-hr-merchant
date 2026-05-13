@@ -284,6 +284,25 @@ export default function AppLayout({
     }
   };
 
+  const storeSelector = !requiresFirstStore ? (
+    <Select
+      value={selectedStoreId}
+      onChange={(v) => {
+        console.log("[Layout] store changed:", v);
+        setSelectedStoreId(v);
+      }}
+      style={{ width: 160 }}
+      size="small"
+      placeholder={locale === "zh" ? "选择店面" : "Select Store"}
+    >
+      {stores.map((s) => (
+        <Option key={s.id} value={s.id}>
+          {s.name}
+        </Option>
+      ))}
+    </Select>
+  ) : null;
+
   return (
     <div
       data-cmp="AppLayout"
@@ -404,34 +423,17 @@ export default function AppLayout({
               margin: 0,
             }}
           >
-            <div
-              className="font-semibold text-lg"
-              style={{ color: "var(--foreground)" }}
-            >
-              {t.nav[currentPage as keyof typeof t.nav] ?? currentPage}
+            <div className="flex items-center gap-4" style={{ minWidth: 0 }}>
+              <div
+                className="font-semibold text-lg"
+                style={{ color: "var(--foreground)", whiteSpace: "nowrap" }}
+              >
+                {t.nav[currentPage as keyof typeof t.nav] ?? currentPage}
+              </div>
+              {storeSelector}
             </div>
 
             <Space size={12}>
-              {/* Store Selector */}
-              {!requiresFirstStore && (
-                <Select
-                  value={selectedStoreId}
-                  onChange={(v) => {
-                    console.log("[Layout] store changed:", v);
-                    setSelectedStoreId(v);
-                  }}
-                  style={{ width: 160 }}
-                  size="small"
-                  placeholder={locale === "zh" ? "选择店面" : "Select Store"}
-                >
-                  {stores.map((s) => (
-                    <Option key={s.id} value={s.id}>
-                      {s.name}
-                    </Option>
-                  ))}
-                </Select>
-              )}
-
               {/* Language switch */}
               <Button
                 type="default"

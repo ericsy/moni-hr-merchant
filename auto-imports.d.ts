@@ -38,6 +38,7 @@ declare global {
   const Clock: typeof import('lucide-react').Clock
   const Command: typeof import('lucide-react').Command
   const Component: typeof import('lucide-react').Component
+  const Contact: typeof import('lucide-react').Contact
   const CreditCard: typeof import('lucide-react').CreditCard
   const DollarSign: typeof import('lucide-react').DollarSign
   const Download: typeof import('lucide-react').Download
@@ -85,8 +86,10 @@ declare global {
   const PanelLeftIcon: typeof import('lucide-react').PanelLeftIcon
   const Paperclip: typeof import('lucide-react').Paperclip
   const Pencil: typeof import('lucide-react').Pencil
+  const PencilIcon: typeof import('lucide-react').PencilIcon
   const Phone: typeof import('lucide-react').Phone
   const Plus: typeof import('lucide-react').Plus
+  const PlusCircleIcon: typeof import('lucide-react').PlusCircleIcon
   const Radio: typeof import('lucide-react').Radio
   const Radius: typeof import('lucide-react').Radius
   const RefreshCw: typeof import('lucide-react').RefreshCw
@@ -107,6 +110,7 @@ declare global {
   const Tag: typeof import('lucide-react').Tag
   const Text: typeof import('lucide-react').Text
   const Trash2: typeof import('lucide-react').Trash2
+  const Trash2Icon: typeof import('lucide-react').Trash2Icon
   const TriangleAlertIcon: typeof import('lucide-react').TriangleAlertIcon
   const Upload: typeof import('lucide-react').Upload
   const UploadIcon: typeof import('lucide-react').UploadIcon

@@ -6,10 +6,29 @@ import {
 import { useAuth } from "./AuthContext";
 import { usePermissions } from "./PermissionsContext";
 
+export interface TimeSlot {
+  id?: string | number | null;
+  start: string;
+  end: string;
+}
+
 export interface WorkDayPattern {
   dayIndex: number; // 0=Mon,1=Tue,...6=Sun
   state: "on" | "off" | "none"; // on=working, off=non-working, none=not set
   hours: number;
+  timeSlots?: TimeSlot[];
+}
+
+export interface EmployeeWeeklyWorkDay {
+  weekday: number; // 0=Mon,1=Tue,...6=Sun
+  state: "on" | "off";
+}
+
+export interface EmployeeWeeklyWorkSlot {
+  id?: string | number | null;
+  weekday: number; // 0=Mon,1=Tue,...6=Sun
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
 }
 
 export interface Employee {
@@ -32,6 +51,8 @@ export interface Employee {
   employeeColor?: string;
   address?: string;
   dateOfBirth?: string;
+  emergencyContact?: string;
+  emergencyContactPhone?: string;
   gender?: "male" | "female" | string;
   maritalStatus?: "single" | "married" | string;
   identityDocumentType?: "id" | "passport" | string;
@@ -44,6 +65,8 @@ export interface Employee {
   visaDocumentUrl?: string;
   passportDocumentKey?: string;
   passportDocumentUrl?: string;
+  visaType?: string;
+  visaExpiryDate?: string;
   // Payroll & Tax
   irdNumber?: string;
   taxCode?: string;
@@ -59,6 +82,8 @@ export interface Employee {
   // Work Days
   paidHoursPerDay?: number;
   workDayPattern?: WorkDayPattern[];
+  weeklyWorkDays?: EmployeeWeeklyWorkDay[];
+  weeklyWorkSlots?: EmployeeWeeklyWorkSlot[];
   // Employment
   contractType?: string;
   contractDocumentKey?: string;
@@ -587,6 +612,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ...saved,
       areaIds: saved.areaIds?.length ? saved.areaIds : employee.areaIds || [],
       positionIds: saved.positionIds?.length ? saved.positionIds : employee.positionIds || [],
+      workDayPattern: saved.workDayPattern?.length ? saved.workDayPattern : employee.workDayPattern || [],
+      weeklyWorkDays: saved.weeklyWorkDays?.length ? saved.weeklyWorkDays : employee.weeklyWorkDays,
+      weeklyWorkSlots: saved.weeklyWorkSlots?.length ? saved.weeklyWorkSlots : employee.weeklyWorkSlots,
     };
     setEmployees((prev) => existingId
       ? prev.map((item) => item.id === existingId ? normalizedSaved : item)
