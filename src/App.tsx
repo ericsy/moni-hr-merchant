@@ -119,6 +119,14 @@ function AuthGate() {
     return <Activate />;
   }
 
+  if (status === "checking") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
   if (status === "unauthenticated") {
     return <Login />;
   }

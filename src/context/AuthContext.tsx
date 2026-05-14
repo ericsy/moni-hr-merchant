@@ -1,8 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { clearStoredAccessToken, getStoredAccessToken, setStoredAccessToken, subscribeAuthExpired } from "../lib/apiClient";
+import {
+  clearStoredAccessToken,
+  getStoredAccessToken,
+  getStoredAccessTokenScope,
+  setStoredAccessToken,
+  subscribeAuthExpired,
+  type TokenStorageScope,
+} from "../lib/apiClient";
 import { merchantApi } from "../lib/merchantApi";
 
-export type AuthStatus = "unauthenticated" | "needs_activation" | "authenticated";
+export type AuthStatus = "checking" | "unauthenticated" | "needs_activation" | "authenticated";
 
 interface AuthUser {
   email: string;
@@ -12,47 +19,74 @@ interface AuthUser {
 interface AuthContextType {
   status: AuthStatus;
   user: AuthUser | null;
-  login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; message?: string }>;
   activate: (token: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
 }
 
 const AUTH_STORAGE_KEY = "moni_hr_auth_session";
 
-function readStoredSession(): { status: AuthStatus; user: AuthUser | null; activationToken: string } {
+interface StoredSessionState {
+  status: AuthStatus;
+  user: AuthUser | null;
+  activationToken: string;
+  storageScope: TokenStorageScope;
+}
+
+function getAuthStorage(scope: TokenStorageScope) {
+  return scope === "local" ? window.localStorage : window.sessionStorage;
+}
+
+function removeStoredAuthSessions() {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+function readStoredSession(): StoredSessionState {
   if (typeof window === "undefined") {
-    return { status: "unauthenticated", user: null, activationToken: "" };
+    return { status: "unauthenticated", user: null, activationToken: "", storageScope: "session" };
   }
+
+  const accessTokenScope = getStoredAccessTokenScope();
+  const storageScopes: TokenStorageScope[] = accessTokenScope === "session" ? ["session", "local"] : ["local", "session"];
 
   try {
-    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) {
-      return { status: "unauthenticated", user: null, activationToken: "" };
+    for (const storageScope of storageScopes) {
+      const raw = getAuthStorage(storageScope).getItem(AUTH_STORAGE_KEY);
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw) as { status?: AuthStatus; user?: AuthUser | null; activationToken?: string };
+      const validStatus =
+        parsed.status === "authenticated" || parsed.status === "needs_activation"
+          ? parsed.status
+          : "unauthenticated";
+      const validUser =
+        parsed.user && typeof parsed.user.email === "string" && typeof parsed.user.name === "string"
+          ? parsed.user
+          : null;
+
+      if (validStatus === "unauthenticated" || !validUser) {
+        continue;
+      }
+
+      if (validStatus === "authenticated" && accessTokenScope !== storageScope) {
+        continue;
+      }
+
+      return {
+        status: validStatus === "authenticated" ? "checking" : validStatus,
+        user: validUser,
+        activationToken: parsed.activationToken || "",
+        storageScope,
+      };
     }
-
-    const parsed = JSON.parse(raw) as { status?: AuthStatus; user?: AuthUser | null; activationToken?: string };
-    const validStatus =
-      parsed.status === "authenticated" || parsed.status === "needs_activation"
-        ? parsed.status
-        : "unauthenticated";
-    const validUser =
-      parsed.user && typeof parsed.user.email === "string" && typeof parsed.user.name === "string"
-        ? parsed.user
-        : null;
-
-    if (validStatus === "unauthenticated" || !validUser) {
-      return { status: "unauthenticated", user: null, activationToken: "" };
-    }
-
-    if (validStatus === "authenticated" && !getStoredAccessToken()) {
-      return { status: "unauthenticated", user: null, activationToken: "" };
-    }
-
-    return { status: validStatus, user: validUser, activationToken: parsed.activationToken || "" };
   } catch (error) {
     console.log("[AuthProvider] failed to read auth session:", error);
-    return { status: "unauthenticated", user: null, activationToken: "" };
   }
+
+  return { status: "unauthenticated", user: null, activationToken: "", storageScope: "session" };
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -68,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>(storedSession.status);
   const [user, setUser] = useState<AuthUser | null>(storedSession.user);
   const [activationToken, setActivationToken] = useState(storedSession.activationToken);
+  const [storageScope, setStorageScope] = useState<TokenStorageScope>(storedSession.storageScope);
 
   console.log("[AuthProvider] status:", status, "user:", user);
 
@@ -75,12 +110,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") return;
 
     try {
-      if (status === "unauthenticated" || !user) {
-        window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      if (status === "checking") {
         return;
       }
 
-      window.localStorage.setItem(
+      if (status === "unauthenticated" || !user) {
+        removeStoredAuthSessions();
+        clearStoredAccessToken();
+        return;
+      }
+
+      const targetStorage = getAuthStorage(storageScope);
+      const staleStorage = getAuthStorage(storageScope === "local" ? "session" : "local");
+      targetStorage.setItem(
         AUTH_STORAGE_KEY,
         JSON.stringify({
           status,
@@ -88,10 +130,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           activationToken,
         })
       );
+      staleStorage.removeItem(AUTH_STORAGE_KEY);
     } catch (error) {
       console.log("[AuthProvider] failed to persist auth session:", error);
     }
-  }, [status, user, activationToken]);
+  }, [status, user, activationToken, storageScope]);
 
   useEffect(() => {
     return subscribeAuthExpired(() => {
@@ -99,17 +142,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStatus("unauthenticated");
       setUser(null);
       setActivationToken("");
+      setStorageScope("session");
     });
   }, []);
 
   useEffect(() => {
-    if (status !== "authenticated" || !getStoredAccessToken()) return;
+    const token = getStoredAccessToken();
+    if (status === "checking" && !token) {
+      queueMicrotask(() => {
+        setStatus("unauthenticated");
+        setUser(null);
+        setActivationToken("");
+        setStorageScope("session");
+      });
+      return;
+    }
+    if (status !== "checking" && status !== "authenticated") return;
+    if (!token) return;
 
     let cancelled = false;
     merchantApi.authMe()
       .then((principal) => {
-        if (cancelled || !principal?.adminName) return;
-        setUser((prev) => prev ? { ...prev, name: principal.adminName || prev.name } : prev);
+        if (cancelled) return;
+        if (principal?.adminName) {
+          setUser((prev) => prev ? { ...prev, name: principal.adminName || prev.name } : prev);
+        }
+        setStatus("authenticated");
       })
       .catch((error) => {
         console.log("[AuthProvider] failed to verify session:", error);
@@ -118,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setStatus("unauthenticated");
         setUser(null);
         setActivationToken("");
+        setStorageScope("session");
       });
 
     return () => {
@@ -125,10 +184,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [status]);
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; message?: string }> => {
+  const login = async (
+    email: string,
+    password: string,
+    rememberMe = false
+  ): Promise<{ success: boolean; message?: string }> => {
     console.log("[AuthProvider] login attempt:", email);
     try {
       const result = await merchantApi.login(email, password);
+      const nextStorageScope: TokenStorageScope = rememberMe ? "local" : "session";
       const nextUser = {
         email: result?.user?.email || email,
         name: result?.user?.name || email,
@@ -136,6 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (result?.status === "needs_activation") {
         clearStoredAccessToken();
+        setStorageScope(nextStorageScope);
         setUser(nextUser);
         setActivationToken(result.accessToken || "");
         setStatus("needs_activation");
@@ -146,7 +211,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: "登录响应缺少访问令牌" };
       }
 
-      setStoredAccessToken(result.accessToken);
+      setStoredAccessToken(result.accessToken, nextStorageScope);
+      setStorageScope(nextStorageScope);
       setUser(nextUser);
       setActivationToken("");
       setStatus("authenticated");
@@ -181,6 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStatus("unauthenticated");
       setUser(null);
       setActivationToken("");
+      setStorageScope("session");
       return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : "激活失败，请重试";
@@ -197,6 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus("unauthenticated");
     setUser(null);
     setActivationToken("");
+    setStorageScope("session");
   };
 
   return (

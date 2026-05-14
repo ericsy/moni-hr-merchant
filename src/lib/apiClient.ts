@@ -2,6 +2,7 @@ const ACCESS_TOKEN_STORAGE_KEY = "moni_hr_access_token";
 const DEFAULT_STORE_ID = "";
 const DEFAULT_LANGUAGE = "en";
 const AUTH_EXPIRED_EVENT = "moni_hr_auth_expired";
+export type TokenStorageScope = "local" | "session";
 
 type QueryValue = string | number | boolean | null | undefined;
 type ApiLanguage = "zh" | "en";
@@ -36,15 +37,48 @@ export class ApiError extends Error {
 
 export function getStoredAccessToken() {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || "";
+
+  try {
+    return (
+      window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ||
+      window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ||
+      ""
+    );
+  } catch (error) {
+    console.log("[apiClient] failed to read access token:", error);
+    return "";
+  }
 }
 
-export function setStoredAccessToken(token: string) {
+export function getStoredAccessTokenScope(): TokenStorageScope | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    if (window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) return "local";
+    if (window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) return "session";
+  } catch (error) {
+    console.log("[apiClient] failed to read access token scope:", error);
+  }
+
+  return null;
+}
+
+export function setStoredAccessToken(token: string, scope: TokenStorageScope = "local") {
   if (typeof window === "undefined") return;
-  if (token) {
-    window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
-  } else {
+
+  try {
+    if (token) {
+      const targetStorage = scope === "local" ? window.localStorage : window.sessionStorage;
+      const staleStorage = scope === "local" ? window.sessionStorage : window.localStorage;
+      targetStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
+      staleStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+      return;
+    }
+
     window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+    window.sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  } catch (error) {
+    console.log("[apiClient] failed to persist access token:", error);
   }
 }
 

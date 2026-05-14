@@ -4,6 +4,7 @@ import { CalendarDays, Eye, EyeOff, Globe, Lock, LogIn, Mail } from "lucide-reac
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { useLocale } from "../context/LocaleContext";
+import { Checkbox } from "../components/ui/checkbox";
 
 const T = {
   en: {
@@ -13,6 +14,7 @@ const T = {
     emailPlaceholder: "Enter email address",
     passwordLabel: "Password",
     passwordPlaceholder: "Enter password",
+    rememberMe: "Remember me",
     submitBtn: "Sign In",
     signingIn: "Signing in...",
     toastError: "Sign in failed",
@@ -27,6 +29,7 @@ const T = {
     emailPlaceholder: "请输入邮箱地址",
     passwordLabel: "密码",
     passwordPlaceholder: "请输入密码",
+    rememberMe: "记住我",
     submitBtn: "登录",
     signingIn: "登录中...",
     toastError: "登录失败",
@@ -37,6 +40,28 @@ const T = {
 } as const;
 
 type Lang = keyof typeof T;
+const REMEMBER_ME_STORAGE_KEY = "moni_hr_remember_me";
+
+function readRememberMePreference() {
+  if (typeof window === "undefined") return false;
+
+  try {
+    return window.localStorage.getItem(REMEMBER_ME_STORAGE_KEY) === "true";
+  } catch (error) {
+    console.log("[Login] failed to read remember me preference:", error);
+    return false;
+  }
+}
+
+function writeRememberMePreference(rememberMe: boolean) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(REMEMBER_ME_STORAGE_KEY, rememberMe ? "true" : "false");
+  } catch (error) {
+    console.log("[Login] failed to save remember me preference:", error);
+  }
+}
 
 export default function Login() {
   const { login } = useAuth();
@@ -45,6 +70,7 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(readRememberMePreference);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -76,10 +102,11 @@ export default function Login() {
     setErrors({});
     setLoading(true);
     try {
-      const result = await login(email.trim(), password);
+      const result = await login(email.trim(), password, rememberMe);
       if (!result.success) {
         toast.error(result.message ?? t.toastError);
       } else {
+        writeRememberMePreference(rememberMe);
         navigate("/", { replace: true });
       }
     } finally {
@@ -277,6 +304,20 @@ export default function Login() {
                   {errors.password}
                 </span>
               )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="remember-me"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+              />
+              <label
+                htmlFor="remember-me"
+                className="text-sm text-muted-foreground select-none cursor-pointer"
+              >
+                {t.rememberMe}
+              </label>
             </div>
 
             {/* Submit */}
