@@ -117,6 +117,27 @@ function getWeeklyHoursFormRows(store?: Store | null): StoreWeekdayHoursFormRow[
   }));
 }
 
+function getStoreFormInitialValues(store?: Store | null) {
+  if (!store) {
+    return {
+      name: "",
+      code: "",
+      country: undefined,
+      city: "",
+      address: "",
+      phone: "",
+      email: "",
+      manager: "",
+      weeklyHours: getWeeklyHoursFormRows(),
+    };
+  }
+
+  return {
+    ...store,
+    weeklyHours: getWeeklyHoursFormRows(store),
+  };
+}
+
 function serializeWeeklyHours(rows: StoreWeekdayHoursFormRow[] | undefined): StoreWeekdayHours[] {
   const byWeekday = new Map((rows || []).map((row, index) => [Number(row.weekday) || index + 1, row]));
   return WEEKDAYS.map((weekday) => {
@@ -178,6 +199,15 @@ function StoreModal({
   const isEdit = !!store;
   const st = t.store;
   const countryOptions = countries.length > 0 ? countries : FALLBACK_COUNTRIES;
+  const initialValues = useMemo(() => getStoreFormInitialValues(store), [store]);
+
+  useEffect(() => {
+    if (!open) return;
+    form.resetFields();
+    form.setFieldsValue(initialValues);
+    setGeofenceValue(null);
+    setActiveTab("basic");
+  }, [form, initialValues, open]);
 
   const handleOk = async () => {
     try {
@@ -204,7 +234,7 @@ function StoreModal({
               longitude: geofenceValue.longitude,
               geofenceRadius: geofenceValue.geofenceRadius,
             }
-          : store?.latitude !== undefined
+          : isEdit && store?.latitude !== undefined
           ? {
               latitude: store.latitude,
               longitude: store.longitude,
@@ -219,16 +249,7 @@ function StoreModal({
     }
   };
 
-  const initialValues = store
-    ? {
-        ...store,
-        weeklyHours: getWeeklyHoursFormRows(store),
-      }
-    : {
-        weeklyHours: getWeeklyHoursFormRows(),
-      };
-
-  const storeName = form.getFieldValue("name") as string | undefined;
+  const watchedName = Form.useWatch("name", form) as string | undefined;
   const watchedAddress = Form.useWatch("address", form) as string | undefined;
   const watchedCity = Form.useWatch("city", form) as string | undefined;
   const watchedCountry = Form.useWatch("country", form) as string | undefined;
@@ -330,7 +351,7 @@ function StoreModal({
               setGeofenceValue(val);
               console.log("[StoreModal] geofence updated:", val);
             }}
-            storeName={storeName || store?.name || ""}
+            storeName={watchedName || store?.name || ""}
             defaultLocationQuery={defaultLocationQuery}
           />
         </div>

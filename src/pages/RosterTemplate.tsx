@@ -29,6 +29,8 @@ import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { EmployeeModal } from "./Employees";
 import { calcShiftHours, indexedShiftsOverlap } from "../lib/shift";
+import { getTemplateShiftAvailabilityWarning } from "../lib/employeeAvailability";
+import { getEmployeeAvatarUrl, getEmployeeInitials } from "../lib/employeeAvatar";
 import { isStoreClosedOnDayIndex } from "../lib/storeHours";
 import { ColorSwatchPicker, DEFAULT_COLOR_KEY, getSoftColorStyle } from "../components/ColorSwatchPicker";
 import { toast } from "sonner";
@@ -67,30 +69,6 @@ const getDetailedDayLabel = (dayIndex: number, locale: "zh" | "en") => {
 
 const getCycleWeek = (dayIndex: number) => Math.floor(dayIndex / 7) + 1;
 
-const getTemplateWeekdayIndex = (dayIndex: number) => ((dayIndex % 7) + 7) % 7;
-
-const getEmployeeAvailabilityWarning = (
-  employee: Pick<Employee, "firstName" | "lastName" | "workDayPattern">,
-  dayIndex: number,
-  locale: "zh" | "en"
-) => {
-  const weekdayIndex = getTemplateWeekdayIndex(dayIndex);
-  const workDay = employee.workDayPattern?.find((item) => item.dayIndex === weekdayIndex);
-  if (!workDay || (workDay.state === "on" && workDay.hours > 0)) return null;
-
-  const employeeName = `${employee.firstName} ${employee.lastName}`.trim();
-  const dayLabel = getDetailedDayLabel(dayIndex, locale);
-  const stateLabel = workDay.state === "off"
-    ? (locale === "zh" ? "休息" : "off")
-    : workDay.state === "none"
-    ? (locale === "zh" ? "未设置" : "not set")
-    : (locale === "zh" ? `${workDay.hours} 小时` : `${workDay.hours} hours`);
-
-  return locale === "zh"
-    ? `${employeeName} 在 ${dayLabel} 的工作日配置为${stateLabel}，请确认是否需要排班。`
-    : `${employeeName} is marked as ${stateLabel} on ${dayLabel}. Confirm this assignment.`;
-};
-
 const formatDurationLabel = (days: number, locale: "zh" | "en") => {
   if (days % 7 === 0) {
     const weeks = days / 7;
@@ -123,6 +101,7 @@ interface EmployeeCardProps {
   employeeId?: string;
   firstName?: string;
   lastName?: string;
+  avatarUrl?: string;
   color?: string;
   hoursPerDay?: number[];
   onDragStart?: (empId: string) => void;
@@ -132,6 +111,7 @@ function EmployeeCard({
   employeeId = "",
   firstName = "",
   lastName = "",
+  avatarUrl = "",
   color = "var(--primary)",
   hoursPerDay = [],
   onDragStart = () => {},
@@ -148,8 +128,12 @@ function EmployeeCard({
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Avatar size={28} style={{ background: color, flexShrink: 0, fontSize: 11 }}>
-            {firstName.charAt(0)}{lastName.charAt(0)}
+          <Avatar
+            size={28}
+            src={avatarUrl || undefined}
+            style={{ background: color, flexShrink: 0, fontSize: 11 }}
+          >
+            {getEmployeeInitials(firstName, lastName)}
           </Avatar>
           <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
             {firstName} {lastName}
@@ -167,7 +151,7 @@ function EmployeeCard({
 
 interface ShiftCellProps {
   cell?: RosterShiftCell;
-  employees?: { id: string; name: string; color: string; availabilityWarning?: string | null }[];
+  employees?: { id: string; name: string; color: string; avatarUrl?: string; availabilityWarning?: string | null }[];
   onEdit?: () => void;
   onDelete?: () => void;
   onDrop?: (empId: string) => void;
@@ -222,8 +206,12 @@ function ShiftCell({
                       border: emp.availabilityWarning ? "1px solid var(--destructive)" : "1px solid transparent",
                     }}
                   >
-                    <Avatar size={13} style={{ background: emp.color, flexShrink: 0, fontSize: 7 }}>
-                      {emp.name.charAt(0)}
+                    <Avatar
+                      size={13}
+                      src={emp.avatarUrl || undefined}
+                      style={{ background: emp.color, flexShrink: 0, fontSize: 7 }}
+                    >
+                      {getEmployeeInitials(emp.name)}
                     </Avatar>
                     <span
                       className="text-xs truncate"
@@ -366,6 +354,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
   const [nameEditing, setNameEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const nextCreatedCellIdRef = useRef(0);
+  const nextCreatedTemplateIdRef = useRef(0);
 
   const visibleTemplates = allTemplates.filter(
     (template) => !selectedStoreId || template.storeId === selectedStoreId
@@ -500,9 +489,11 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   const empNameMap: Record<string, string> = {};
   const empColorMap: Record<string, string> = {};
+  const empAvatarMap: Record<string, string> = {};
   employees.forEach((e) => {
     empNameMap[e.id] = `${e.firstName} ${e.lastName}`;
     empColorMap[e.id] = e.employeeColor || "var(--primary)";
+    empAvatarMap[e.id] = getEmployeeAvatarUrl(e);
   });
 
   // ── Conflict detection ─────────────────────────────────────────────────────
@@ -531,6 +522,17 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     return null;
   };
 
+  const findAvailabilityWarning = (
+    empId: string,
+    dayIndex: number,
+    startTime: string,
+    endTime: string
+  ) => {
+    const employee = activeEmployees.find((item) => item.id === empId);
+    if (!employee) return null;
+    return getTemplateShiftAvailabilityWarning(employee, { dayIndex, startTime, endTime }, locale);
+  };
+
   // ── Template CRUD ─────────────────────────────────────────────────────────
 
   const createDraftTemplate = (initialAreaIds: string[] = []) => {
@@ -542,8 +544,9 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
       ? firstArea.storeId
       : "";
     const defaultStoreId = selectedStoreId || inferredStoreId || stores[0]?.id || "";
+    nextCreatedTemplateIdRef.current += 1;
     const newTemplate: RosterTemplate = {
-      id: `rt-${Date.now()}`,
+      id: `rt-new-${nextCreatedTemplateIdRef.current}`,
       name: locale === "zh" ? `新排班模版 ${allTemplates.length + 1}` : `New Roster Template ${allTemplates.length + 1}`,
       storeId: defaultStoreId,
       totalDays: 7,
@@ -662,6 +665,17 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
     // Validate no conflicts for all selected employees
     for (const empId of cellForm.employeeIds) {
+      const availabilityWarning = findAvailabilityWarning(
+        empId,
+        editingDayIndex,
+        cellForm.startTime,
+        cellForm.endTime
+      );
+      if (availabilityWarning) {
+        toast.error(availabilityWarning);
+        return;
+      }
+
       const conflict = findConflict(
         empId,
         editingDayIndex,
@@ -729,6 +743,13 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
     if (cell.employeeIds.includes(empId)) {
       toast.warning(locale === "zh" ? "该员工已在此班次中" : "Employee already assigned to this shift");
+      setDragEmpId(null);
+      return;
+    }
+
+    const availabilityWarning = findAvailabilityWarning(empId, cell.dayIndex, cell.startTime, cell.endTime);
+    if (availabilityWarning) {
+      toast.error(availabilityWarning);
       setDragEmpId(null);
       return;
     }
@@ -1008,6 +1029,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                   employeeId={emp.id}
                   firstName={emp.firstName}
                   lastName={emp.lastName}
+                  avatarUrl={getEmployeeAvatarUrl(emp)}
                   color={emp.employeeColor || "var(--primary)"}
                   hoursPerDay={empHoursMap[emp.id] || []}
                   onDragStart={(id) => setDragEmpId(id)}
@@ -1210,10 +1232,19 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                               id: eid,
                               name: empNameMap[eid],
                               color: empColorMap[eid] || "var(--primary)",
-                              availabilityWarning: getEmployeeAvailabilityWarning(emp, cell.dayIndex, locale),
+                              avatarUrl: empAvatarMap[eid] || "",
+                              availabilityWarning: getTemplateShiftAvailabilityWarning(
+                                emp,
+                                {
+                                  dayIndex: cell.dayIndex,
+                                  startTime: cell.startTime,
+                                  endTime: cell.endTime,
+                                },
+                                locale
+                              ),
                             };
                           })
-                          .filter(Boolean) as { id: string; name: string; color: string; availabilityWarning: string | null }[];
+                          .filter(Boolean) as { id: string; name: string; color: string; avatarUrl: string; availabilityWarning: string | null }[];
                         return (
                           <ShiftCell
                             key={cell.id}
@@ -1444,7 +1475,17 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               maxTagCount="responsive"
               tagRender={(props) => {
                 const emp = activeEmployees.find((employee) => employee.id === props.value);
-                const warning = emp ? getEmployeeAvailabilityWarning(emp, editingDayIndex, locale) : null;
+                const warning = emp
+                  ? getTemplateShiftAvailabilityWarning(
+                      emp,
+                      {
+                        dayIndex: editingDayIndex,
+                        startTime: cellForm.startTime,
+                        endTime: cellForm.endTime,
+                      },
+                      locale
+                    )
+                  : null;
                 return (
                   <Tooltip title={warning || undefined}>
                     <Tag
@@ -1466,16 +1507,25 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               optionRender={(option) => {
                 const emp = activeEmployees.find((e) => e.id === option.value);
                 if (!emp) return <span>{option.label}</span>;
-                const warning = getEmployeeAvailabilityWarning(emp, editingDayIndex, locale);
+                const warning = getTemplateShiftAvailabilityWarning(
+                  emp,
+                  {
+                    dayIndex: editingDayIndex,
+                    startTime: cellForm.startTime,
+                    endTime: cellForm.endTime,
+                  },
+                  locale
+                );
                 return (
                   <Tooltip title={warning || undefined} placement="right">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <Avatar
                           size={18}
+                          src={getEmployeeAvatarUrl(emp) || undefined}
                           style={{ background: emp.employeeColor || "var(--primary)", fontSize: 9, flexShrink: 0 }}
                         >
-                          {emp.firstName.charAt(0)}{emp.lastName.charAt(0)}
+                          {getEmployeeInitials(emp.firstName, emp.lastName)}
                         </Avatar>
                         <span
                           className="truncate"
@@ -1504,8 +1554,8 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               <AlertTriangle size={12} style={{ color: "var(--chart-3)", flexShrink: 0, marginTop: 1 }} />
               <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}>
                 {locale === "zh"
-                  ? "保存时将自动检测同一员工是否存在时间冲突（含跨天班次）"
-                  : "Conflict detection runs on save, including overnight shifts"}
+                  ? "保存时将自动检测员工工作时间是否完整覆盖班次，并检测同一员工时间冲突（含跨天班次）"
+                  : "Save checks that employee work hours fully cover the shift and that no employee has overlapping shifts, including overnight shifts"}
               </span>
             </div>
           </div>

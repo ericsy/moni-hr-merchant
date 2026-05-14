@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Space, Select, Modal, Form, Input, type MenuProps } from "antd";
+import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Space, Select, Modal, Form, Input, Tooltip, type MenuProps } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
   House,
@@ -208,12 +208,14 @@ export default function AppLayout({
   }, [permissions, locale, t, requiresFirstStore]);
 
   useEffect(() => {
-    setOpenMenuKeys((previousKeys) => {
-      const nextKeys = new Set([...previousKeys, ...defaultOpenMenuKeys]);
-      if (nextKeys.size === previousKeys.length && previousKeys.every((key) => nextKeys.has(key))) {
-        return previousKeys;
-      }
-      return [...nextKeys];
+    queueMicrotask(() => {
+      setOpenMenuKeys((previousKeys) => {
+        const nextKeys = new Set([...previousKeys, ...defaultOpenMenuKeys]);
+        if (nextKeys.size === previousKeys.length && previousKeys.every((key) => nextKeys.has(key))) {
+          return previousKeys;
+        }
+        return [...nextKeys];
+      });
     });
   }, [defaultOpenMenuKeys]);
 
@@ -291,13 +293,26 @@ export default function AppLayout({
         console.log("[Layout] store changed:", v);
         setSelectedStoreId(v);
       }}
-      style={{ width: 160 }}
+      style={{ width: "clamp(220px, 28vw, 420px)" }}
       size="small"
       placeholder={locale === "zh" ? "选择店面" : "Select Store"}
+      optionLabelProp="label"
+      popupMatchSelectWidth={360}
     >
       {stores.map((s) => (
-        <Option key={s.id} value={s.id}>
-          {s.name}
+        <Option key={s.id} value={s.id} label={s.name}>
+          <Tooltip title={s.name} placement="right">
+            <div
+              style={{
+                maxWidth: 320,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {s.name}
+            </div>
+          </Tooltip>
         </Option>
       ))}
     </Select>
@@ -423,7 +438,7 @@ export default function AppLayout({
               margin: 0,
             }}
           >
-            <div className="flex items-center gap-4" style={{ minWidth: 0 }}>
+            <div className="flex items-center gap-4" style={{ minWidth: 0, flex: "1 1 auto" }}>
               <div
                 className="font-semibold text-lg"
                 style={{ color: "var(--foreground)", whiteSpace: "nowrap" }}
