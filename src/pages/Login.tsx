@@ -168,8 +168,13 @@ export default function Login() {
       } else {
         writeRememberMePreference(rememberMe);
         if (rememberMe) {
-          const cipherText = await encryptCredentials(email.trim(), password);
-          saveCredentials(cipherText);
+          try {
+            const cipherText = await encryptCredentials(email.trim(), password);
+            saveCredentials(cipherText);
+          } catch (error) {
+            console.log("[Login] failed to save remembered credentials:", error);
+            clearCredentials();
+          }
         } else {
           clearCredentials();
         }
