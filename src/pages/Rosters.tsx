@@ -46,11 +46,14 @@ import {
 } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
-import { calcShiftHours, datedShiftsOverlap } from "../lib/shift";
-import { getDatedShiftAvailabilityWarning } from "../lib/employeeAvailability";
-import { getEmployeeAvatarUrl, getEmployeeInitials } from "../lib/employeeAvatar";
-import { isStoreClosedOnWeekday } from "../lib/storeHours";
 import { formatCountryDate } from "../lib/dateFormat";
+import { getDatedShiftAvailabilityWarning } from "../lib/employeeAvailability";
+import {
+  getEmployeeAvatarUrl,
+  getEmployeeInitials,
+} from "../lib/employeeAvatar";
+import { calcShiftHours, datedShiftsOverlap } from "../lib/shift";
+import { isStoreClosedOnWeekday } from "../lib/storeHours";
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
@@ -313,7 +316,13 @@ function TemplateCard({
 interface ShiftEntryProps {
   shift?: ScheduleShift;
   /** List of employees assigned to this shift */
-  assignedEmployees?: { id: string; name: string; color: string; avatarUrl?: string; availabilityWarning?: string | null }[];
+  assignedEmployees?: {
+    id: string;
+    name: string;
+    color: string;
+    avatarUrl?: string;
+    availabilityWarning?: string | null;
+  }[];
   onEdit?: () => void;
   onDelete?: () => void;
   /** Called when an employee is removed from the shift via X button */
@@ -373,25 +382,36 @@ function ShiftEntry({
         <div className="flex items-center gap-0.5 min-w-0 flex-1 flex-wrap">
           {assignedEmployees.length > 0 ? (
             assignedEmployees.map((emp) => (
-              <Tooltip key={emp.id} title={emp.availabilityWarning || undefined}>
+              <Tooltip
+                key={emp.id}
+                title={emp.availabilityWarning || undefined}
+              >
                 <div
                   className="flex items-center gap-0.5 rounded-md px-1 py-0.5"
                   style={{
                     background: "var(--card)",
-                    border: emp.availabilityWarning ? "1px solid var(--destructive)" : "1px solid transparent",
+                    border: emp.availabilityWarning
+                      ? "1px solid var(--destructive)"
+                      : "1px solid transparent",
                   }}
                 >
                   <Avatar
                     size={13}
                     src={emp.avatarUrl || undefined}
-                    style={{ background: emp.color, flexShrink: 0, fontSize: 7 }}
+                    style={{
+                      background: emp.color,
+                      flexShrink: 0,
+                      fontSize: 7,
+                    }}
                   >
                     {getEmployeeInitials(emp.name)}
                   </Avatar>
                   <span
                     className="text-xs truncate"
                     style={{
-                      color: emp.availabilityWarning ? "var(--destructive)" : "var(--foreground)",
+                      color: emp.availabilityWarning
+                        ? "var(--destructive)"
+                        : "var(--foreground)",
                       maxWidth: 72,
                       fontSize: 10,
                       fontWeight: emp.availabilityWarning ? 700 : 400,
@@ -400,7 +420,10 @@ function ShiftEntry({
                     {emp.name}
                   </span>
                   {emp.availabilityWarning && (
-                    <AlertTriangle size={9} style={{ color: "var(--destructive)", flexShrink: 0 }} />
+                    <AlertTriangle
+                      size={9}
+                      style={{ color: "var(--destructive)", flexShrink: 0 }}
+                    />
                   )}
                   <button
                     onClick={() => onRemoveEmployee(emp.id)}
@@ -640,7 +663,13 @@ interface AreaDateCellProps {
   date?: dayjs.Dayjs;
   areaId?: string;
   shifts?: ScheduleShift[];
-  employees?: { id: string; name: string; color: string; avatarUrl?: string; availabilityWarning?: string | null }[];
+  employees?: {
+    id: string;
+    name: string;
+    color: string;
+    avatarUrl?: string;
+    availabilityWarning?: string | null;
+  }[];
   onAddShift?: (areaId: string, date: string) => void;
   onEditShift?: (shift: ScheduleShift) => void;
   onDeleteShift?: (id: string) => void;
@@ -648,7 +677,10 @@ interface AreaDateCellProps {
   onDropEmployee?: (empId: string, areaId: string, date: string) => void;
   onDropEmployeeToShift?: (empId: string, shift: ScheduleShift) => void;
   onDropTemplate?: (templateId: string) => void;
-  getAvailabilityWarning?: (empId: string, shift: ScheduleShift) => string | null;
+  getAvailabilityWarning?: (
+    empId: string,
+    shift: ScheduleShift,
+  ) => string | null;
   isToday?: boolean;
   isClosedDay?: boolean;
 }
@@ -672,7 +704,15 @@ function AreaDateCell({
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale } = useLocale();
 
-  const empMap: Record<string, { name: string; color: string; avatarUrl?: string; availabilityWarning?: string | null }> = {};
+  const empMap: Record<
+    string,
+    {
+      name: string;
+      color: string;
+      avatarUrl?: string;
+      availabilityWarning?: string | null;
+    }
+  > = {};
   employees.forEach((e) => {
     empMap[e.id] = { name: e.name, color: e.color, avatarUrl: e.avatarUrl };
   });
@@ -810,7 +850,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     weekStart.add(i, "day"),
   );
   const todayStr = dayjs().format("YYYY-MM-DD");
-  const selectedStore = stores.find((store) => store.id === selectedStoreId) || stores[0];
+  const selectedStore =
+    stores.find((store) => store.id === selectedStoreId) || stores[0];
   const dateFormatCountry = selectedStore?.country;
   const isStoreClosedDate = (date: dayjs.Dayjs) =>
     isStoreClosedOnWeekday(selectedStore, date.isoWeekday());
@@ -1522,12 +1563,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       endTime: shiftForm.endTime,
     };
 
-    // Conflict detection for all selected employees
+    // Check availability warnings for all selected employees (warning only, not blocking)
+    const availabilityWarnings: string[] = [];
     for (const empId of empIds) {
       const availabilityWarning = findAvailabilityWarning(empId, nextShift);
       if (availabilityWarning) {
-        toast.error(availabilityWarning);
-        return;
+        availabilityWarnings.push(availabilityWarning);
       }
 
       const hasConflict = scheduleShifts.some((s) => {
@@ -1544,6 +1585,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         );
         return;
       }
+    }
+
+    if (availabilityWarnings.length > 0) {
+      availabilityWarnings.forEach((w) => toast.warning(w));
     }
 
     const storeIdToUse =
@@ -2539,7 +2584,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               showSearch
               optionFilterProp="label"
               tagRender={(props) => {
-                const emp = activeEmployees.find((employee) => employee.id === props.value);
+                const emp = activeEmployees.find(
+                  (employee) => employee.id === props.value,
+                );
                 const warning = emp
                   ? getDatedShiftAvailabilityWarning(
                       emp,
@@ -2548,7 +2595,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                         startTime: shiftForm.startTime,
                         endTime: shiftForm.endTime,
                       },
-                      locale
+                      locale,
                     )
                   : null;
                 return (
@@ -2558,7 +2605,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                       style={{
                         marginInlineEnd: 4,
                         color: warning ? "var(--destructive)" : undefined,
-                        border: warning ? "1px solid var(--destructive)" : undefined,
+                        border: warning
+                          ? "1px solid var(--destructive)"
+                          : undefined,
                         fontWeight: warning ? 700 : undefined,
                       }}
                     >
@@ -2588,7 +2637,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     startTime: shiftForm.startTime,
                     endTime: shiftForm.endTime,
                   },
-                  locale
+                  locale,
                 );
                 return (
                   <Tooltip title={warning || undefined} placement="right">
@@ -2608,14 +2657,21 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                         <span
                           className="truncate"
                           style={{
-                            color: warning ? "var(--destructive)" : "var(--foreground)",
+                            color: warning
+                              ? "var(--destructive)"
+                              : "var(--foreground)",
                             fontWeight: warning ? 700 : 400,
                           }}
                         >
                           {emp.firstName} {emp.lastName}
                         </span>
                       </div>
-                      {warning && <AlertTriangle size={13} style={{ color: "var(--destructive)", flexShrink: 0 }} />}
+                      {warning && (
+                        <AlertTriangle
+                          size={13}
+                          style={{ color: "var(--destructive)", flexShrink: 0 }}
+                        />
+                      )}
                     </div>
                   </Tooltip>
                 );
@@ -2642,8 +2698,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               />
               <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}>
                 {isZh
-                  ? "保存时将自动检测员工工作时间是否完整覆盖班次，并检测同一员工时间冲突（含跨天班次）"
-                  : "Save checks that employee work hours fully cover the shift and that no employee has overlapping shifts, including overnight shifts"}
+                  ? "保存时将检测员工工作时间是否完整覆盖班次（仅提醒），并检测同一员工时间冲突（含跨天班次，阻止保存）"
+                  : "Save checks that employee work hours fully cover the shift (warning only) and that no employee has overlapping shifts, including overnight shifts (blocking)"}
               </span>
             </div>
           </div>

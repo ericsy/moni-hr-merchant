@@ -1,40 +1,53 @@
-import { useRef, useState } from "react";
 import {
+  Avatar,
   Button,
   Input,
+  InputNumber,
   Modal,
-  Select,
-  Tooltip,
   Popconfirm,
+  Select,
   Tag,
   TimePicker,
-  InputNumber,
-  Avatar,
+  Tooltip,
 } from "antd";
+import dayjs from "dayjs";
 import {
-  Plus,
+  AlertTriangle,
+  ChevronDown,
+  Clock,
+  Edit2,
+  GripVertical,
   Minus,
+  Plus,
+  Save,
   Search,
   Trash2,
-  Edit2,
-  Clock,
-  Save,
-  ChevronDown,
-  GripVertical,
   X,
-  AlertTriangle,
 } from "lucide-react";
-import { useData, type Area, type Employee, type RosterTemplate, type RosterTemplateCell } from "../context/DataContext";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import {
+  ColorSwatchPicker,
+  DEFAULT_COLOR_KEY,
+  getSoftColorStyle,
+} from "../components/ColorSwatchPicker";
+import {
+  useData,
+  type Area,
+  type Employee,
+  type RosterTemplate,
+  type RosterTemplateCell,
+} from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
-import { EmployeeModal } from "./Employees";
-import { calcShiftHours, indexedShiftsOverlap } from "../lib/shift";
 import { getTemplateShiftAvailabilityWarning } from "../lib/employeeAvailability";
-import { getEmployeeAvatarUrl, getEmployeeInitials } from "../lib/employeeAvatar";
+import {
+  getEmployeeAvatarUrl,
+  getEmployeeInitials,
+} from "../lib/employeeAvatar";
+import { calcShiftHours, indexedShiftsOverlap } from "../lib/shift";
 import { isStoreClosedOnDayIndex } from "../lib/storeHours";
-import { ColorSwatchPicker, DEFAULT_COLOR_KEY, getSoftColorStyle } from "../components/ColorSwatchPicker";
-import { toast } from "sonner";
-import dayjs from "dayjs";
+import { EmployeeModal } from "./Employees";
 
 const { Option } = Select;
 
@@ -44,9 +57,18 @@ type RosterShiftCell = RosterTemplateCell;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const calcHours = (start: string, end: string) => Number.parseFloat(calcShiftHours(start, end, 0));
+const calcHours = (start: string, end: string) =>
+  Number.parseFloat(calcShiftHours(start, end, 0));
 
-const WEEKDAY_LABELS_ZH = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+const WEEKDAY_LABELS_ZH = [
+  "周一",
+  "周二",
+  "周三",
+  "周四",
+  "周五",
+  "周六",
+  "周日",
+];
 const WEEKDAY_LABELS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const formatTime12 = (t: string) => {
@@ -64,7 +86,9 @@ const getWeekdayLabel = (dayIndex: number, locale: "zh" | "en") => {
 const getDetailedDayLabel = (dayIndex: number, locale: "zh" | "en") => {
   const weekNumber = Math.floor(dayIndex / 7) + 1;
   const weekdayLabel = getWeekdayLabel(dayIndex, locale);
-  return locale === "zh" ? `第${weekNumber}周 ${weekdayLabel}` : `Week ${weekNumber} ${weekdayLabel}`;
+  return locale === "zh"
+    ? `第${weekNumber}周 ${weekdayLabel}`
+    : `Week ${weekNumber} ${weekdayLabel}`;
 };
 
 const getCycleWeek = (dayIndex: number) => Math.floor(dayIndex / 7) + 1;
@@ -72,7 +96,9 @@ const getCycleWeek = (dayIndex: number) => Math.floor(dayIndex / 7) + 1;
 const formatDurationLabel = (days: number, locale: "zh" | "en") => {
   if (days % 7 === 0) {
     const weeks = days / 7;
-    return locale === "zh" ? `${weeks}周` : `${weeks} ${weeks === 1 ? "week" : "weeks"}`;
+    return locale === "zh"
+      ? `${weeks}周`
+      : `${weeks} ${weeks === 1 ? "week" : "weeks"}`;
   }
   return locale === "zh" ? `${days}天` : `${days} days`;
 };
@@ -93,7 +119,8 @@ const makeShiftPresetKey = ({
   startTime: string;
   endTime: string;
   color: string;
-}) => `${shiftType}::${storeId}::${shiftName}::${startTime}::${endTime}::${color}`;
+}) =>
+  `${shiftType}::${storeId}::${shiftName}::${startTime}::${endTime}::${color}`;
 
 // ─── Sub-component: Employee Panel Card ───────────────────────────────────────
 
@@ -135,11 +162,17 @@ function EmployeeCard({
           >
             {getEmployeeInitials(firstName, lastName)}
           </Avatar>
-          <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+          <span
+            className="text-sm font-medium"
+            style={{ color: "var(--foreground)" }}
+          >
             {firstName} {lastName}
           </span>
         </div>
-        <span className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
+        <span
+          className="text-xs font-semibold"
+          style={{ color: "var(--primary)" }}
+        >
           {total}h
         </span>
       </div>
@@ -151,7 +184,13 @@ function EmployeeCard({
 
 interface ShiftCellProps {
   cell?: RosterShiftCell;
-  employees?: { id: string; name: string; color: string; avatarUrl?: string; availabilityWarning?: string | null }[];
+  employees?: {
+    id: string;
+    name: string;
+    color: string;
+    avatarUrl?: string;
+    availabilityWarning?: string | null;
+  }[];
   onEdit?: () => void;
   onDelete?: () => void;
   onDrop?: (empId: string) => void;
@@ -183,7 +222,10 @@ function ShiftCell({
         padding: "4px 6px",
         transition: "all 0.15s",
       }}
-      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragOver(true);
+      }}
       onDragLeave={() => setIsDragOver(false)}
       onDrop={(e) => {
         e.preventDefault();
@@ -198,25 +240,36 @@ function ShiftCell({
           {employees.length > 0 ? (
             <div className="flex items-center gap-0.5 flex-wrap min-w-0">
               {employees.map((emp) => (
-                <Tooltip key={emp.id} title={emp.availabilityWarning || undefined}>
+                <Tooltip
+                  key={emp.id}
+                  title={emp.availabilityWarning || undefined}
+                >
                   <div
                     className="flex items-center gap-0.5 rounded-md px-1 py-0.5"
                     style={{
                       background: "var(--card)",
-                      border: emp.availabilityWarning ? "1px solid var(--destructive)" : "1px solid transparent",
+                      border: emp.availabilityWarning
+                        ? "1px solid var(--destructive)"
+                        : "1px solid transparent",
                     }}
                   >
                     <Avatar
                       size={13}
                       src={emp.avatarUrl || undefined}
-                      style={{ background: emp.color, flexShrink: 0, fontSize: 7 }}
+                      style={{
+                        background: emp.color,
+                        flexShrink: 0,
+                        fontSize: 7,
+                      }}
                     >
                       {getEmployeeInitials(emp.name)}
                     </Avatar>
                     <span
                       className="text-xs truncate"
                       style={{
-                        color: emp.availabilityWarning ? "var(--destructive)" : "var(--foreground)",
+                        color: emp.availabilityWarning
+                          ? "var(--destructive)"
+                          : "var(--foreground)",
                         maxWidth: 80,
                         fontSize: 10,
                         fontWeight: emp.availabilityWarning ? 700 : 400,
@@ -225,12 +278,18 @@ function ShiftCell({
                       {emp.name}
                     </span>
                     {emp.availabilityWarning && (
-                      <AlertTriangle size={9} style={{ color: "var(--destructive)", flexShrink: 0 }} />
+                      <AlertTriangle
+                        size={9}
+                        style={{ color: "var(--destructive)", flexShrink: 0 }}
+                      />
                     )}
                     <button
                       onClick={() => onRemoveEmployee(emp.id)}
                       className="rounded-full hover:opacity-70"
-                      style={{ color: "var(--muted-foreground)", flexShrink: 0 }}
+                      style={{
+                        color: "var(--muted-foreground)",
+                        flexShrink: 0,
+                      }}
                     >
                       <X size={9} />
                     </button>
@@ -239,7 +298,10 @@ function ShiftCell({
               ))}
             </div>
           ) : (
-            <span className="text-xs font-semibold truncate" style={{ color: sc.text, maxWidth: 90, fontSize: 10 }}>
+            <span
+              className="text-xs font-semibold truncate"
+              style={{ color: sc.text, maxWidth: 90, fontSize: 10 }}
+            >
               {cell.label || formatTime12(cell.startTime)}
             </span>
           )}
@@ -270,7 +332,11 @@ function ShiftCell({
         </span>
         <span
           className="rounded-full px-1 ml-auto font-semibold"
-          style={{ fontSize: 8, background: sc.border, color: "var(--primary-foreground)" }}
+          style={{
+            fontSize: 8,
+            background: sc.border,
+            color: "var(--primary-foreground)",
+          }}
         >
           {hrs}h
         </span>
@@ -278,7 +344,10 @@ function ShiftCell({
 
       {/* Shift label (when employees present) */}
       {employees.length > 0 && cell.label && (
-        <div className="mt-0.5 truncate" style={{ fontSize: 9, color: sc.text, fontWeight: 600 }}>
+        <div
+          className="mt-0.5 truncate"
+          style={{ fontSize: 9, color: sc.text, fontWeight: 600 }}
+        >
           {cell.label}
         </div>
       )}
@@ -292,7 +361,12 @@ function ShiftCell({
           background: isDragOver ? "var(--secondary)" : "transparent",
         }}
       >
-        <span style={{ color: isDragOver ? "var(--primary)" : sc.text, fontSize: 9 }}>
+        <span
+          style={{
+            color: isDragOver ? "var(--primary)" : sc.text,
+            fontSize: 9,
+          }}
+        >
           {employees.length > 0 ? `+ 拖拽添加员工` : `拖拽员工到此处`}
         </span>
       </div>
@@ -306,7 +380,9 @@ interface RosterTemplatePageProps {
   onSave?: () => void;
 }
 
-export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplatePageProps) {
+export default function RosterTemplatePage({
+  onSave = () => {},
+}: RosterTemplatePageProps) {
   const {
     employees,
     saveEmployee,
@@ -324,7 +400,9 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   // ── State ──────────────────────────────────────────────────────────────────
   // templates & setTemplates come from DataContext (rosterTemplates / setRosterTemplates)
-  const [activeTemplateId, setActiveTemplateId] = useState<string>(allTemplates[0]?.id || "");
+  const [activeTemplateId, setActiveTemplateId] = useState<string>(
+    allTemplates[0]?.id || "",
+  );
   const [searchText, setSearchText] = useState("");
   const [dragEmpId, setDragEmpId] = useState<string | null>(null);
   const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
@@ -357,17 +435,24 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
   const nextCreatedTemplateIdRef = useRef(0);
 
   const visibleTemplates = allTemplates.filter(
-    (template) => !selectedStoreId || template.storeId === selectedStoreId
+    (template) => !selectedStoreId || template.storeId === selectedStoreId,
   );
-  const resolvedActiveTemplateId = visibleTemplates.some((template) => template.id === activeTemplateId)
+  const resolvedActiveTemplateId = visibleTemplates.some(
+    (template) => template.id === activeTemplateId,
+  )
     ? activeTemplateId
     : visibleTemplates[0]?.id || "";
-  const activeTemplate = visibleTemplates.find((template) => template.id === resolvedActiveTemplateId) || null;
+  const activeTemplate =
+    visibleTemplates.find(
+      (template) => template.id === resolvedActiveTemplateId,
+    ) || null;
   const activeTemplateStoreId = activeTemplate?.storeId || selectedStoreId;
-  const activeTemplateStore = stores.find((store) => store.id === activeTemplateStoreId);
+  const activeTemplateStore = stores.find(
+    (store) => store.id === activeTemplateStoreId,
+  );
   const activeTemplateTotalDays = activeTemplate?.totalDays || 7;
   const activeTemplateVisibleCells = (activeTemplate?.cells || []).filter(
-    (cell) => cell.dayIndex >= 0 && cell.dayIndex < activeTemplateTotalDays
+    (cell) => cell.dayIndex >= 0 && cell.dayIndex < activeTemplateTotalDays,
   );
 
   // ── Computed ──────────────────────────────────────────────────────────────
@@ -390,21 +475,25 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     .filter((area) => !(activeTemplate?.areaIds || []).includes(area.id))
     .sort((a, b) => a.order - b.order);
 
-  const shiftPresetMap: Record<string, {
-    key: string;
-    shiftId?: string;
-    shiftName: string;
-    startTime: string;
-    endTime: string;
-    color: string;
-    shiftType: "store" | "general";
-  }> = {};
+  const shiftPresetMap: Record<
+    string,
+    {
+      key: string;
+      shiftId?: string;
+      shiftName: string;
+      startTime: string;
+      endTime: string;
+      color: string;
+      shiftType: "store" | "general";
+    }
+  > = {};
 
   scheduleShifts.forEach((shift) => {
     if (!shift.isGlobalPreset) return;
 
     const shiftType = shift.shiftType || "store";
-    const belongsToTemplate = shiftType === "general" || shift.storeId === activeTemplateStoreId;
+    const belongsToTemplate =
+      shiftType === "general" || shift.storeId === activeTemplateStoreId;
     if (!belongsToTemplate) return;
 
     const shiftName = (shift.shiftName || "").trim();
@@ -467,14 +556,20 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
   }
 
   const activeEmployees = employees.filter((e) => e.status === "active");
-  const filteredEmployees = activeEmployees.filter((e) =>
-    !searchText || `${e.firstName} ${e.lastName}`.toLowerCase().includes(searchText.toLowerCase())
+  const filteredEmployees = activeEmployees.filter(
+    (e) =>
+      !searchText ||
+      `${e.firstName} ${e.lastName}`
+        .toLowerCase()
+        .includes(searchText.toLowerCase()),
   );
 
   // Hours per employee per day — iterate employeeIds array
   const empHoursMap: Record<string, number[]> = {};
   activeEmployees.forEach((e) => {
-    empHoursMap[e.id] = Array.from({ length: activeTemplateTotalDays }).map(() => 0);
+    empHoursMap[e.id] = Array.from({ length: activeTemplateTotalDays }).map(
+      () => 0,
+    );
   });
   activeTemplateVisibleCells.forEach((cell) => {
     const hrs = calcHours(cell.startTime, cell.endTime);
@@ -485,7 +580,10 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     });
   });
 
-  const totalDaysList = Array.from({ length: activeTemplateTotalDays }, (_, i) => i + 1);
+  const totalDaysList = Array.from(
+    { length: activeTemplateTotalDays },
+    (_, i) => i + 1,
+  );
 
   const empNameMap: Record<string, string> = {};
   const empColorMap: Record<string, string> = {};
@@ -507,15 +605,21 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     dayIndex: number,
     startTime: string,
     endTime: string,
-    excludeCellId?: string
+    excludeCellId?: string,
   ): RosterShiftCell | null => {
     for (const cell of activeTemplateVisibleCells) {
       if (cell.id === excludeCellId) continue;
       if (!cell.employeeIds.includes(empId)) continue;
-      if (indexedShiftsOverlap(
-        { dayIndex, startTime, endTime },
-        { dayIndex: cell.dayIndex, startTime: cell.startTime, endTime: cell.endTime }
-      )) {
+      if (
+        indexedShiftsOverlap(
+          { dayIndex, startTime, endTime },
+          {
+            dayIndex: cell.dayIndex,
+            startTime: cell.startTime,
+            endTime: cell.endTime,
+          },
+        )
+      ) {
         return cell;
       }
     }
@@ -526,11 +630,15 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     empId: string,
     dayIndex: number,
     startTime: string,
-    endTime: string
+    endTime: string,
   ) => {
     const employee = activeEmployees.find((item) => item.id === empId);
     if (!employee) return null;
-    return getTemplateShiftAvailabilityWarning(employee, { dayIndex, startTime, endTime }, locale);
+    return getTemplateShiftAvailabilityWarning(
+      employee,
+      { dayIndex, startTime, endTime },
+      locale,
+    );
   };
 
   // ── Template CRUD ─────────────────────────────────────────────────────────
@@ -540,14 +648,19 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     const firstArea = uniqueAreaIds
       .map((areaId) => templateAreaMap[areaId])
       .find(Boolean);
-    const inferredStoreId = firstArea && (firstArea.areaType || "store") !== "general"
-      ? firstArea.storeId
-      : "";
-    const defaultStoreId = selectedStoreId || inferredStoreId || stores[0]?.id || "";
+    const inferredStoreId =
+      firstArea && (firstArea.areaType || "store") !== "general"
+        ? firstArea.storeId
+        : "";
+    const defaultStoreId =
+      selectedStoreId || inferredStoreId || stores[0]?.id || "";
     nextCreatedTemplateIdRef.current += 1;
     const newTemplate: RosterTemplate = {
       id: `rt-new-${nextCreatedTemplateIdRef.current}`,
-      name: locale === "zh" ? `新排班模版 ${allTemplates.length + 1}` : `New Roster Template ${allTemplates.length + 1}`,
+      name:
+        locale === "zh"
+          ? `新排班模版 ${allTemplates.length + 1}`
+          : `New Roster Template ${allTemplates.length + 1}`,
       storeId: defaultStoreId,
       totalDays: 7,
       areaIds: uniqueAreaIds,
@@ -561,7 +674,9 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   const updateTemplate = (updater: (t: RosterTemplate) => RosterTemplate) => {
     if (!resolvedActiveTemplateId) return;
-    setTemplates((prev) => prev.map((t) => (t.id === resolvedActiveTemplateId ? updater(t) : t)));
+    setTemplates((prev) =>
+      prev.map((t) => (t.id === resolvedActiveTemplateId ? updater(t) : t)),
+    );
   };
 
   const handleSetDays = (days: number) => {
@@ -569,12 +684,15 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     updateTemplate((t) => ({
       ...t,
       totalDays: normalizedDays,
-      cells: t.cells.map((cell) => ({ ...cell, cycleWeek: getCycleWeek(cell.dayIndex) })),
+      cells: t.cells.map((cell) => ({
+        ...cell,
+        cycleWeek: getCycleWeek(cell.dayIndex),
+      })),
     }));
     toast.success(
       locale === "zh"
         ? `已设置为 ${formatDurationLabel(normalizedDays, locale)}`
-        : `Set to ${formatDurationLabel(normalizedDays, locale)}`
+        : `Set to ${formatDurationLabel(normalizedDays, locale)}`,
     );
   };
 
@@ -585,17 +703,25 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
       createDraftTemplate([selectedAreaId]);
       setSelectedAreaId("");
       setAddAreaOpen(false);
-      toast.success(locale === "zh" ? "已创建模版并加入区域" : "Template created and area linked");
+      toast.success(
+        locale === "zh"
+          ? "已创建模版并加入区域"
+          : "Template created and area linked",
+      );
       return;
     }
 
     updateTemplate((t) => ({
       ...t,
-      areaIds: t.areaIds.includes(selectedAreaId) ? t.areaIds : [...t.areaIds, selectedAreaId],
+      areaIds: t.areaIds.includes(selectedAreaId)
+        ? t.areaIds
+        : [...t.areaIds, selectedAreaId],
     }));
     setSelectedAreaId("");
     setAddAreaOpen(false);
-    toast.success(locale === "zh" ? "区域已加入模版" : "Area linked to template");
+    toast.success(
+      locale === "zh" ? "区域已加入模版" : "Area linked to template",
+    );
   };
 
   const handleDeleteArea = (areaId: string) => {
@@ -604,7 +730,9 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
       areaIds: t.areaIds.filter((id) => id !== areaId),
       cells: t.cells.filter((c) => c.areaId !== areaId),
     }));
-    toast.success(locale === "zh" ? "区域已从模版移除" : "Area removed from template");
+    toast.success(
+      locale === "zh" ? "区域已从模版移除" : "Area removed from template",
+    );
   };
 
   const openAddEmployeeModal = () => {
@@ -618,7 +746,9 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
       setAddEmployeeOpen(false);
       toast.success(locale === "zh" ? "员工已添加" : "Employee added");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Employee save failed");
+      toast.error(
+        error instanceof Error ? error.message : "Employee save failed",
+      );
     }
   };
 
@@ -628,7 +758,15 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     setEditingCell(null);
     setEditingAreaId(areaId);
     setEditingDayIndex(dayIndex);
-    setCellForm({ presetKey: "", shiftId: "", startTime: "09:00", endTime: "17:00", label: "", color: DEFAULT_COLOR_KEY, employeeIds: [] });
+    setCellForm({
+      presetKey: "",
+      shiftId: "",
+      startTime: "09:00",
+      endTime: "17:00",
+      label: "",
+      color: DEFAULT_COLOR_KEY,
+      employeeIds: [],
+    });
     setCellModalOpen(true);
   };
 
@@ -663,17 +801,17 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
       return;
     }
 
-    // Validate no conflicts for all selected employees
+    // Check availability warnings for all selected employees (warning only, not blocking)
+    const availabilityWarnings: string[] = [];
     for (const empId of cellForm.employeeIds) {
       const availabilityWarning = findAvailabilityWarning(
         empId,
         editingDayIndex,
         cellForm.startTime,
-        cellForm.endTime
+        cellForm.endTime,
       );
       if (availabilityWarning) {
-        toast.error(availabilityWarning);
-        return;
+        availabilityWarnings.push(availabilityWarning);
       }
 
       const conflict = findConflict(
@@ -681,17 +819,21 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         editingDayIndex,
         cellForm.startTime,
         cellForm.endTime,
-        editingCell?.id
+        editingCell?.id,
       );
       if (conflict) {
         const empName = empNameMap[empId] || empId;
         toast.error(
           locale === "zh"
             ? `${empName} 在 ${getDetailedDayLabel(editingDayIndex, locale)} ${conflict.label || conflict.startTime} 已有排班冲突`
-            : `${empName} has a scheduling conflict on ${getDetailedDayLabel(editingDayIndex, locale)} (${conflict.label || conflict.startTime})`
+            : `${empName} has a scheduling conflict on ${getDetailedDayLabel(editingDayIndex, locale)} (${conflict.label || conflict.startTime})`,
         );
         return;
       }
+    }
+
+    if (availabilityWarnings.length > 0) {
+      availabilityWarnings.forEach((w) => toast.warning(w));
     }
 
     if (editingCell) {
@@ -708,7 +850,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                 color: cellForm.color,
                 employeeIds: cellForm.employeeIds,
               }
-            : c
+            : c,
         ),
       }));
     } else {
@@ -732,7 +874,10 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
   };
 
   const handleDeleteCell = (cellId: string) => {
-    updateTemplate((t) => ({ ...t, cells: t.cells.filter((c) => c.id !== cellId) }));
+    updateTemplate((t) => ({
+      ...t,
+      cells: t.cells.filter((c) => c.id !== cellId),
+    }));
     toast.success(locale === "zh" ? "班次已删除" : "Shift deleted");
   };
 
@@ -742,25 +887,40 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     if (!cell) return;
 
     if (cell.employeeIds.includes(empId)) {
-      toast.warning(locale === "zh" ? "该员工已在此班次中" : "Employee already assigned to this shift");
+      toast.warning(
+        locale === "zh"
+          ? "该员工已在此班次中"
+          : "Employee already assigned to this shift",
+      );
       setDragEmpId(null);
       return;
     }
 
-    const availabilityWarning = findAvailabilityWarning(empId, cell.dayIndex, cell.startTime, cell.endTime);
+    const availabilityWarning = findAvailabilityWarning(
+      empId,
+      cell.dayIndex,
+      cell.startTime,
+      cell.endTime,
+    );
     if (availabilityWarning) {
       toast.error(availabilityWarning);
       setDragEmpId(null);
       return;
     }
 
-    const conflict = findConflict(empId, cell.dayIndex, cell.startTime, cell.endTime, cellId);
+    const conflict = findConflict(
+      empId,
+      cell.dayIndex,
+      cell.startTime,
+      cell.endTime,
+      cellId,
+    );
     if (conflict) {
       const empName = empNameMap[empId] || empId;
       toast.error(
         locale === "zh"
           ? `${empName} 在 ${getDetailedDayLabel(cell.dayIndex, locale)} ${conflict.label || conflict.startTime} 已有排班冲突`
-          : `${empName} has a scheduling conflict on ${getDetailedDayLabel(cell.dayIndex, locale)} (${conflict.label || conflict.startTime})`
+          : `${empName} has a scheduling conflict on ${getDetailedDayLabel(cell.dayIndex, locale)} (${conflict.label || conflict.startTime})`,
       );
       setDragEmpId(null);
       return;
@@ -769,19 +929,23 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
     updateTemplate((t) => ({
       ...t,
       cells: t.cells.map((c) =>
-        c.id === cellId ? { ...c, employeeIds: [...c.employeeIds, empId] } : c
+        c.id === cellId ? { ...c, employeeIds: [...c.employeeIds, empId] } : c,
       ),
     }));
     setDragEmpId(null);
     console.log("[RosterTemplate] drop employee", empId, "onto cell", cellId);
-    toast.success(locale === "zh" ? "员工已添加到班次" : "Employee added to shift");
+    toast.success(
+      locale === "zh" ? "员工已添加到班次" : "Employee added to shift",
+    );
   };
 
   const handleRemoveEmployee = (cellId: string, empId: string) => {
     updateTemplate((t) => ({
       ...t,
       cells: t.cells.map((c) =>
-        c.id === cellId ? { ...c, employeeIds: c.employeeIds.filter((id) => id !== empId) } : c
+        c.id === cellId
+          ? { ...c, employeeIds: c.employeeIds.filter((id) => id !== empId) }
+          : c,
       ),
     }));
   };
@@ -798,7 +962,12 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   const handleNewTemplate = () => {
     const defaultStoreId = selectedStoreId || stores[0]?.id || "";
-    const defaultAreaId = areas.find((area) => (area.areaType || "store") === "general" || area.storeId === defaultStoreId)?.id || "";
+    const defaultAreaId =
+      areas.find(
+        (area) =>
+          (area.areaType || "store") === "general" ||
+          area.storeId === defaultStoreId,
+      )?.id || "";
     createDraftTemplate(defaultAreaId ? [defaultAreaId] : []);
     toast.success(locale === "zh" ? "新模版已创建" : "New template created");
   };
@@ -811,14 +980,18 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
       onSave();
       toast.success(locale === "zh" ? "模版已保存" : "Template saved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Template save failed");
+      toast.error(
+        error instanceof Error ? error.message : "Template save failed",
+      );
     }
   };
 
   const handleDeleteTemplate = async () => {
     if (!activeTemplate) return;
     const deletedTemplateId = activeTemplate.id;
-    const nextTemplateId = visibleTemplates.find((template) => template.id !== deletedTemplateId)?.id || "";
+    const nextTemplateId =
+      visibleTemplates.find((template) => template.id !== deletedTemplateId)
+        ?.id || "";
 
     try {
       await deleteRosterTemplate(deletedTemplateId);
@@ -827,7 +1000,9 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
       onSave();
       toast.success(locale === "zh" ? "模版已删除" : "Template deleted");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Template delete failed");
+      toast.error(
+        error instanceof Error ? error.message : "Template delete failed",
+      );
     }
   };
 
@@ -842,15 +1017,26 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
   const visibleTemplateCount = visibleTemplates.length;
 
-  console.log("[RosterTemplatePage] activeTemplate:", activeTemplate?.id, "totalDays:", activeTemplate?.totalDays);
+  console.log(
+    "[RosterTemplatePage] activeTemplate:",
+    activeTemplate?.id,
+    "totalDays:",
+    activeTemplate?.totalDays,
+  );
 
   return (
-    <div data-cmp="RosterTemplatePage" className="flex flex-col" style={{ height: "calc(100vh - 88px)", overflow: "hidden" }}>
-
+    <div
+      data-cmp="RosterTemplatePage"
+      className="flex flex-col"
+      style={{ height: "calc(100vh - 88px)", overflow: "hidden" }}
+    >
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-4 py-3 flex-shrink-0"
-        style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}
+        style={{
+          background: "var(--card)",
+          borderBottom: "1px solid var(--border)",
+        }}
       >
         {/* Left: template tabs */}
         <div className="flex items-center gap-2">
@@ -860,23 +1046,39 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               onClick={() => setActiveTemplateId(t.id)}
               className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
               style={{
-                background: resolvedActiveTemplateId === t.id ? "var(--primary)" : "var(--muted)",
-                color: resolvedActiveTemplateId === t.id ? "var(--primary-foreground)" : "var(--muted-foreground)",
+                background:
+                  resolvedActiveTemplateId === t.id
+                    ? "var(--primary)"
+                    : "var(--muted)",
+                color:
+                  resolvedActiveTemplateId === t.id
+                    ? "var(--primary-foreground)"
+                    : "var(--muted-foreground)",
               }}
             >
               {t.name}
             </button>
           ))}
           {visibleTemplateCount === 0 && (
-            <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-              {locale === "zh" ? "当前店面暂无模版" : "No templates for this store"}
+            <span
+              className="text-sm"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {locale === "zh"
+                ? "当前店面暂无模版"
+                : "No templates for this store"}
             </span>
           )}
           <Tooltip title={locale === "zh" ? "新建模版" : "New template"}>
             <button
               onClick={handleNewTemplate}
               className="flex items-center justify-center rounded-lg"
-              style={{ width: 30, height: 30, background: "var(--muted)", color: "var(--muted-foreground)" }}
+              style={{
+                width: 30,
+                height: 30,
+                background: "var(--muted)",
+                color: "var(--muted-foreground)",
+              }}
             >
               <Plus size={14} />
             </button>
@@ -891,9 +1093,18 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               onClick={() => handleSetDays(opt.days)}
               className="px-3 py-1.5 rounded-lg text-sm transition-all"
               style={{
-                background: activeTemplate?.totalDays === opt.days ? "var(--secondary)" : "var(--muted)",
-                color: activeTemplate?.totalDays === opt.days ? "var(--primary)" : "var(--muted-foreground)",
-                border: activeTemplate?.totalDays === opt.days ? "1px solid var(--primary)" : "1px solid var(--border)",
+                background:
+                  activeTemplate?.totalDays === opt.days
+                    ? "var(--secondary)"
+                    : "var(--muted)",
+                color:
+                  activeTemplate?.totalDays === opt.days
+                    ? "var(--primary)"
+                    : "var(--muted-foreground)",
+                border:
+                  activeTemplate?.totalDays === opt.days
+                    ? "1px solid var(--primary)"
+                    : "1px solid var(--border)",
                 fontWeight: activeTemplate?.totalDays === opt.days ? 600 : 400,
               }}
             >
@@ -918,7 +1129,10 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
             {customDaysOpen && (
               <div
                 className="flex items-center gap-1 rounded-lg px-2 py-1"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                style={{
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                }}
               >
                 <InputNumber
                   size="small"
@@ -926,16 +1140,24 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                   max={84}
                   step={7}
                   value={customDaysInput}
-                  onChange={(v) => setCustomDaysInput(Math.max(7, Number(v) || 7))}
+                  onChange={(v) =>
+                    setCustomDaysInput(Math.max(7, Number(v) || 7))
+                  }
                   style={{ width: 60 }}
                 />
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
                   {locale === "zh" ? "天" : "days"}
                 </span>
                 <Button
                   size="small"
                   type="primary"
-                  onClick={() => { handleSetDays(customDaysInput); setCustomDaysOpen(false); }}
+                  onClick={() => {
+                    handleSetDays(customDaysInput);
+                    setCustomDaysOpen(false);
+                  }}
                 >
                   {locale === "zh" ? "确定" : "OK"}
                 </Button>
@@ -979,35 +1201,61 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
       {/* ── Body ────────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-
         {/* ── Left Panel: Employees ────────────────────────────────────────── */}
         <div
           className="flex flex-col flex-shrink-0"
-          style={{ width: 260, background: "var(--card)", borderRight: "1px solid var(--border)", overflow: "hidden" }}
+          style={{
+            width: 260,
+            background: "var(--card)",
+            borderRight: "1px solid var(--border)",
+            overflow: "hidden",
+          }}
         >
           {/* Search */}
-          <div className="px-3 py-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div
+            className="px-3 py-3 flex-shrink-0"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
             <Input
-              prefix={<Search size={13} style={{ color: "var(--muted-foreground)" }} />}
-              placeholder={locale === "zh" ? "搜索员工..." : "Search employees..."}
+              prefix={
+                <Search
+                  size={13}
+                  style={{ color: "var(--muted-foreground)" }}
+                />
+              }
+              placeholder={
+                locale === "zh" ? "搜索员工..." : "Search employees..."
+              }
               size="small"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               allowClear
             />
             <div className="flex items-center justify-between mt-2">
-              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              <span
+                className="text-xs"
+                style={{ color: "var(--muted-foreground)" }}
+              >
                 {locale === "zh" ? "显示所有职位" : "Show All Positions"}
               </span>
-              <span className="text-xs font-medium" style={{ color: "var(--primary)" }}>
+              <span
+                className="text-xs font-medium"
+                style={{ color: "var(--primary)" }}
+              >
                 {filteredEmployees.length} {locale === "zh" ? "人" : "staff"}
               </span>
             </div>
           </div>
 
           {/* Sort label */}
-          <div className="px-3 py-2 flex-shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
-            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+          <div
+            className="px-3 py-2 flex-shrink-0"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
+            <span
+              className="text-xs"
+              style={{ color: "var(--muted-foreground)" }}
+            >
               {locale === "zh" ? "按姓名排序 A-Z" : "Sort by First Name A-Z"}
             </span>
           </div>
@@ -1056,11 +1304,15 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
         {/* ── Right Panel: Schedule Grid ───────────────────────────────────── */}
         <div className="flex-1 overflow-auto relative">
-
           {/* Template name header */}
           <div
             className="px-4 py-2 flex items-center justify-between flex-shrink-0 sticky top-0 left-0 z-10"
-            style={{ background: "var(--card)", borderBottom: "1px solid var(--border)", zIndex: 40, width: "100%" }}
+            style={{
+              background: "var(--card)",
+              borderBottom: "1px solid var(--border)",
+              zIndex: 40,
+              width: "100%",
+            }}
           >
             {nameEditing ? (
               <div className="flex items-center gap-2">
@@ -1072,42 +1324,82 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                   style={{ width: 200 }}
                   autoFocus
                 />
-                <Button size="small" type="primary" onClick={handleSaveName}>{locale === "zh" ? "确定" : "OK"}</Button>
-                <Button size="small" onClick={() => setNameEditing(false)}>{locale === "zh" ? "取消" : "Cancel"}</Button>
+                <Button size="small" type="primary" onClick={handleSaveName}>
+                  {locale === "zh" ? "确定" : "OK"}
+                </Button>
+                <Button size="small" onClick={() => setNameEditing(false)}>
+                  {locale === "zh" ? "取消" : "Cancel"}
+                </Button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="font-semibold" style={{ color: "var(--foreground)" }}>{activeTemplate?.name}</span>
-                <button onClick={() => { setNameEditing(true); setNameDraft(activeTemplate?.name || ""); }}>
-                  <Edit2 size={13} style={{ color: "var(--muted-foreground)" }} />
+                <span
+                  className="font-semibold"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  {activeTemplate?.name}
+                </span>
+                <button
+                  onClick={() => {
+                    setNameEditing(true);
+                    setNameDraft(activeTemplate?.name || "");
+                  }}
+                >
+                  <Edit2
+                    size={13}
+                    style={{ color: "var(--muted-foreground)" }}
+                  />
                 </button>
               </div>
             )}
             <div className="flex items-center gap-2">
-              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              <span
+                className="text-xs"
+                style={{ color: "var(--muted-foreground)" }}
+              >
                 {activeTemplate?.totalDays} {locale === "zh" ? "天" : "days"}
               </span>
-              <Tag style={{ background: "var(--secondary)", color: "var(--primary)", border: "none" }}>
+              <Tag
+                style={{
+                  background: "var(--secondary)",
+                  color: "var(--primary)",
+                  border: "none",
+                }}
+              >
                 {templateAreas.length} {locale === "zh" ? "个区域" : "areas"}
               </Tag>
               {/* Multi-employee tip */}
               <div
                 className="flex items-center gap-1 rounded-md px-2 py-0.5"
-                style={{ background: "var(--secondary)", border: "1px solid var(--border)" }}
+                style={{
+                  background: "var(--secondary)",
+                  border: "1px solid var(--border)",
+                }}
               >
                 <AlertTriangle size={10} style={{ color: "var(--primary)" }} />
                 <span style={{ color: "var(--primary)", fontSize: 10 }}>
-                  {locale === "zh" ? "每班次支持多名员工" : "Multiple employees per shift"}
+                  {locale === "zh"
+                    ? "每班次支持多名员工"
+                    : "Multiple employees per shift"}
                 </span>
               </div>
             </div>
           </div>
 
           {/* Grid */}
-          <div style={{ minWidth: Math.max(700, totalDaysList.length * 160 + 120) }}>
-
+          <div
+            style={{
+              minWidth: Math.max(700, totalDaysList.length * 160 + 120),
+            }}
+          >
             {/* Day header row */}
-            <div className="flex sticky top-10 z-20" style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
+            <div
+              className="flex sticky top-10 z-20"
+              style={{
+                background: "var(--card)",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
               {/* Area column header */}
               <div
                 className="sticky left-0 flex-shrink-0 flex items-center px-4"
@@ -1119,7 +1411,10 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                   zIndex: 30,
                 }}
               >
-                <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
                   {locale === "zh" ? "区域" : "Area"}
                 </span>
               </div>
@@ -1127,7 +1422,10 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               {/* Day columns */}
               {totalDaysList.map((day) => {
                 const dayIndex = day - 1;
-                const isStoreClosed = isStoreClosedOnDayIndex(activeTemplateStore, dayIndex);
+                const isStoreClosed = isStoreClosedOnDayIndex(
+                  activeTemplateStore,
+                  dayIndex,
+                );
 
                 return (
                   <div
@@ -1137,12 +1435,18 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                       width: 160,
                       minHeight: 44,
                       borderRight: "1px solid var(--border)",
-                      background: isStoreClosed ? "var(--workday-weekend-header)" : "var(--card)",
+                      background: isStoreClosed
+                        ? "var(--workday-weekend-header)"
+                        : "var(--card)",
                     }}
                   >
                     <span
                       className="text-sm font-semibold"
-                      style={{ color: isStoreClosed ? "var(--workday-weekend-text)" : "var(--foreground)" }}
+                      style={{
+                        color: isStoreClosed
+                          ? "var(--workday-weekend-text)"
+                          : "var(--foreground)",
+                      }}
                     >
                       {getWeekdayLabel(dayIndex, locale)}
                     </span>
@@ -1151,20 +1455,41 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               })}
 
               {/* +/- columns */}
-              <div className="flex items-center px-2" style={{ minWidth: 44, minHeight: 44 }}>
-                <Tooltip title={locale === "zh" ? "删除/增减列" : "Manage columns"}>
+              <div
+                className="flex items-center px-2"
+                style={{ minWidth: 44, minHeight: 44 }}
+              >
+                <Tooltip
+                  title={locale === "zh" ? "删除/增减列" : "Manage columns"}
+                >
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => activeTemplate && activeTemplate.totalDays > 7 && handleSetDays(activeTemplate.totalDays - 7)}
+                      onClick={() =>
+                        activeTemplate &&
+                        activeTemplate.totalDays > 7 &&
+                        handleSetDays(activeTemplate.totalDays - 7)
+                      }
                       className="flex items-center justify-center rounded-md"
-                      style={{ width: 20, height: 20, background: "var(--destructive)", color: "var(--primary-foreground)" }}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        background: "var(--destructive)",
+                        color: "var(--primary-foreground)",
+                      }}
                     >
                       <Minus size={10} />
                     </button>
                     <button
-                      onClick={() => handleSetDays((activeTemplate?.totalDays || 7) + 7)}
+                      onClick={() =>
+                        handleSetDays((activeTemplate?.totalDays || 7) + 7)
+                      }
                       className="flex items-center justify-center rounded-md"
-                      style={{ width: 20, height: 20, background: "var(--primary)", color: "var(--primary-foreground)" }}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        background: "var(--primary)",
+                        color: "var(--primary-foreground)",
+                      }}
                     >
                       <Plus size={10} />
                     </button>
@@ -1175,7 +1500,11 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
 
             {/* Area rows */}
             {templateAreas.map((area) => (
-              <div key={area.id} className="flex" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div
+                key={area.id}
+                className="flex"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
                 {/* Area name cell */}
                 <div
                   className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
@@ -1188,16 +1517,29 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                   }}
                 >
                   <div className="flex items-center gap-1">
-                    <GripVertical size={12} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{area.name}</span>
+                    <GripVertical
+                      size={12}
+                      style={{ color: "var(--muted-foreground)" }}
+                    />
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: "var(--foreground)" }}
+                    >
+                      {area.name}
+                    </span>
                   </div>
                   <Popconfirm
-                    title={locale === "zh" ? "删除此区域？" : "Delete this area?"}
+                    title={
+                      locale === "zh" ? "删除此区域？" : "Delete this area?"
+                    }
                     onConfirm={() => handleDeleteArea(area.id)}
                     okText={locale === "zh" ? "是" : "Yes"}
                     cancelText={locale === "zh" ? "否" : "No"}
                   >
-                    <button className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--destructive)" }}>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ color: "var(--destructive)" }}
+                    >
                       <Trash2 size={11} />
                     </button>
                   </Popconfirm>
@@ -1206,9 +1548,12 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                 {/* Day cells */}
                 {totalDaysList.map((day) => {
                   const dayIndex = day - 1;
-                  const isStoreClosed = isStoreClosedOnDayIndex(activeTemplateStore, dayIndex);
+                  const isStoreClosed = isStoreClosedOnDayIndex(
+                    activeTemplateStore,
+                    dayIndex,
+                  );
                   const cellsInSlot = activeTemplateVisibleCells.filter(
-                    (c) => c.areaId === area.id && c.dayIndex === dayIndex
+                    (c) => c.areaId === area.id && c.dayIndex === dayIndex,
                   );
 
                   return (
@@ -1219,32 +1564,43 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                         width: 160,
                         borderRight: "1px solid var(--border)",
                         minHeight: 88,
-                        background: isStoreClosed ? "var(--workday-weekend-header)" : "transparent",
+                        background: isStoreClosed
+                          ? "var(--workday-weekend-header)"
+                          : "transparent",
                       }}
                       onDragOver={(e) => e.preventDefault()}
                     >
                       {cellsInSlot.map((cell) => {
                         const cellEmployees = cell.employeeIds
                           .map((eid) => {
-                            const emp = activeEmployees.find((employee) => employee.id === eid);
+                            const emp = activeEmployees.find(
+                              (employee) => employee.id === eid,
+                            );
                             if (!emp) return null;
                             return {
                               id: eid,
                               name: empNameMap[eid],
                               color: empColorMap[eid] || "var(--primary)",
                               avatarUrl: empAvatarMap[eid] || "",
-                              availabilityWarning: getTemplateShiftAvailabilityWarning(
-                                emp,
-                                {
-                                  dayIndex: cell.dayIndex,
-                                  startTime: cell.startTime,
-                                  endTime: cell.endTime,
-                                },
-                                locale
-                              ),
+                              availabilityWarning:
+                                getTemplateShiftAvailabilityWarning(
+                                  emp,
+                                  {
+                                    dayIndex: cell.dayIndex,
+                                    startTime: cell.startTime,
+                                    endTime: cell.endTime,
+                                  },
+                                  locale,
+                                ),
                             };
                           })
-                          .filter(Boolean) as { id: string; name: string; color: string; avatarUrl: string; availabilityWarning: string | null }[];
+                          .filter(Boolean) as {
+                          id: string;
+                          name: string;
+                          color: string;
+                          avatarUrl: string;
+                          availabilityWarning: string | null;
+                        }[];
                         return (
                           <ShiftCell
                             key={cell.id}
@@ -1252,8 +1608,12 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                             employees={cellEmployees}
                             onEdit={() => openEditCell(cell)}
                             onDelete={() => handleDeleteCell(cell.id)}
-                            onDrop={(empId) => handleDropEmployee(cell.id, empId)}
-                            onRemoveEmployee={(empId) => handleRemoveEmployee(cell.id, empId)}
+                            onDrop={(empId) =>
+                              handleDropEmployee(cell.id, empId)
+                            }
+                            onRemoveEmployee={(empId) =>
+                              handleRemoveEmployee(cell.id, empId)
+                            }
                           />
                         );
                       })}
@@ -1284,9 +1644,12 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
             {/* Add Area row */}
             <div
               className="flex items-center px-4 py-3"
-              style={{ borderBottom: "1px solid var(--border)", background: "var(--muted)" }}
+              style={{
+                borderBottom: "1px solid var(--border)",
+                background: "var(--muted)",
+              }}
             >
-                <button
+              <button
                 onClick={() => {
                   setSelectedAreaId(selectableAreas[0]?.id || "");
                   setAddAreaOpen(true);
@@ -1301,7 +1664,6 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                 {locale === "zh" ? "添加区域" : "Add Area"}
               </button>
             </div>
-
           </div>
         </div>
       </div>
@@ -1321,7 +1683,10 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
       <Modal
         title={locale === "zh" ? "添加区域" : "Add Area"}
         open={addAreaOpen}
-        onCancel={() => { setAddAreaOpen(false); setSelectedAreaId(""); }}
+        onCancel={() => {
+          setAddAreaOpen(false);
+          setSelectedAreaId("");
+        }}
         onOk={handleAddArea}
         maskClosable={false}
         okText={locale === "zh" ? "添加" : "Add"}
@@ -1330,14 +1695,21 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         width={400}
       >
         <div className="py-3">
-          <div className="text-sm mb-2" style={{ color: "var(--muted-foreground)" }}>
+          <div
+            className="text-sm mb-2"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             {locale === "zh" ? "选择基础区域" : "Select Base Area"}
           </div>
           <Select
             value={selectedAreaId || undefined}
             onChange={setSelectedAreaId}
             style={{ width: "100%" }}
-            placeholder={locale === "zh" ? "从区域管理中选择..." : "Choose from area management..."}
+            placeholder={
+              locale === "zh"
+                ? "从区域管理中选择..."
+                : "Choose from area management..."
+            }
           >
             {selectableAreas.map((area) => (
               <Option key={area.id} value={area.id}>
@@ -1346,8 +1718,13 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
             ))}
           </Select>
           {selectableAreas.length === 0 && (
-            <div className="text-xs mt-2" style={{ color: "var(--muted-foreground)" }}>
-              {locale === "zh" ? "当前店面没有可加入的区域，请先到区域管理新增" : "No available areas for this store. Add them in Area Management first."}
+            <div
+              className="text-xs mt-2"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {locale === "zh"
+                ? "当前店面没有可加入的区域，请先到区域管理新增"
+                : "No available areas for this store. Add them in Area Management first."}
             </div>
           )}
         </div>
@@ -1368,14 +1745,19 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
         <div className="flex flex-col gap-4 py-3">
           {/* Preset select */}
           <div>
-            <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+            <div
+              className="text-sm mb-1.5"
+              style={{ color: "var(--foreground)" }}
+            >
               {locale === "zh" ? "选择班次" : "Select Shift"}
             </div>
             <Select
               showSearch
               value={cellForm.presetKey || undefined}
               onChange={(value) => {
-                const preset = modalShiftPresetOptions.find((option) => option.key === value);
+                const preset = modalShiftPresetOptions.find(
+                  (option) => option.key === value,
+                );
                 if (!preset) {
                   setCellForm((form) => ({ ...form, presetKey: value }));
                   return;
@@ -1391,7 +1773,9 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                   color: preset.color,
                 }));
               }}
-              placeholder={locale === "zh" ? "请选择班次" : "Please choose a shift"}
+              placeholder={
+                locale === "zh" ? "请选择班次" : "Please choose a shift"
+              }
               style={{ width: "100%" }}
               optionFilterProp="label"
               options={modalShiftPresetOptions.map((option) => ({
@@ -1400,8 +1784,13 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               }))}
             />
             {shiftPresetOptions.length === 0 && (
-              <div className="text-xs mt-2" style={{ color: "var(--muted-foreground)" }}>
-                {locale === "zh" ? "暂无可选班次，请先到班次管理创建班次" : "No shifts available yet. Create shifts in Shift Management first."}
+              <div
+                className="text-xs mt-2"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {locale === "zh"
+                  ? "暂无可选班次，请先到班次管理创建班次"
+                  : "No shifts available yet. Create shifts in Shift Management first."}
               </div>
             )}
           </div>
@@ -1409,26 +1798,42 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
           {/* Time */}
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+              <div
+                className="text-sm mb-1.5"
+                style={{ color: "var(--foreground)" }}
+              >
                 {locale === "zh" ? "开始时间" : "Start Time"}
               </div>
               <TimePicker
                 disabled
                 format="HH:mm"
                 value={dayjs(cellForm.startTime, "HH:mm")}
-                onChange={(v) => setCellForm((f) => ({ ...f, startTime: v ? v.format("HH:mm") : "09:00" }))}
+                onChange={(v) =>
+                  setCellForm((f) => ({
+                    ...f,
+                    startTime: v ? v.format("HH:mm") : "09:00",
+                  }))
+                }
                 style={{ width: "100%" }}
               />
             </div>
             <div className="flex-1">
-              <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+              <div
+                className="text-sm mb-1.5"
+                style={{ color: "var(--foreground)" }}
+              >
                 {locale === "zh" ? "结束时间" : "End Time"}
               </div>
               <TimePicker
                 disabled
                 format="HH:mm"
                 value={dayjs(cellForm.endTime, "HH:mm")}
-                onChange={(v) => setCellForm((f) => ({ ...f, endTime: v ? v.format("HH:mm") : "17:00" }))}
+                onChange={(v) =>
+                  setCellForm((f) => ({
+                    ...f,
+                    endTime: v ? v.format("HH:mm") : "17:00",
+                  }))
+                }
                 style={{ width: "100%" }}
               />
             </div>
@@ -1441,40 +1846,62 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
           >
             <Clock size={14} style={{ color: "var(--primary)" }} />
             <span className="text-sm" style={{ color: "var(--primary)" }}>
-              {calcHours(cellForm.startTime, cellForm.endTime)}{locale === "zh" ? " 小时" : " hours"}
+              {calcHours(cellForm.startTime, cellForm.endTime)}
+              {locale === "zh" ? " 小时" : " hours"}
             </span>
           </div>
 
           {/* Color */}
           <div>
-            <div className="text-sm mb-1.5" style={{ color: "var(--foreground)" }}>
+            <div
+              className="text-sm mb-1.5"
+              style={{ color: "var(--foreground)" }}
+            >
               {locale === "zh" ? "颜色标识" : "Color"}
             </div>
-            <ColorSwatchPicker value={cellForm.color} onChange={(color) => setCellForm((f) => ({ ...f, color }))} locale={locale} />
+            <ColorSwatchPicker
+              value={cellForm.color}
+              onChange={(color) => setCellForm((f) => ({ ...f, color }))}
+              locale={locale}
+            />
           </div>
 
           {/* Multi-employee assignment */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-sm" style={{ color: "var(--foreground)" }}>
-                {locale === "zh" ? "分配员工（支持多人）" : "Assign Employees (multi-select)"}
+                {locale === "zh"
+                  ? "分配员工（支持多人）"
+                  : "Assign Employees (multi-select)"}
               </div>
               <span
                 className="text-xs rounded-md px-1.5 py-0.5"
-                style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                style={{
+                  background: "var(--secondary)",
+                  color: "var(--primary)",
+                }}
               >
-                {cellForm.employeeIds.length} {locale === "zh" ? "人" : "assigned"}
+                {cellForm.employeeIds.length}{" "}
+                {locale === "zh" ? "人" : "assigned"}
               </span>
             </div>
             <Select
               mode="multiple"
               value={cellForm.employeeIds}
-              onChange={(v: string[]) => setCellForm((f) => ({ ...f, employeeIds: v }))}
-              placeholder={locale === "zh" ? "选择员工（可多选）..." : "Select employees..."}
+              onChange={(v: string[]) =>
+                setCellForm((f) => ({ ...f, employeeIds: v }))
+              }
+              placeholder={
+                locale === "zh"
+                  ? "选择员工（可多选）..."
+                  : "Select employees..."
+              }
               style={{ width: "100%" }}
               maxTagCount="responsive"
               tagRender={(props) => {
-                const emp = activeEmployees.find((employee) => employee.id === props.value);
+                const emp = activeEmployees.find(
+                  (employee) => employee.id === props.value,
+                );
                 const warning = emp
                   ? getTemplateShiftAvailabilityWarning(
                       emp,
@@ -1483,7 +1910,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                         startTime: cellForm.startTime,
                         endTime: cellForm.endTime,
                       },
-                      locale
+                      locale,
                     )
                   : null;
                 return (
@@ -1499,7 +1926,16 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                       }}
                     >
                       {props.label}
-                      {warning && <AlertTriangle size={10} style={{ display: "inline", marginLeft: 4, verticalAlign: -1 }} />}
+                      {warning && (
+                        <AlertTriangle
+                          size={10}
+                          style={{
+                            display: "inline",
+                            marginLeft: 4,
+                            verticalAlign: -1,
+                          }}
+                        />
+                      )}
                     </Tag>
                   </Tooltip>
                 );
@@ -1514,7 +1950,7 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                     startTime: cellForm.startTime,
                     endTime: cellForm.endTime,
                   },
-                  locale
+                  locale,
                 );
                 return (
                   <Tooltip title={warning || undefined} placement="right">
@@ -1523,21 +1959,32 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
                         <Avatar
                           size={18}
                           src={getEmployeeAvatarUrl(emp) || undefined}
-                          style={{ background: emp.employeeColor || "var(--primary)", fontSize: 9, flexShrink: 0 }}
+                          style={{
+                            background: emp.employeeColor || "var(--primary)",
+                            fontSize: 9,
+                            flexShrink: 0,
+                          }}
                         >
                           {getEmployeeInitials(emp.firstName, emp.lastName)}
                         </Avatar>
                         <span
                           className="truncate"
                           style={{
-                            color: warning ? "var(--destructive)" : "var(--foreground)",
+                            color: warning
+                              ? "var(--destructive)"
+                              : "var(--foreground)",
                             fontWeight: warning ? 700 : 400,
                           }}
                         >
                           {emp.firstName} {emp.lastName}
                         </span>
                       </div>
-                      {warning && <AlertTriangle size={13} style={{ color: "var(--destructive)", flexShrink: 0 }} />}
+                      {warning && (
+                        <AlertTriangle
+                          size={13}
+                          style={{ color: "var(--destructive)", flexShrink: 0 }}
+                        />
+                      )}
                     </div>
                   </Tooltip>
                 );
@@ -1550,12 +1997,18 @@ export default function RosterTemplatePage({ onSave = () => {} }: RosterTemplate
               ))}
             </Select>
             {/* Conflict hint */}
-            <div className="flex items-start gap-1.5 mt-2 rounded-md px-2 py-1.5" style={{ background: "var(--muted)" }}>
-              <AlertTriangle size={12} style={{ color: "var(--chart-3)", flexShrink: 0, marginTop: 1 }} />
+            <div
+              className="flex items-start gap-1.5 mt-2 rounded-md px-2 py-1.5"
+              style={{ background: "var(--muted)" }}
+            >
+              <AlertTriangle
+                size={12}
+                style={{ color: "var(--chart-3)", flexShrink: 0, marginTop: 1 }}
+              />
               <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}>
                 {locale === "zh"
-                  ? "保存时将自动检测员工工作时间是否完整覆盖班次，并检测同一员工时间冲突（含跨天班次）"
-                  : "Save checks that employee work hours fully cover the shift and that no employee has overlapping shifts, including overnight shifts"}
+                  ? "保存时将检测员工工作时间是否完整覆盖班次（仅提醒），并检测同一员工时间冲突（含跨天班次，阻止保存）"
+                  : "Save checks that employee work hours fully cover the shift (warning only) and that no employee has overlapping shifts, including overnight shifts (blocking)"}
               </span>
             </div>
           </div>

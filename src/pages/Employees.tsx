@@ -46,7 +46,6 @@ import {
   DEFAULT_COLOR_VALUE,
 } from "../components/ColorSwatchPicker";
 import TimelineSlotPicker from "../components/TimelineSlotPicker";
-import WorkDaysCalendar from "../components/WorkDaysCalendar";
 import {
   useData,
   type Employee,
@@ -65,21 +64,47 @@ import { extractUploadKey, merchantApi } from "../lib/merchantApi";
 const { Option } = Select;
 
 const defaultWorkDayPattern: WorkDayPattern[] = [
-  { dayIndex: 0, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
-  { dayIndex: 1, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
-  { dayIndex: 2, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
-  { dayIndex: 3, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
-  { dayIndex: 4, state: "on", hours: 8, timeSlots: [{ start: "09:00", end: "17:00" }] },
+  {
+    dayIndex: 0,
+    state: "on",
+    hours: 8,
+    timeSlots: [{ start: "09:00", end: "17:00" }],
+  },
+  {
+    dayIndex: 1,
+    state: "on",
+    hours: 8,
+    timeSlots: [{ start: "09:00", end: "17:00" }],
+  },
+  {
+    dayIndex: 2,
+    state: "on",
+    hours: 8,
+    timeSlots: [{ start: "09:00", end: "17:00" }],
+  },
+  {
+    dayIndex: 3,
+    state: "on",
+    hours: 8,
+    timeSlots: [{ start: "09:00", end: "17:00" }],
+  },
+  {
+    dayIndex: 4,
+    state: "on",
+    hours: 8,
+    timeSlots: [{ start: "09:00", end: "17:00" }],
+  },
   { dayIndex: 5, state: "off", hours: 0, timeSlots: [] },
   { dayIndex: 6, state: "off", hours: 0, timeSlots: [] },
 ];
 
 const cloneWorkDayPattern = (
   pattern: WorkDayPattern[] = defaultWorkDayPattern,
-) => pattern.map((day) => ({
-  ...day,
-  timeSlots: (day.timeSlots || []).map((slot) => ({ ...slot })),
-}));
+) =>
+  pattern.map((day) => ({
+    ...day,
+    timeSlots: (day.timeSlots || []).map((slot) => ({ ...slot })),
+  }));
 
 const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   firstName: "",
@@ -289,7 +314,9 @@ function formatHours(hours: number): string {
   return hours % 1 === 0 ? String(hours) : hours.toFixed(1);
 }
 
-function normalizeWorkDayPattern(pattern: WorkDayPattern[] = defaultWorkDayPattern): WorkDayPattern[] {
+function normalizeWorkDayPattern(
+  pattern: WorkDayPattern[] = defaultWorkDayPattern,
+): WorkDayPattern[] {
   return Array.from({ length: 7 }, (_, dayIndex) => {
     const fallback = defaultWorkDayPattern[dayIndex];
     const day = pattern.find((item) => item.dayIndex === dayIndex) ?? fallback;
@@ -301,7 +328,8 @@ function normalizeWorkDayPattern(pattern: WorkDayPattern[] = defaultWorkDayPatte
         : day.state === "on"
           ? defaultSlotsFromHours(fallbackHours)
           : [];
-    const hours = timeSlots.length > 0 ? calcHoursFromSlots(timeSlots) : fallbackHours;
+    const hours =
+      timeSlots.length > 0 ? calcHoursFromSlots(timeSlots) : fallbackHours;
     const state: WorkDayPattern["state"] =
       day.state === "on" && (timeSlots.length > 0 || hours > 0) ? "on" : "off";
 
@@ -365,7 +393,10 @@ function DaySlotRow({
   };
 
   return (
-    <div className="flex items-start gap-3 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+    <div
+      className="flex items-start gap-3 py-3"
+      style={{ borderBottom: "1px solid var(--border)" }}
+    >
       <button
         type="button"
         onClick={toggleOn}
@@ -412,13 +443,264 @@ function DaySlotRow({
           width: 44,
           height: 28,
           marginTop: 8,
-          background: isOn ? "var(--workday-active-bg, #dbeafe)" : "transparent",
-          color: isOn ? "var(--workday-active-text, #1d4ed8)" : "var(--muted-foreground)",
+          background: isOn
+            ? "var(--workday-active-bg, #dbeafe)"
+            : "transparent",
+          color: isOn
+            ? "var(--workday-active-text, #1d4ed8)"
+            : "var(--muted-foreground)",
           border: "1px solid var(--border)",
         }}
       >
         {isOn ? `${formatHours(day.hours)}h` : "-"}
       </div>
+    </div>
+  );
+}
+
+function DayDisplayRow({
+  day,
+  dayLabel = "Mon",
+}: {
+  day: WorkDayPattern;
+  dayLabel?: string;
+}) {
+  const isOn = day.state === "on";
+
+  return (
+    <div
+      className="flex items-start gap-3 py-3"
+      style={{ borderBottom: "1px solid var(--border)" }}
+    >
+      <div
+        className="flex-shrink-0 rounded-lg text-xs font-bold flex items-center justify-center"
+        style={{
+          width: 48,
+          height: 28,
+          marginTop: 8,
+          border: "1.5px solid var(--border)",
+          background: isOn ? "var(--primary)" : "var(--muted)",
+          color: isOn ? "var(--primary-foreground)" : "var(--muted-foreground)",
+        }}
+      >
+        {dayLabel}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        {!isOn ? (
+          <div className="flex items-center" style={{ height: 44 }}>
+            <span
+              className="text-xs px-3 py-1 rounded-full"
+              style={{
+                background: "var(--muted)",
+                color: "var(--muted-foreground)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              Day Off
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="relative" style={{ height: 24 }}>
+              <div
+                className="absolute inset-x-0"
+                style={{
+                  top: 0,
+                  height: 24,
+                  borderRadius: 6,
+                  background: "var(--muted)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {AXIS_HOURS.map((hour) => (
+                  <div
+                    key={hour}
+                    style={{
+                      position: "absolute",
+                      left: `${(hour / 24) * 100}%`,
+                      top: 0,
+                      bottom: 0,
+                      width: 1,
+                      background: "var(--border)",
+                      opacity: 0.6,
+                      pointerEvents: "none",
+                    }}
+                  />
+                ))}
+
+                {(day.timeSlots ?? []).map((slot, idx) => {
+                  const startMin = timeToMinutes(slot.start);
+                  const endMin = timeToMinutes(slot.end);
+                  const leftPct = (startMin / TOTAL_MINUTES) * 100;
+                  const widthPct = ((endMin - startMin) / TOTAL_MINUTES) * 100;
+                  const durationH = (endMin - startMin) / 60;
+                  const label =
+                    durationH >= 0.75
+                      ? `${formatLabel(slot.start)} - ${formatLabel(slot.end)}`
+                      : "";
+
+                  return (
+                    <div
+                      key={`${idx}-${slot.start}-${slot.end}`}
+                      style={{
+                        position: "absolute",
+                        left: `${leftPct}%`,
+                        width: `${widthPct}%`,
+                        top: 0,
+                        height: "100%",
+                        borderRadius: 5,
+                        background: "var(--primary)",
+                        opacity: 0.88,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        overflow: "hidden",
+                        zIndex: 2,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: "var(--primary-foreground)",
+                          pointerEvents: "none",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          padding: "0 10px",
+                        }}
+                      >
+                        {label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="relative" style={{ height: 16, marginTop: -4 }}>
+              {AXIS_HOURS.map((hour) => (
+                <span
+                  key={hour}
+                  style={{
+                    position: "absolute",
+                    left: `${(hour / 24) * 100}%`,
+                    transform: "translateX(-50%)",
+                    fontSize: 9,
+                    color: "var(--muted-foreground)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {hour}
+                </span>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {(day.timeSlots ?? []).map((slot, idx) => {
+                const startMin = timeToMinutes(slot.start);
+                const endMin = timeToMinutes(slot.end);
+                const durationH = (endMin - startMin) / 60;
+
+                return (
+                  <span
+                    key={idx}
+                    className="text-xs px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "var(--workday-active-bg, #dbeafe)",
+                      color: "var(--workday-active-text, #1d4ed8)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    {formatLabel(slot.start)}-{formatLabel(slot.end)}{" "}
+                    <span className="font-semibold">
+                      {durationH % 1 === 0 ? durationH : durationH.toFixed(1)}h
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div
+        className="flex-shrink-0 flex items-center justify-center rounded-lg text-xs font-semibold"
+        style={{
+          width: 44,
+          height: 28,
+          marginTop: 8,
+          background: isOn
+            ? "var(--workday-active-bg, #dbeafe)"
+            : "transparent",
+          color: isOn
+            ? "var(--workday-active-text, #1d4ed8)"
+            : "var(--muted-foreground)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        {isOn ? `${formatHours(day.hours)}h` : "-"}
+      </div>
+    </div>
+  );
+}
+
+const TOTAL_MINUTES = 24 * 60;
+const AXIS_HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+
+function formatLabel(time: string): string {
+  const [hours, minutes] = time.split(":").map(Number);
+  if (hours === 0 && minutes === 0) return "12:00am";
+  if (hours === 12 && minutes === 0) return "12:00pm";
+  const suffix = hours >= 12 ? "pm" : "am";
+  const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  return `${displayHour}:${String(minutes).padStart(2, "0")}${suffix}`;
+}
+
+function WorkDayDisplay({
+  value = defaultWorkDayPattern,
+  weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+}: {
+  value?: WorkDayPattern[];
+  weekDays?: string[];
+}) {
+  const normalizedValue = normalizeWorkDayPattern(value);
+  const totalHours = normalizedValue.reduce(
+    (total, day) => total + (day.state === "on" ? day.hours : 0),
+    0,
+  );
+
+  return (
+    <div className="flex flex-col" style={{ gap: 0 }}>
+      <div
+        className="flex items-center justify-between px-1 pb-2 mb-1"
+        style={{ borderBottom: "2px solid var(--border)" }}
+      >
+        <span
+          className="text-xs font-semibold"
+          style={{ color: "var(--foreground)" }}
+        >
+          Weekly Work Schedule
+        </span>
+        <span
+          className="text-xs font-semibold px-2 py-0.5 rounded-lg"
+          style={{
+            background: "var(--workday-active-bg, #dbeafe)",
+            color: "var(--workday-active-text, #1d4ed8)",
+          }}
+        >
+          {formatHours(totalHours)}h / week
+        </span>
+      </div>
+
+      {normalizedValue.map((day) => (
+        <DayDisplayRow
+          key={day.dayIndex}
+          day={day}
+          dayLabel={weekDays[day.dayIndex] ?? `D${day.dayIndex}`}
+        />
+      ))}
     </div>
   );
 }
@@ -445,7 +727,10 @@ function WorkDayEditor({
         className="flex items-center justify-between px-1 pb-2 mb-1"
         style={{ borderBottom: "2px solid var(--border)" }}
       >
-        <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+        <span
+          className="text-xs font-semibold"
+          style={{ color: "var(--foreground)" }}
+        >
           Weekly Work Schedule
         </span>
         <span
@@ -465,7 +750,11 @@ function WorkDayEditor({
           day={day}
           dayLabel={weekDays[day.dayIndex] ?? `D${day.dayIndex}`}
           onChange={(updated) =>
-            onChange(normalizedValue.map((item) => (item.dayIndex === day.dayIndex ? updated : item)))
+            onChange(
+              normalizedValue.map((item) =>
+                item.dayIndex === day.dayIndex ? updated : item,
+              ),
+            )
           }
         />
       ))}
@@ -1507,13 +1796,13 @@ export function EmployeeModal({
                 style={{ flex: 1 }}
               >
                 <Select allowClear placeholder={t.selectPlaceholder}>
-                  {Object.entries(et.visaTypeOptions as Record<string, string>).map(
-                    ([key, label]) => (
-                      <Option key={key} value={key}>
-                        {label}
-                      </Option>
-                    ),
-                  )}
+                  {Object.entries(
+                    et.visaTypeOptions as Record<string, string>,
+                  ).map(([key, label]) => (
+                    <Option key={key} value={key}>
+                      {label}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
               <Form.Item
@@ -1857,13 +2146,7 @@ function DetailPanel({
       label: et.tabWorkDays as string,
       children: (
         <div className="flex flex-col gap-0" style={{ margin: "-8px -8px 0" }}>
-          <WorkDaysCalendar
-            workDayPattern={workDays}
-            onPatternChange={(newPattern) => {
-              console.log("[WorkDaysCalendar] pattern changed:", newPattern);
-              toast.info(et.workPatternUpdated as string);
-            }}
-          />
+          <WorkDayDisplay value={workDays} weekDays={et.weekDays as string[]} />
         </div>
       ),
     },
