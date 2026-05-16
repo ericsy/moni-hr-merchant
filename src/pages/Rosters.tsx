@@ -331,6 +331,8 @@ interface ShiftEntryProps {
   onDropEmployee?: (empId: string) => void;
   /** Called when a template card is dropped onto this shift */
   onDropTemplate?: (templateId: string) => void;
+  /** Opens the shift editor so employees can be selected without dragging */
+  onAddEmployeeClick?: () => void;
 }
 
 function ShiftEntry({
@@ -341,6 +343,7 @@ function ShiftEntry({
   onRemoveEmployee = () => {},
   onDropEmployee = () => {},
   onDropTemplate = () => {},
+  onAddEmployeeClick = () => {},
 }: ShiftEntryProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale } = useLocale();
@@ -497,13 +500,21 @@ function ShiftEntry({
         </div>
       )}
 
-      {/* Drop hint bar */}
-      <div
-        className="flex items-center justify-center rounded-md mt-0.5"
+      {/* Drop hint / add employee button */}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onAddEmployeeClick();
+        }}
+        className="w-full flex items-center justify-center rounded-md mt-0.5 transition-all hover:opacity-80"
         style={{
           border: `1px dashed ${isDragOver ? "var(--primary)" : cs.border}`,
           padding: "2px 4px",
           background: isDragOver ? "var(--secondary)" : "transparent",
+          cursor: "pointer",
+          position: "relative",
+          zIndex: 1,
         }}
       >
         <span
@@ -514,13 +525,13 @@ function ShiftEntry({
         >
           {assignedEmployees.length > 0
             ? locale === "zh"
-              ? `+ 拖拽添加员工`
-              : `+ drag employee`
+              ? `+ 添加员工`
+              : `+ add employee`
             : locale === "zh"
-              ? `拖拽员工到此处`
-              : `drag employee here`}
+              ? `选择员工`
+              : `select employee`}
         </span>
-      </div>
+      </button>
     </div>
   );
 }
@@ -795,6 +806,7 @@ function AreaDateCell({
             }
             onDropEmployee={(empId) => onDropEmployeeToShift(empId, sh)}
             onDropTemplate={onDropTemplate}
+            onAddEmployeeClick={() => onEditShift(sh)}
           />
         );
       })}

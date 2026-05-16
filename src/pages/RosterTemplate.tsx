@@ -14,6 +14,8 @@ import dayjs from "dayjs";
 import {
   AlertTriangle,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Edit2,
   GripVertical,
@@ -24,7 +26,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 import {
   ColorSwatchPicker,
@@ -50,6 +52,11 @@ import { isStoreClosedOnDayIndex } from "../lib/storeHours";
 import { EmployeeModal } from "./Employees";
 
 const { Option } = Select;
+
+const TEMPLATE_AREA_COLUMN_WIDTH = 120;
+const TEMPLATE_DAY_COLUMN_WIDTH = 160;
+const TEMPLATE_ACTION_COLUMN_WIDTH = 44;
+const SCROLL_CLICK_DELAY_MS = 260;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -195,6 +202,7 @@ interface ShiftCellProps {
   onDelete?: () => void;
   onDrop?: (empId: string) => void;
   onRemoveEmployee?: (empId: string) => void;
+  onAddEmployeeClick?: () => void;
 }
 
 function ShiftCell({
@@ -204,6 +212,7 @@ function ShiftCell({
   onDelete = () => {},
   onDrop = () => {},
   onRemoveEmployee = () => {},
+  onAddEmployeeClick = () => {},
 }: ShiftCellProps) {
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -352,13 +361,21 @@ function ShiftCell({
         </div>
       )}
 
-      {/* Drop hint */}
-      <div
-        className="flex items-center justify-center rounded-md mt-0.5"
+      {/* Drop hint / add employee button */}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onAddEmployeeClick();
+        }}
+        className="w-full flex items-center justify-center rounded-md mt-0.5 transition-all hover:opacity-80"
         style={{
           border: `1px dashed ${isDragOver ? "var(--primary)" : sc.border}`,
           padding: "2px 4px",
           background: isDragOver ? "var(--secondary)" : "transparent",
+          cursor: "pointer",
+          position: "relative",
+          zIndex: 1,
         }}
       >
         <span
@@ -367,9 +384,9 @@ function ShiftCell({
             fontSize: 9,
           }}
         >
-          {employees.length > 0 ? `+ 拖拽添加员工` : `拖拽员工到此处`}
+          {employees.length > 0 ? `+ 添加员工` : `选择员工`}
         </span>
-      </div>
+      </button>
     </div>
   );
 }
@@ -427,12 +444,18 @@ export default function RosterTemplatePage({
   // Duration selector
   const [customDaysOpen, setCustomDaysOpen] = useState(false);
   const [customDaysInput, setCustomDaysInput] = useState<number>(14);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
   // Template name edit
   const [nameEditing, setNameEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const nextCreatedCellIdRef = useRef(0);
   const nextCreatedTemplateIdRef = useRef(0);
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  const gridContentRef = useRef<HTMLDivElement | null>(null);
+  const scrollClickTimerRef = useRef<number | null>(null);
+  const [gridOverlayHeight, setGridOverlayHeight] = useState(0);
 
   const visibleTemplates = allTemplates.filter(
     (template) => !selectedStoreId || template.storeId === selectedStoreId,
@@ -584,6 +607,110 @@ export default function RosterTemplatePage({
     { length: activeTemplateTotalDays },
     (_, i) => i + 1,
   );
+
+  const updateHorizontalScrollState = () => {
+    const scroller = gridScrollRef.current;
+    if (!scroller) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+
+    const maxScrollLeft = scroller.scrollWidth - scroller.clientWidth;
+    setCanScrollLeft(scroller.scrollLeft > 1);
+    setCanScrollRight(scroller.scrollLeft < maxScrollLeft - 1);
+  };
+
+  const getHorizontalScrollStep = (mode: "cell" | "page") => {
+    const scroller = gridScrollRef.current;
+    if (!scroller) return TEMPLATE_DAY_COLUMN_WIDTH;
+
+    const pageStep = Math.max(
+      TEMPLATE_DAY_COLUMN_WIDTH,
+      scroller.clientWidth -
+        TEMPLATE_AREA_COLUMN_WIDTH -
+        TEMPLATE_ACTION_COLUMN_WIDTH,
+    );
+    return mode === "page" ? pageStep : TEMPLATE_DAY_COLUMN_WIDTH;
+  };
+
+  const scrollTemplateGrid = (direction: -1 | 1, mode: "cell" | "page") => {
+    const scroller = gridScrollRef.current;
+    if (!scroller) return;
+
+    scroller.scrollBy({
+      left: direction * getHorizontalScrollStep(mode),
+      behavior: "smooth",
+    });
+  };
+
+  const handleHorizontalScrollButtonClick = (
+    event: MouseEvent<HTMLButtonElement>,
+    direction: -1 | 1,
+  ) => {
+    if (event.detail > 1) return;
+
+    if (scrollClickTimerRef.current !== null) {
+      window.clearTimeout(scrollClickTimerRef.current);
+    }
+
+    scrollClickTimerRef.current = window.setTimeout(() => {
+      scrollTemplateGrid(direction, "cell");
+      scrollClickTimerRef.current = null;
+    }, SCROLL_CLICK_DELAY_MS);
+  };
+
+  const handleHorizontalScrollButtonDoubleClick = (direction: -1 | 1) => {
+    if (scrollClickTimerRef.current !== null) {
+      window.clearTimeout(scrollClickTimerRef.current);
+      scrollClickTimerRef.current = null;
+    }
+
+    scrollTemplateGrid(direction, "page");
+  };
+
+  useEffect(() => {
+    const scroller = gridScrollRef.current;
+    if (!scroller) return;
+
+    updateHorizontalScrollState();
+    scroller.addEventListener("scroll", updateHorizontalScrollState, {
+      passive: true,
+    });
+    window.addEventListener("resize", updateHorizontalScrollState);
+
+    return () => {
+      scroller.removeEventListener("scroll", updateHorizontalScrollState);
+      window.removeEventListener("resize", updateHorizontalScrollState);
+      if (scrollClickTimerRef.current !== null) {
+        window.clearTimeout(scrollClickTimerRef.current);
+        scrollClickTimerRef.current = null;
+      }
+    };
+  }, [activeTemplateTotalDays, templateAreas.length]);
+
+  useEffect(() => {
+    const gridContent = gridContentRef.current;
+    if (!gridContent) return;
+
+    const updateGridOverlayHeight = () => {
+      setGridOverlayHeight(gridContent.offsetHeight);
+    };
+
+    updateGridOverlayHeight();
+    window.addEventListener("resize", updateGridOverlayHeight);
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateGridOverlayHeight)
+        : null;
+    resizeObserver?.observe(gridContent);
+
+    return () => {
+      window.removeEventListener("resize", updateGridOverlayHeight);
+      resizeObserver?.disconnect();
+    };
+  }, [activeTemplateTotalDays, templateAreas.length]);
 
   const empNameMap: Record<string, string> = {};
   const empColorMap: Record<string, string> = {};
@@ -1303,7 +1430,10 @@ export default function RosterTemplatePage({
         </div>
 
         {/* ── Right Panel: Schedule Grid ───────────────────────────────────── */}
-        <div className="flex-1 overflow-auto relative">
+        <div
+          ref={gridScrollRef}
+          className="flex-1 overflow-auto relative"
+        >
           {/* Template name header */}
           <div
             className="px-4 py-2 flex items-center justify-between flex-shrink-0 sticky top-0 left-0 z-10"
@@ -1386,10 +1516,104 @@ export default function RosterTemplatePage({
             </div>
           </div>
 
+          <div
+            className="sticky left-0 right-0 top-0 z-30 pointer-events-none"
+            style={{
+              height: gridOverlayHeight,
+              marginBottom: -gridOverlayHeight,
+            }}
+          >
+            <Tooltip
+              title={
+                locale === "zh"
+                  ? "单击左移一格，双击左移一屏"
+                  : "Click to move one cell, double-click to move one page"
+              }
+            >
+              <button
+                type="button"
+                aria-label={
+                  locale === "zh"
+                    ? "向左滚动排班模版"
+                    : "Scroll roster template left"
+                }
+                disabled={!canScrollLeft}
+                onClick={(event) =>
+                  handleHorizontalScrollButtonClick(event, -1)
+                }
+                onDoubleClick={() =>
+                  handleHorizontalScrollButtonDoubleClick(-1)
+                }
+                className="absolute flex items-center justify-center rounded-md pointer-events-auto transition-all"
+                style={{
+                  left: TEMPLATE_AREA_COLUMN_WIDTH + 16,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 34,
+                  height: 84,
+                  background: "var(--card)",
+                  border: "1px solid var(--primary)",
+                  color: "var(--primary)",
+                  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.14)",
+                  opacity: canScrollLeft ? 0.95 : 0.35,
+                  cursor: canScrollLeft ? "pointer" : "not-allowed",
+                }}
+              >
+                <ChevronLeft size={18} />
+              </button>
+            </Tooltip>
+
+            <Tooltip
+              title={
+                locale === "zh"
+                  ? "单击右移一格，双击右移一屏"
+                  : "Click to move one cell, double-click to move one page"
+              }
+            >
+              <button
+                type="button"
+                aria-label={
+                  locale === "zh"
+                    ? "向右滚动排班模版"
+                    : "Scroll roster template right"
+                }
+                disabled={!canScrollRight}
+                onClick={(event) =>
+                  handleHorizontalScrollButtonClick(event, 1)
+                }
+                onDoubleClick={() =>
+                  handleHorizontalScrollButtonDoubleClick(1)
+                }
+                className="absolute flex items-center justify-center rounded-md pointer-events-auto transition-all"
+                style={{
+                  right: 16,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 34,
+                  height: 84,
+                  background: "var(--card)",
+                  border: "1px solid var(--primary)",
+                  color: "var(--primary)",
+                  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.14)",
+                  opacity: canScrollRight ? 0.95 : 0.35,
+                  cursor: canScrollRight ? "pointer" : "not-allowed",
+                }}
+              >
+                <ChevronRight size={18} />
+              </button>
+            </Tooltip>
+          </div>
+
           {/* Grid */}
           <div
+            ref={gridContentRef}
             style={{
-              minWidth: Math.max(700, totalDaysList.length * 160 + 120),
+              minWidth: Math.max(
+                700,
+                totalDaysList.length * TEMPLATE_DAY_COLUMN_WIDTH +
+                  TEMPLATE_AREA_COLUMN_WIDTH +
+                  TEMPLATE_ACTION_COLUMN_WIDTH,
+              ),
             }}
           >
             {/* Day header row */}
@@ -1404,7 +1628,7 @@ export default function RosterTemplatePage({
               <div
                 className="sticky left-0 flex-shrink-0 flex items-center px-4"
                 style={{
-                  width: 120,
+                  width: TEMPLATE_AREA_COLUMN_WIDTH,
                   borderRight: "1px solid var(--border)",
                   minHeight: 44,
                   background: "var(--card)",
@@ -1432,7 +1656,7 @@ export default function RosterTemplatePage({
                     key={day}
                     className="flex-shrink-0 flex items-center justify-center"
                     style={{
-                      width: 160,
+                      width: TEMPLATE_DAY_COLUMN_WIDTH,
                       minHeight: 44,
                       borderRight: "1px solid var(--border)",
                       background: isStoreClosed
@@ -1457,7 +1681,7 @@ export default function RosterTemplatePage({
               {/* +/- columns */}
               <div
                 className="flex items-center px-2"
-                style={{ minWidth: 44, minHeight: 44 }}
+                style={{ minWidth: TEMPLATE_ACTION_COLUMN_WIDTH, minHeight: 44 }}
               >
                 <Tooltip
                   title={locale === "zh" ? "删除/增减列" : "Manage columns"}
@@ -1509,7 +1733,7 @@ export default function RosterTemplatePage({
                 <div
                   className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
                   style={{
-                    width: 120,
+                    width: TEMPLATE_AREA_COLUMN_WIDTH,
                     borderRight: "1px solid var(--border)",
                     minHeight: 88,
                     background: "var(--muted)",
@@ -1561,7 +1785,7 @@ export default function RosterTemplatePage({
                       key={day}
                       className="flex-shrink-0 p-1.5"
                       style={{
-                        width: 160,
+                        width: TEMPLATE_DAY_COLUMN_WIDTH,
                         borderRight: "1px solid var(--border)",
                         minHeight: 88,
                         background: isStoreClosed
@@ -1614,6 +1838,7 @@ export default function RosterTemplatePage({
                             onRemoveEmployee={(empId) =>
                               handleRemoveEmployee(cell.id, empId)
                             }
+                            onAddEmployeeClick={() => openEditCell(cell)}
                           />
                         );
                       })}
@@ -1637,7 +1862,7 @@ export default function RosterTemplatePage({
                 })}
 
                 {/* spacer */}
-                <div style={{ minWidth: 44 }} />
+                <div style={{ minWidth: TEMPLATE_ACTION_COLUMN_WIDTH }} />
               </div>
             ))}
 
