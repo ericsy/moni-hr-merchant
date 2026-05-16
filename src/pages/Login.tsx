@@ -6,13 +6,21 @@ import {
   Lock,
   LogIn,
   Mail,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Checkbox } from "../components/ui/checkbox";
 import { useAuth } from "../context/AuthContext";
 import { useLocale } from "../context/LocaleContext";
+import {
+  clearCredentials,
+  decryptCredentials,
+  encryptCredentials,
+  loadCredentials,
+  saveCredentials,
+} from "../lib/credentials";
 import { merchantApi } from "../lib/merchantApi";
 
 const T = {
@@ -114,6 +122,21 @@ export default function Login() {
   const lang: Lang = locale;
   const t = T[lang];
 
+  useEffect(() => {
+    const cipherText = loadCredentials();
+    console.log("[Login] loadCredentials, cipherText:", cipherText);
+    if (cipherText) {
+      decryptCredentials(cipherText).then((creds) => {
+        console.log("[Login] decryptCredentials, creds:", creds);
+        if (creds) {
+          setEmail(creds.email);
+          setPassword(creds.password);
+          setRememberMe(true);
+        }
+      });
+    }
+  }, []);
+
   console.log("[Login] render, loading:", loading, "lang:", lang);
 
   const validate = () => {
@@ -144,6 +167,12 @@ export default function Login() {
         toast.error(result.message ?? t.toastError);
       } else {
         writeRememberMePreference(rememberMe);
+        if (rememberMe) {
+          const cipherText = await encryptCredentials(email.trim(), password);
+          saveCredentials(cipherText);
+        } else {
+          clearCredentials();
+        }
         navigate("/", { replace: true });
       }
     } finally {
