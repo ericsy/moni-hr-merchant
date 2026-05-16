@@ -1,30 +1,37 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Layout as AntLayout, Menu, Button, Avatar, Dropdown, Space, Select, Modal, Form, Input, Tooltip, type MenuProps } from "antd";
-import { useNavigate } from "react-router-dom";
 import {
-  House,
-  LayoutDashboard,
-  Users,
-  Store,
-  MapPin,
+  Layout as AntLayout,
+  Avatar,
+  Button,
+  Dropdown,
+  Form,
+  Input,
+  Menu,
+  Modal,
+  Select,
+  Space,
+  Tooltip,
+  type MenuProps,
+} from "antd";
+import {
+  Bell,
   CalendarDays,
-  Clock,
-  Globe,
+  CalendarRange,
   ChevronLeft,
   ChevronRight,
-  Bell,
+  Clock,
   CreditCard,
+  Globe,
+  House,
   KeyRound,
+  LayoutDashboard,
   LogOut,
+  MapPin,
+  Store,
   User,
-  CalendarRange,
+  Users,
 } from "lucide-react";
-import { useLocale } from "../context/LocaleContext";
-import { useData } from "../context/DataContext";
-import { useStore } from "../context/StoreContext";
-import { useAuth } from "../context/AuthContext";
-import { usePermissions } from "../context/PermissionsContext";
-import { merchantApi, type MerchantFeatureTreeNode } from "../lib/merchantApi";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   getFeaturePageKeyHint,
@@ -32,6 +39,12 @@ import {
   resolveRouteConfigFromFeature,
   type PageKey,
 } from "../config/routes";
+import { useAuth } from "../context/AuthContext";
+import { useData } from "../context/DataContext";
+import { useLocale } from "../context/LocaleContext";
+import { usePermissions } from "../context/PermissionsContext";
+import { useStore } from "../context/StoreContext";
+import { merchantApi, type MerchantFeatureTreeNode } from "../lib/merchantApi";
 
 const { Option } = Select;
 
@@ -80,7 +93,14 @@ export default function AppLayout({
   const lastDataReloadKeyRef = useRef("");
   const requiresFirstStore = storesLoaded && stores.length === 0;
 
-  console.log("[Layout] currentPage:", currentPage, "collapsed:", collapsed, "selectedStoreId:", selectedStoreId);
+  console.log(
+    "[Layout] currentPage:",
+    currentPage,
+    "collapsed:",
+    collapsed,
+    "selectedStoreId:",
+    selectedStoreId,
+  );
 
   useEffect(() => {
     if (requiresFirstStore || !dataReloadPages.has(currentPage)) return;
@@ -89,12 +109,20 @@ export default function AppLayout({
     if (lastDataReloadKeyRef.current === reloadKey) return;
     lastDataReloadKeyRef.current = reloadKey;
 
-    const reload = selectedStoreId ? reloadForStore(selectedStoreId) : refreshData();
+    const reload = selectedStoreId
+      ? reloadForStore(selectedStoreId)
+      : refreshData();
     reload.catch((error) => {
       console.log("[Layout] failed to reload page data:", currentPage, error);
       lastDataReloadKeyRef.current = "";
     });
-  }, [currentPage, refreshData, reloadForStore, requiresFirstStore, selectedStoreId]);
+  }, [
+    currentPage,
+    refreshData,
+    reloadForStore,
+    requiresFirstStore,
+    selectedStoreId,
+  ]);
 
   const routePathByPageKey = useMemo(() => {
     const map = new Map<PageKey, string>();
@@ -118,100 +146,121 @@ export default function AppLayout({
     return map;
   }, [permissions]);
 
-  const { items: menuItems, defaultOpenKeys: defaultOpenMenuKeys } = useMemo(() => {
-    const seenPageKeys = new Set<PageKey>();
-    const defaultOpenKeys = new Set<string>();
-    const iconMap: Record<string, React.ReactNode> = {
-      home: <House size={18} />,
-      dashboard: <LayoutDashboard size={18} />,
-      employees: <Users size={18} />,
-      stores: <Store size={18} />,
-      areas: <MapPin size={18} />,
-      schedule: <Clock size={18} />,
-      rosters: <CalendarRange size={18} />,
-      rosterTemplate: <CalendarDays size={18} />,
-      billing: <CreditCard size={18} />,
-    };
+  const { items: menuItems, defaultOpenKeys: defaultOpenMenuKeys } =
+    useMemo(() => {
+      const seenPageKeys = new Set<PageKey>();
+      const defaultOpenKeys = new Set<string>();
+      const iconMap: Record<string, React.ReactNode> = {
+        home: <House size={18} />,
+        dashboard: <LayoutDashboard size={18} />,
+        employees: <Users size={18} />,
+        stores: <Store size={18} />,
+        areas: <MapPin size={18} />,
+        schedule: <Clock size={18} />,
+        rosters: <CalendarRange size={18} />,
+        rosterTemplate: <CalendarDays size={18} />,
+        billing: <CreditCard size={18} />,
+      };
 
-    const getNodeLabel = (node: MerchantFeatureTreeNode, fallback: string) => {
-      if (locale === "zh") return node.nameZh || node.nameEn || fallback;
-      return node.nameEn || node.nameZh || fallback;
-    };
+      const getNodeLabel = (
+        node: MerchantFeatureTreeNode,
+        fallback: string,
+      ) => {
+        if (locale === "zh") return node.nameZh || node.nameEn || fallback;
+        return node.nameEn || node.nameZh || fallback;
+      };
 
-    const getFeatureMenuKey = (node: MerchantFeatureTreeNode, label: string) =>
-      `feature-${node.id ?? node.url ?? label}`;
+      const getFeatureMenuKey = (
+        node: MerchantFeatureTreeNode,
+        label: string,
+      ) => `feature-${node.id ?? node.url ?? label}`;
 
-    const buildMenuItems = (nodes: MerchantFeatureTreeNode[]): MenuItem[] => {
-      return [...nodes]
-        .filter((node) => node.status === 1)
-        .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))
-        .flatMap((node) => {
-          const children = node.children?.length ? buildMenuItems(node.children) : [];
-          const routeConfig = resolveRouteConfigFromFeature(node);
+      const buildMenuItems = (nodes: MerchantFeatureTreeNode[]): MenuItem[] => {
+        return [...nodes]
+          .filter((node) => node.status === 1)
+          .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))
+          .flatMap((node) => {
+            const children = node.children?.length
+              ? buildMenuItems(node.children)
+              : [];
+            const routeConfig = resolveRouteConfigFromFeature(node);
 
-          if (!routeConfig) {
-            if (children.length === 0) return [];
+            if (!routeConfig) {
+              if (children.length === 0) return [];
 
-            const groupLabel = locale === "zh"
-              ? node.nameZh || node.nameEn || ""
-              : node.nameEn || node.nameZh || "";
-            const groupKey = getFeatureMenuKey(node, groupLabel);
-            const groupPageKey = getFeaturePageKeyHint(node);
+              const groupLabel =
+                locale === "zh"
+                  ? node.nameZh || node.nameEn || ""
+                  : node.nameEn || node.nameZh || "";
+              const groupKey = getFeatureMenuKey(node, groupLabel);
+              const groupPageKey = getFeaturePageKeyHint(node);
 
-            defaultOpenKeys.add(groupKey);
+              defaultOpenKeys.add(groupKey);
 
-            return [{
-              key: groupKey,
-              icon: groupPageKey ? iconMap[groupPageKey] : undefined,
-              label: groupLabel,
-              children,
-            }];
-          }
+              return [
+                {
+                  key: groupKey,
+                  icon: groupPageKey ? iconMap[groupPageKey] : undefined,
+                  label: groupLabel,
+                  children,
+                },
+              ];
+            }
 
-          if (seenPageKeys.has(routeConfig.pageKey)) {
-            return children;
-          }
+            if (seenPageKeys.has(routeConfig.pageKey)) {
+              return children;
+            }
 
-          seenPageKeys.add(routeConfig.pageKey);
-          const fallbackLabel = t.nav[routeConfig.pageKey as keyof typeof t.nav] ?? routeConfig.pageKey;
+            seenPageKeys.add(routeConfig.pageKey);
+            const fallbackLabel =
+              t.nav[routeConfig.pageKey as keyof typeof t.nav] ??
+              routeConfig.pageKey;
 
-          return [{
-            key: routeConfig.pageKey,
-            icon: iconMap[routeConfig.pageKey],
-            label: getNodeLabel(node, fallbackLabel),
-            children: children.length > 0 ? children : undefined,
-          }];
-        });
-    };
+            return [
+              {
+                key: routeConfig.pageKey,
+                icon: iconMap[routeConfig.pageKey],
+                label: getNodeLabel(node, fallbackLabel),
+                children: children.length > 0 ? children : undefined,
+              },
+            ];
+          });
+      };
 
-    const homeMenuItem: MenuItem = {
-      key: "home",
-      icon: iconMap.home,
-      label: t.nav.home,
-    };
+      const homeMenuItem: MenuItem = {
+        key: "home",
+        icon: iconMap.home,
+        label: t.nav.home,
+      };
 
-    const items = [homeMenuItem, ...buildMenuItems(permissions)];
-    if (!requiresFirstStore) {
-      return { items, defaultOpenKeys: [...defaultOpenKeys] };
-    }
+      const items = [homeMenuItem, ...buildMenuItems(permissions)];
+      if (!requiresFirstStore) {
+        return { items, defaultOpenKeys: [...defaultOpenKeys] };
+      }
 
-    const storeItems = items.filter((item) => item?.key === "stores");
-    const firstStoreItems = storeItems.length > 0
-      ? storeItems
-      : [{
-        key: "stores",
-        icon: iconMap.stores,
-        label: t.nav.stores,
-      }];
+      const storeItems = items.filter((item) => item?.key === "stores");
+      const firstStoreItems =
+        storeItems.length > 0
+          ? storeItems
+          : [
+              {
+                key: "stores",
+                icon: iconMap.stores,
+                label: t.nav.stores,
+              },
+            ];
 
-    return { items: firstStoreItems, defaultOpenKeys: [] };
-  }, [permissions, locale, t, requiresFirstStore]);
+      return { items: firstStoreItems, defaultOpenKeys: [] };
+    }, [permissions, locale, t, requiresFirstStore]);
 
   useEffect(() => {
     queueMicrotask(() => {
       setOpenMenuKeys((previousKeys) => {
         const nextKeys = new Set([...previousKeys, ...defaultOpenMenuKeys]);
-        if (nextKeys.size === previousKeys.length && previousKeys.every((key) => nextKeys.has(key))) {
+        if (
+          nextKeys.size === previousKeys.length &&
+          previousKeys.every((key) => nextKeys.has(key))
+        ) {
           return previousKeys;
         }
         return [...nextKeys];
@@ -234,10 +283,23 @@ export default function AppLayout({
   };
 
   const userMenuItems = [
-    { key: "profile", icon: <User size={14} />, label: locale === "zh" ? "个人资料" : "Profile" },
-    { key: "changePassword", icon: <KeyRound size={14} />, label: t.employee.changePassword },
+    {
+      key: "profile",
+      icon: <User size={14} />,
+      label: locale === "zh" ? "个人资料" : "Profile",
+    },
+    {
+      key: "changePassword",
+      icon: <KeyRound size={14} />,
+      label: t.employee.changePassword,
+    },
     { type: "divider" as const },
-    { key: "logout", icon: <LogOut size={14} />, label: locale === "zh" ? "退出登录" : "Logout", danger: true },
+    {
+      key: "logout",
+      icon: <LogOut size={14} />,
+      label: locale === "zh" ? "退出登录" : "Logout",
+      danger: true,
+    },
   ];
 
   const openChangePasswordModal = () => {
@@ -255,7 +317,10 @@ export default function AppLayout({
     try {
       const values = await passwordForm.validateFields();
       setPasswordSaving(true);
-      await merchantApi.changePassword(values.currentPassword, values.newPassword);
+      await merchantApi.changePassword(
+        values.currentPassword,
+        values.newPassword,
+      );
       toast.success(t.employee.passwordChanged);
       setPasswordModalOpen(false);
       passwordForm.resetFields();
@@ -263,11 +328,13 @@ export default function AppLayout({
       navigate("/login", { replace: true });
     } catch (error) {
       const isValidationError =
-        typeof error === "object" &&
-        error !== null &&
-        "errorFields" in error;
+        typeof error === "object" && error !== null && "errorFields" in error;
       if (!isValidationError) {
-        toast.error(error instanceof Error ? error.message : t.employee.passwordChangeFailed);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : t.employee.passwordChangeFailed,
+        );
       }
     } finally {
       setPasswordSaving(false);
@@ -438,15 +505,21 @@ export default function AppLayout({
               margin: 0,
             }}
           >
-            <div className="flex items-center gap-4" style={{ minWidth: 0, flex: "1 1 auto" }}>
+            <div
+              className="flex items-center gap-4"
+              style={{ minWidth: 0, flex: "1 1 auto" }}
+            >
               <div
                 className="font-semibold text-lg"
                 style={{ color: "var(--foreground)", whiteSpace: "nowrap" }}
               >
                 {t.nav[currentPage as keyof typeof t.nav] ?? currentPage}
               </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "center", flex: 1 }}>
               {storeSelector}
             </div>
+            <div style={{ flex: "1 1 auto" }} />
 
             <Space size={12}>
               {/* Language switch */}
