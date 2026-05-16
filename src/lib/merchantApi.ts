@@ -1,17 +1,17 @@
 import { appendEndpointPath, getMerchantEndpoint } from "../config/merchantEndpoints";
-import { apiRequest } from "./apiClient";
 import type {
-  Area,
-  CountryOption,
-  Employee,
-  RosterTemplate,
-  RosterTemplateCell,
-  ScheduleShift,
-  Store,
-  StoreWeekdayHours,
-  TimeSlot,
-  WorkDayPattern,
+    Area,
+    CountryOption,
+    Employee,
+    RosterTemplate,
+    RosterTemplateCell,
+    ScheduleShift,
+    Store,
+    StoreWeekdayHours,
+    TimeSlot,
+    WorkDayPattern,
 } from "../context/DataContext";
+import { apiRequest } from "./apiClient";
 
 export interface MerchantLoginResult {
   accessToken?: string | null;
@@ -795,6 +795,23 @@ export const merchantApi = {
     apiRequest<null>("/api/v1/merchant/auth/password", {
       method: "PUT",
       body: { currentPassword, newPassword },
+    }),
+  forgotPassword: (email: string) =>
+    apiRequest<null>("/api/v1/merchant/auth/forgot-password", {
+      method: "POST",
+      auth: false,
+      body: { email },
+    }),
+  getPasswordResetEmail: (token: string) =>
+    apiRequest<MerchantActivationEmail>("/api/v1/merchant/auth/password-reset-email", {
+      auth: false,
+      query: { token },
+    }),
+  resetPassword: (token: string, newPassword: string) =>
+    apiRequest<null>("/api/v1/merchant/auth/reset-password", {
+      method: "POST",
+      auth: false,
+      body: { token, newPassword },
     }),
   merchantMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/me"),
   authMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/auth/me"),

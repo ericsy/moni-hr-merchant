@@ -1,10 +1,19 @@
+import {
+  CalendarDays,
+  Eye,
+  EyeOff,
+  Globe,
+  Lock,
+  LogIn,
+  Mail,
+} from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { CalendarDays, Eye, EyeOff, Globe, Lock, LogIn, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { Checkbox } from "../components/ui/checkbox";
 import { useAuth } from "../context/AuthContext";
 import { useLocale } from "../context/LocaleContext";
-import { Checkbox } from "../components/ui/checkbox";
+import { merchantApi } from "../lib/merchantApi";
 
 const T = {
   en: {
@@ -15,12 +24,23 @@ const T = {
     passwordLabel: "Password",
     passwordPlaceholder: "Enter password",
     rememberMe: "Remember me",
+    forgotPassword: "Forgot password?",
     submitBtn: "Sign In",
     signingIn: "Signing in...",
     toastError: "Sign in failed",
     errEmailRequired: "Please enter your email address",
     errEmailInvalid: "Please enter a valid email address",
     errPasswordRequired: "Please enter your password",
+    forgotPasswordTitle: "Reset Password",
+    forgotPasswordDesc:
+      "Enter your email address and we'll send you a link to reset your password.",
+    forgotPasswordEmailPlaceholder: "Enter your email address",
+    sendResetLink: "Send Reset Link",
+    sending: "Sending...",
+    toastForgotPasswordSuccess:
+      "Password reset link sent. Please check your email.",
+    toastForgotPasswordError: "Failed to send reset link",
+    cancel: "Cancel",
   },
   zh: {
     welcomeBack: "欢迎回来",
@@ -30,12 +50,21 @@ const T = {
     passwordLabel: "密码",
     passwordPlaceholder: "请输入密码",
     rememberMe: "记住我",
+    forgotPassword: "忘记密码？",
     submitBtn: "登录",
     signingIn: "登录中...",
     toastError: "登录失败",
     errEmailRequired: "请输入邮箱地址",
     errEmailInvalid: "请输入有效的邮箱地址",
     errPasswordRequired: "请输入密码",
+    forgotPasswordTitle: "重置密码",
+    forgotPasswordDesc: "输入您的邮箱地址，我们将向您发送重置密码的链接。",
+    forgotPasswordEmailPlaceholder: "请输入邮箱地址",
+    sendResetLink: "发送重置链接",
+    sending: "发送中...",
+    toastForgotPasswordSuccess: "密码重置链接已发送，请查收邮件。",
+    toastForgotPasswordError: "发送重置链接失败",
+    cancel: "取消",
   },
 } as const;
 
@@ -57,7 +86,10 @@ function writeRememberMePreference(rememberMe: boolean) {
   if (typeof window === "undefined") return;
 
   try {
-    window.localStorage.setItem(REMEMBER_ME_STORAGE_KEY, rememberMe ? "true" : "false");
+    window.localStorage.setItem(
+      REMEMBER_ME_STORAGE_KEY,
+      rememberMe ? "true" : "false",
+    );
   } catch (error) {
     console.log("[Login] failed to save remember me preference:", error);
   }
@@ -73,7 +105,12 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(readRememberMePreference);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const lang: Lang = locale;
   const t = T[lang];
 
@@ -114,6 +151,31 @@ export default function Login() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotPasswordEmail.trim()) {
+      toast.error(t.errEmailRequired);
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotPasswordEmail)) {
+      toast.error(t.errEmailInvalid);
+      return;
+    }
+    setForgotPasswordLoading(true);
+    try {
+      await merchantApi.forgotPassword(forgotPasswordEmail.trim());
+      toast.success(t.toastForgotPasswordSuccess);
+      setForgotPasswordOpen(false);
+      setForgotPasswordEmail("");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t.toastForgotPasswordError,
+      );
+    } finally {
+      setForgotPasswordLoading(false);
+    }
+  };
+
   return (
     <div
       data-cmp="Login"
@@ -148,7 +210,10 @@ export default function Login() {
         />
       </div>
 
-      <div className="absolute top-5 right-6 flex items-center gap-2" style={{ zIndex: 10 }}>
+      <div
+        className="absolute top-5 right-6 flex items-center gap-2"
+        style={{ zIndex: 10 }}
+      >
         <Globe size={14} style={{ color: "var(--muted-foreground)" }} />
         <div
           className="flex items-center rounded-full p-0.5 select-none"
@@ -163,7 +228,10 @@ export default function Login() {
             className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
             style={{
               background: lang === "en" ? "var(--primary)" : "transparent",
-              color: lang === "en" ? "var(--primary-foreground)" : "var(--muted-foreground)",
+              color:
+                lang === "en"
+                  ? "var(--primary-foreground)"
+                  : "var(--muted-foreground)",
               cursor: lang === "en" ? "default" : "pointer",
             }}
           >
@@ -175,7 +243,10 @@ export default function Login() {
             className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
             style={{
               background: lang === "zh" ? "var(--primary)" : "transparent",
-              color: lang === "zh" ? "var(--primary-foreground)" : "var(--muted-foreground)",
+              color:
+                lang === "zh"
+                  ? "var(--primary-foreground)"
+                  : "var(--muted-foreground)",
               cursor: lang === "zh" ? "default" : "pointer",
             }}
           >
@@ -215,7 +286,9 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {/* Email */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
+              <label className="text-sm font-medium text-foreground">
+                {t.emailLabel}
+              </label>
               <div className="relative flex items-center">
                 <span
                   className="absolute left-3 flex items-center pointer-events-none"
@@ -228,7 +301,8 @@ export default function Login() {
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
-                    if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+                    if (errors.email)
+                      setErrors((prev) => ({ ...prev, email: undefined }));
                   }}
                   placeholder={t.emailPlaceholder}
                   autoComplete="email"
@@ -243,13 +317,18 @@ export default function Login() {
                     e.currentTarget.style.boxShadow = `0 0 0 3px var(--ring)`;
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.borderColor = errors.email ? "var(--destructive)" : "var(--border)";
+                    e.currentTarget.style.borderColor = errors.email
+                      ? "var(--destructive)"
+                      : "var(--border)";
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 />
               </div>
               {errors.email && (
-                <span className="text-xs" style={{ color: "var(--destructive)" }}>
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--destructive)" }}
+                >
                   {errors.email}
                 </span>
               )}
@@ -257,7 +336,9 @@ export default function Login() {
 
             {/* Password */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">{t.passwordLabel}</label>
+              <label className="text-sm font-medium text-foreground">
+                {t.passwordLabel}
+              </label>
               <div className="relative flex items-center">
                 <span
                   className="absolute left-3 flex items-center pointer-events-none"
@@ -270,7 +351,8 @@ export default function Login() {
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
-                    if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }));
+                    if (errors.password)
+                      setErrors((prev) => ({ ...prev, password: undefined }));
                   }}
                   placeholder={t.passwordPlaceholder}
                   autoComplete="current-password"
@@ -285,7 +367,9 @@ export default function Login() {
                     e.currentTarget.style.boxShadow = `0 0 0 3px var(--ring)`;
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.borderColor = errors.password ? "var(--destructive)" : "var(--border)";
+                    e.currentTarget.style.borderColor = errors.password
+                      ? "var(--destructive)"
+                      : "var(--border)";
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 />
@@ -300,24 +384,40 @@ export default function Login() {
                 </button>
               </div>
               {errors.password && (
-                <span className="text-xs" style={{ color: "var(--destructive)" }}>
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--destructive)" }}
+                >
                   {errors.password}
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="remember-me"
-                checked={rememberMe}
-                onCheckedChange={(checked) => setRememberMe(checked === true)}
-              />
-              <label
-                htmlFor="remember-me"
-                className="text-sm text-muted-foreground select-none cursor-pointer"
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="remember-me"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                />
+                <label
+                  htmlFor="remember-me"
+                  className="text-sm text-muted-foreground select-none cursor-pointer"
+                >
+                  {t.rememberMe}
+                </label>
+              </div>
+              <button
+                type="button"
+                className="text-sm font-medium transition-opacity hover:opacity-70"
+                style={{ color: "var(--primary)" }}
+                onClick={() => {
+                  setForgotPasswordEmail(email);
+                  setForgotPasswordOpen(true);
+                }}
               >
-                {t.rememberMe}
-              </label>
+                {t.forgotPassword}
+              </button>
             </div>
 
             {/* Submit */}
@@ -327,7 +427,9 @@ export default function Login() {
               className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-sm font-semibold transition-opacity mt-1"
               style={{
                 background: loading ? "var(--muted)" : "var(--primary)",
-                color: loading ? "var(--muted-foreground)" : "var(--primary-foreground)",
+                color: loading
+                  ? "var(--muted-foreground)"
+                  : "var(--primary-foreground)",
                 cursor: loading ? "not-allowed" : "pointer",
                 border: "none",
               }}
@@ -339,7 +441,8 @@ export default function Login() {
                     style={{
                       width: 16,
                       height: 16,
-                      borderColor: "var(--muted-foreground) transparent var(--muted-foreground) transparent",
+                      borderColor:
+                        "var(--muted-foreground) transparent var(--muted-foreground) transparent",
                     }}
                   />
                   {t.signingIn}
@@ -352,9 +455,140 @@ export default function Login() {
               )}
             </button>
           </form>
-
         </div>
       </div>
+
+      {forgotPasswordOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ zIndex: 50, background: "rgba(0, 0, 0, 0.5)" }}
+          onClick={() => !forgotPasswordLoading && setForgotPasswordOpen(false)}
+        >
+          <div
+            className="relative bg-card rounded-2xl shadow-custom w-full mx-4 overflow-hidden"
+            style={{ maxWidth: 440 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="h-1 w-full"
+              style={{ background: "var(--primary)" }}
+            />
+
+            <div className="p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-foreground">
+                  {t.forgotPasswordTitle}
+                </h2>
+                <button
+                  type="button"
+                  className="flex items-center justify-center transition-opacity hover:opacity-70"
+                  style={{ color: "var(--muted-foreground)" }}
+                  onClick={() =>
+                    !forgotPasswordLoading && setForgotPasswordOpen(false)
+                  }
+                  disabled={forgotPasswordLoading}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p className="text-sm text-muted-foreground mb-6">
+                {t.forgotPasswordDesc}
+              </p>
+
+              <form
+                onSubmit={handleForgotPassword}
+                className="flex flex-col gap-5"
+              >
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-foreground">
+                    {t.emailLabel}
+                  </label>
+                  <div className="relative flex items-center">
+                    <span
+                      className="absolute left-3 flex items-center pointer-events-none"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      <Mail size={16} />
+                    </span>
+                    <input
+                      type="email"
+                      value={forgotPasswordEmail}
+                      onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                      placeholder={t.forgotPasswordEmailPlaceholder}
+                      autoComplete="email"
+                      className="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm outline-none transition-all"
+                      style={{
+                        background: "var(--muted)",
+                        border: "1px solid var(--border)",
+                        color: "var(--foreground)",
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = "var(--primary)";
+                        e.currentTarget.style.boxShadow = `0 0 0 3px var(--ring)`;
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                      disabled={forgotPasswordLoading}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-opacity"
+                    style={{
+                      background: "var(--muted)",
+                      color: "var(--foreground)",
+                      border: "1px solid var(--border)",
+                      cursor: forgotPasswordLoading ? "not-allowed" : "pointer",
+                    }}
+                    onClick={() => setForgotPasswordOpen(false)}
+                    disabled={forgotPasswordLoading}
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotPasswordLoading}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-opacity"
+                    style={{
+                      background: forgotPasswordLoading
+                        ? "var(--muted)"
+                        : "var(--primary)",
+                      color: forgotPasswordLoading
+                        ? "var(--muted-foreground)"
+                        : "var(--primary-foreground)",
+                      cursor: forgotPasswordLoading ? "not-allowed" : "pointer",
+                      border: "none",
+                    }}
+                  >
+                    {forgotPasswordLoading ? (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block rounded-full border-2 animate-spin"
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderColor:
+                              "var(--muted-foreground) transparent var(--muted-foreground) transparent",
+                          }}
+                        />
+                        {t.sending}
+                      </span>
+                    ) : (
+                      t.sendResetLink
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
