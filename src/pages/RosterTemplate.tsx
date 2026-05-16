@@ -244,17 +244,17 @@ function ShiftCell({
       }}
     >
       {/* Top row: employees + action buttons */}
-      <div className="flex items-center justify-between mb-0.5">
-        <div className="flex items-center gap-0.5 min-w-0 flex-1">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1 mb-0.5">
+        <div className="min-w-0 w-full overflow-hidden">
           {employees.length > 0 ? (
-            <div className="flex items-center gap-0.5 flex-wrap min-w-0">
+            <div className="flex w-full flex-wrap items-center gap-0.5 min-w-0">
               {employees.map((emp) => (
                 <Tooltip
                   key={emp.id}
                   title={emp.availabilityWarning || undefined}
                 >
                   <div
-                    className="flex items-center gap-0.5 rounded-md px-1 py-0.5"
+                    className="flex max-w-full min-w-0 items-center gap-0.5 rounded-md px-1 py-0.5"
                     style={{
                       background: "var(--card)",
                       border: emp.availabilityWarning
@@ -274,7 +274,7 @@ function ShiftCell({
                       {getEmployeeInitials(emp.name)}
                     </Avatar>
                     <span
-                      className="text-xs truncate"
+                      className="min-w-0 flex-1 truncate text-xs"
                       style={{
                         color: emp.availabilityWarning
                           ? "var(--destructive)"
@@ -315,7 +315,7 @@ function ShiftCell({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+        <div className="flex items-center gap-0.5 justify-self-end opacity-0 transition-opacity flex-shrink-0 group-hover:opacity-100">
           <button
             onClick={onEdit}
             className="rounded p-0.5 hover:opacity-70"
@@ -1008,7 +1008,7 @@ export default function RosterTemplatePage({
     toast.success(locale === "zh" ? "班次已删除" : "Shift deleted");
   };
 
-  /** Drop an employee onto a cell: add to employeeIds if not already present, with conflict check */
+  /** Drop an employee onto a cell: availability warns only; overlapping shifts still block. */
   const handleDropEmployee = (cellId: string, empId: string) => {
     const cell = (activeTemplate?.cells || []).find((c) => c.id === cellId);
     if (!cell) return;
@@ -1030,9 +1030,7 @@ export default function RosterTemplatePage({
       cell.endTime,
     );
     if (availabilityWarning) {
-      toast.error(availabilityWarning);
-      setDragEmpId(null);
-      return;
+      toast.warning(availabilityWarning);
     }
 
     const conflict = findConflict(

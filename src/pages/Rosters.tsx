@@ -381,63 +381,65 @@ function ShiftEntry({
       }}
     >
       {/* Top row: employee pills + action buttons */}
-      <div className="flex items-center justify-between mb-0.5">
-        <div className="flex items-center gap-0.5 min-w-0 flex-1 flex-wrap">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1 mb-0.5">
+        <div className="min-w-0 w-full overflow-hidden">
           {assignedEmployees.length > 0 ? (
-            assignedEmployees.map((emp) => (
-              <Tooltip
-                key={emp.id}
-                title={emp.availabilityWarning || undefined}
-              >
-                <div
-                  className="flex items-center gap-0.5 rounded-md px-1 py-0.5"
-                  style={{
-                    background: "var(--card)",
-                    border: emp.availabilityWarning
-                      ? "1px solid var(--destructive)"
-                      : "1px solid transparent",
-                  }}
+            <div className="flex w-full flex-wrap items-center gap-0.5 min-w-0">
+              {assignedEmployees.map((emp) => (
+                <Tooltip
+                  key={emp.id}
+                  title={emp.availabilityWarning || undefined}
                 >
-                  <Avatar
-                    size={13}
-                    src={emp.avatarUrl || undefined}
+                  <div
+                    className="flex max-w-full min-w-0 items-center gap-0.5 rounded-md px-1 py-0.5"
                     style={{
-                      background: emp.color,
-                      flexShrink: 0,
-                      fontSize: 7,
+                      background: "var(--card)",
+                      border: emp.availabilityWarning
+                        ? "1px solid var(--destructive)"
+                        : "1px solid transparent",
                     }}
                   >
-                    {getEmployeeInitials(emp.name)}
-                  </Avatar>
-                  <span
-                    className="text-xs truncate"
-                    style={{
-                      color: emp.availabilityWarning
-                        ? "var(--destructive)"
-                        : "var(--foreground)",
-                      maxWidth: 72,
-                      fontSize: 10,
-                      fontWeight: emp.availabilityWarning ? 700 : 400,
-                    }}
-                  >
-                    {emp.name}
-                  </span>
-                  {emp.availabilityWarning && (
-                    <AlertTriangle
-                      size={9}
-                      style={{ color: "var(--destructive)", flexShrink: 0 }}
-                    />
-                  )}
-                  <button
-                    onClick={() => onRemoveEmployee(emp.id)}
-                    className="rounded-full hover:opacity-70"
-                    style={{ color: "var(--muted-foreground)", flexShrink: 0 }}
-                  >
-                    <X size={9} />
-                  </button>
-                </div>
-              </Tooltip>
-            ))
+                    <Avatar
+                      size={13}
+                      src={emp.avatarUrl || undefined}
+                      style={{
+                        background: emp.color,
+                        flexShrink: 0,
+                        fontSize: 7,
+                      }}
+                    >
+                      {getEmployeeInitials(emp.name)}
+                    </Avatar>
+                    <span
+                      className="min-w-0 flex-1 truncate text-xs"
+                      style={{
+                        color: emp.availabilityWarning
+                          ? "var(--destructive)"
+                          : "var(--foreground)",
+                        maxWidth: 72,
+                        fontSize: 10,
+                        fontWeight: emp.availabilityWarning ? 700 : 400,
+                      }}
+                    >
+                      {emp.name}
+                    </span>
+                    {emp.availabilityWarning && (
+                      <AlertTriangle
+                        size={9}
+                        style={{ color: "var(--destructive)", flexShrink: 0 }}
+                      />
+                    )}
+                    <button
+                      onClick={() => onRemoveEmployee(emp.id)}
+                      className="rounded-full hover:opacity-70"
+                      style={{ color: "var(--muted-foreground)", flexShrink: 0 }}
+                    >
+                      <X size={9} />
+                    </button>
+                  </div>
+                </Tooltip>
+              ))}
+            </div>
           ) : (
             <span
               className="text-xs font-semibold truncate"
@@ -447,7 +449,7 @@ function ShiftEntry({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+        <div className="flex items-center gap-0.5 justify-self-end opacity-0 transition-opacity flex-shrink-0 group-hover:opacity-100">
           <button
             onClick={onEdit}
             className="rounded p-0.5 hover:opacity-70"
