@@ -18,6 +18,7 @@ declare global {
   const Building2: typeof import('lucide-react').Building2
   const Cake: typeof import('lucide-react').Cake
   const Calendar: typeof import('lucide-react').Calendar
+  const CalendarClock: typeof import('lucide-react').CalendarClock
   const CalendarDays: typeof import('lucide-react').CalendarDays
   const CalendarRange: typeof import('lucide-react').CalendarRange
   const CalendarX: typeof import('lucide-react').CalendarX
@@ -33,6 +34,7 @@ declare global {
   const ChevronUpIcon: typeof import('lucide-react').ChevronUpIcon
   const Circle: typeof import('lucide-react').Circle
   const CircleCheckIcon: typeof import('lucide-react').CircleCheckIcon
+  const CircleDollarSign: typeof import('lucide-react').CircleDollarSign
   const CircleIcon: typeof import('lucide-react').CircleIcon
   const ClipboardList: typeof import('lucide-react').ClipboardList
   const Clock: typeof import('lucide-react').Clock
@@ -116,6 +118,7 @@ declare global {
   const UploadIcon: typeof import('lucide-react').UploadIcon
   const User: typeof import('lucide-react').User
   const UserCircle: typeof import('lucide-react').UserCircle
+  const UserMinus: typeof import('lucide-react').UserMinus
   const Users: typeof import('lucide-react').Users
   const X: typeof import('lucide-react').X
   const XIcon: typeof import('lucide-react').XIcon

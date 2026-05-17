@@ -111,6 +111,14 @@ export interface MerchantUploadResult {
   downloadUrl?: string;
 }
 
+export interface MerchantDashboardStatistics {
+  staffWorkingToday?: number | null;
+  absentEmployees?: number | null;
+  labourCostToday?: number | null;
+  weeklyHours?: number | null;
+  overtimeRiskEmployees?: number | null;
+}
+
 const EMPTY_PAGE = { items: [] as unknown[] };
 type ApiRecord = Record<string, unknown>;
 type EmployeeUploadKind = "id-front" | "id-back" | "visa" | "passport";
@@ -160,6 +168,17 @@ export function extractUploadKey(value: unknown) {
 function asNumber(value: unknown, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function mapApiDashboardStatistics(input: unknown): MerchantDashboardStatistics {
+  const raw = asRecord(input);
+  return {
+    staffWorkingToday: asNumber(raw.staffWorkingToday),
+    absentEmployees: asNumber(raw.absentEmployees),
+    labourCostToday: asNumber(raw.labourCostToday),
+    weeklyHours: asNumber(raw.weeklyHours),
+    overtimeRiskEmployees: asNumber(raw.overtimeRiskEmployees),
+  };
 }
 
 function toNumberOrString(value: string) {
@@ -815,6 +834,12 @@ export const merchantApi = {
     }),
   merchantMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/me"),
   authMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/auth/me"),
+  getDashboardStatistics: async (storeId: string) => {
+    const data = await apiRequest<unknown>("/api/v1/merchant/dashboard/statistics", {
+      storeId,
+    });
+    return mapApiDashboardStatistics(data);
+  },
   updateLastStore: (storeId: string) => {
     const numericStoreId = Number(storeId);
     return apiRequest<null>("/api/v1/merchant/auth/last-store", {

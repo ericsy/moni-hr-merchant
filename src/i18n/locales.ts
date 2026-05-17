@@ -45,7 +45,7 @@ export const locales = {
 
     // Nav
     nav: {
-      home: "首页",
+      home: "控制台",
       employees: "员工管理",
       stores: "店面管理",
       areas: "区域管理",
@@ -59,6 +59,24 @@ export const locales = {
     // Home
     home: {
       welcome: "欢迎使用本系统",
+      dashboardEyebrow: "MerchantDashboard",
+      dashboardTitle: "门店看板统计",
+      currentStoreFallback: "当前门店",
+      refresh: "刷新",
+      retry: "重试",
+      dashboardLoadFailed: "门店看板数据加载失败",
+      noStoreTitle: "请先创建门店",
+      noStoreDescription: "创建门店后即可查看员工排班、工时和成本统计。",
+      staffWorkingToday: "在岗员工",
+      staffWorkingTodayHint: "今日有排班的在职员工数",
+      absentEmployees: "今日缺勤",
+      absentEmployeesHint: "在职但今日无排班员工数",
+      labourCostToday: "今日人力成本",
+      labourCostTodayHint: "今日计划人工成本",
+      weeklyHours: "本周工时",
+      weeklyHoursHint: "本周计划总工时",
+      overtimeRiskEmployees: "加班风险",
+      overtimeRiskEmployeesHint: "本周计划工时超过约定周工时",
     },
 
     // Dashboard
@@ -369,7 +387,7 @@ export const locales = {
     hours: "hrs",
 
     nav: {
-      home: "Home",
+      home: "Dashboard",
       employees: "Employees",
       stores: "Stores",
       areas: "Areas",
@@ -382,6 +400,25 @@ export const locales = {
 
     home: {
       welcome: "Welcome to the system",
+      dashboardEyebrow: "MerchantDashboard",
+      dashboardTitle: "Store Dashboard Statistics",
+      currentStoreFallback: "Current store",
+      refresh: "Refresh",
+      retry: "Retry",
+      dashboardLoadFailed: "Failed to load dashboard statistics",
+      noStoreTitle: "Create a store first",
+      noStoreDescription:
+        "After creating a store, you can view scheduling, hours, and labour cost statistics.",
+      staffWorkingToday: "Staff Working Today",
+      staffWorkingTodayHint: "Active employees scheduled today",
+      absentEmployees: "Absent Today",
+      absentEmployeesHint: "Active employees without a schedule today",
+      labourCostToday: "Labour Cost Today",
+      labourCostTodayHint: "Planned labour cost for today",
+      weeklyHours: "Weekly Hours",
+      weeklyHoursHint: "Total planned hours this week",
+      overtimeRiskEmployees: "Overtime Risk",
+      overtimeRiskEmployeesHint: "Employees above contracted weekly hours",
     },
 
     dashboard: {
