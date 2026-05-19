@@ -937,22 +937,24 @@ export function EmployeeModal({
     if (!open) return;
     form.setFieldsValue(getEmptyEmployeeFormValues(defaultStoreIds));
     form.setFieldsValue(formInitialValues);
-    setContractFileList(buildContractFileList(employee));
-    setDocumentFileLists({
-      idDocumentFront: buildDocumentFileList(employee, "idDocumentFront"),
-      idDocumentBack: buildDocumentFileList(employee, "idDocumentBack"),
-      visaDocument: buildDocumentFileList(employee, "visaDocument"),
-      passportDocument: buildDocumentFileList(employee, "passportDocument"),
+    queueMicrotask(() => {
+      setContractFileList(buildContractFileList(employee));
+      setDocumentFileLists({
+        idDocumentFront: buildDocumentFileList(employee, "idDocumentFront"),
+        idDocumentBack: buildDocumentFileList(employee, "idDocumentBack"),
+        visaDocument: buildDocumentFileList(employee, "visaDocument"),
+        passportDocument: buildDocumentFileList(employee, "passportDocument"),
+      });
+      setUploadingContract(false);
+      setUploadingAvatar(false);
+      setUploadingDocuments({
+        idDocumentFront: false,
+        idDocumentBack: false,
+        visaDocument: false,
+        passportDocument: false,
+      });
+      setActiveTabKey("general");
     });
-    setUploadingContract(false);
-    setUploadingAvatar(false);
-    setUploadingDocuments({
-      idDocumentFront: false,
-      idDocumentBack: false,
-      visaDocument: false,
-      passportDocument: false,
-    });
-    setActiveTabKey("general");
   }, [open, employee?.id, defaultStoreIds.join("|")]);
 
   const buildAvatarFileList = (
@@ -980,7 +982,9 @@ export function EmployeeModal({
 
   useEffect(() => {
     if (!open) return;
-    setAvatarFileList(buildAvatarFileList(employee));
+    queueMicrotask(() => {
+      setAvatarFileList(buildAvatarFileList(employee));
+    });
   }, [open, employee?.id]);
 
   const syncContractFormValue = (fileList: UploadFile[]) => {
@@ -1142,8 +1146,8 @@ export function EmployeeModal({
         esctRate: values.esctRate ?? "",
         bankAccountNumber: values.bankAccountNumber ?? "",
         payrollEmployeeId: values.payrollEmployeeId ?? "",
-        areaIds: employee?.areaIds ?? [],
-        positionIds: employee?.positionIds ?? [],
+        areaIds: values.areaIds ?? employee?.areaIds ?? [],
+        positionIds: values.positionIds ?? employee?.positionIds ?? [],
         paidHoursPerDay: values.paidHoursPerDay ?? 8,
         workDayPattern,
         contractType: values.contractType ?? "permanent",
@@ -2367,7 +2371,9 @@ export default function Employees() {
         emp.email.toLowerCase().includes(q) ||
         emp.employeeId.toLowerCase().includes(q);
       const matchStore =
-        !selectedStoreId || emp.storeIds.includes(selectedStoreId);
+        !selectedStoreId ||
+        emp.storeIds.includes(selectedStoreId) ||
+        (emp.assignedStores || []).includes(selectedStoreId);
       const matchStatus = !filterStatus || emp.status === filterStatus;
       return matchSearch && matchStore && matchStatus;
     });
@@ -2379,7 +2385,9 @@ export default function Employees() {
   useEffect(() => {
     const nextSelectedId = selectedEmployee?.id ?? "";
     if (selectedId !== nextSelectedId) {
-      setSelectedId(nextSelectedId);
+      queueMicrotask(() => {
+        setSelectedId(nextSelectedId);
+      });
     }
   }, [selectedEmployee?.id, selectedId]);
 

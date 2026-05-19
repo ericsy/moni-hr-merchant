@@ -7,6 +7,7 @@ import type {
     RosterTemplateCell,
     ScheduleShift,
     Store,
+    StoreOfficerBrief,
     StoreWeekdayHours,
     TimeSlot,
     WorkDayPattern,
@@ -184,6 +185,12 @@ function mapApiDashboardStatistics(input: unknown): MerchantDashboardStatistics 
 function toNumberOrString(value: string) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && value.trim() !== "" ? numeric : value;
+}
+
+function toOptionalNumberOrString(value: string | undefined | null) {
+  const raw = asString(value).trim();
+  if (!raw) return null;
+  return toNumberOrString(raw);
 }
 
 function compact<T extends Record<string, unknown>>(payload: T): Partial<T> {
@@ -448,6 +455,32 @@ function normalizeStatus<T extends string>(status: unknown, enabled: T, disabled
   return enabled;
 }
 
+function mapStoreOfficerBrief(input: unknown): StoreOfficerBrief | null {
+  const raw = asRecord(input);
+  const id = asString(raw.id);
+  if (!id) return null;
+  return {
+    id,
+    name: asString(raw.name || raw.fullName || raw.displayName),
+  };
+}
+
+function getStoreOfficerIds(store: Store) {
+  const managerId =
+    store.managerId ||
+    store.storeOfficers?.storeManager?.id ||
+    "";
+  const assistantManagerIds =
+    store.assistantManagerIds?.length
+      ? store.assistantManagerIds
+      : (store.storeOfficers?.deputyManagers || []).map((item) => item.id).filter(Boolean);
+
+  return {
+    managerId,
+    assistantManagerIds: Array.from(new Set(assistantManagerIds.filter((id) => id && id !== managerId))),
+  };
+}
+
 export function isBackendId(id: string | undefined | null) {
   return !!id && /^\d+$/.test(String(id));
 }
@@ -456,6 +489,19 @@ export function mapApiStore(input: unknown): Store {
   const raw = asRecord(input);
   const weeklyHours = mapStoreWeekdayHours(raw.weeklyHours);
   const firstBusinessDay = weeklyHours?.find((item) => !item.closed && item.openTime && item.closeTime);
+  const rawStoreOfficers = asRecord(raw.storeOfficers);
+  const storeManager = mapStoreOfficerBrief(rawStoreOfficers.storeManager);
+  const deputyManagers = asArray(rawStoreOfficers.deputyManagers)
+    .map(mapStoreOfficerBrief)
+    .filter((item): item is StoreOfficerBrief => !!item);
+  const managerId = asString(raw.managerId || raw.storeManagerEmployeeId || storeManager?.id);
+  const assistantManagerIds = asArray(raw.assistantManagerIds || raw.deputyManagerEmployeeIds)
+    .map((id) => asString(id))
+    .filter(Boolean);
+  const normalizedAssistantManagerIds = assistantManagerIds.length > 0
+    ? assistantManagerIds
+    : deputyManagers.map((item) => item.id);
+
   return {
     id: asString(raw.id),
     name: asString(raw.name),
@@ -469,7 +515,14 @@ export function mapApiStore(input: unknown): Store {
     openTime: asString(raw.openTime, firstBusinessDay?.openTime || "09:00"),
     closeTime: asString(raw.closeTime, firstBusinessDay?.closeTime || "22:00"),
     timezone: asString(raw.timezone, "Pacific/Auckland"),
+    status: normalizeStatus(raw.status, "enabled", "disabled"),
     weeklyHours,
+    managerId,
+    assistantManagerIds: Array.from(new Set(normalizedAssistantManagerIds.filter((id) => id && id !== managerId))),
+    storeOfficers: {
+      storeManager: storeManager || (managerId ? { id: managerId, name: "" } : null),
+      deputyManagers,
+    },
     latitude: raw.latitude === undefined || raw.latitude === null ? undefined : asNumber(raw.latitude),
     longitude: raw.longitude === undefined || raw.longitude === null ? undefined : asNumber(raw.longitude),
     geofenceRadius: raw.geofenceRadius === undefined || raw.geofenceRadius === null ? undefined : asNumber(raw.geofenceRadius),
@@ -477,6 +530,7 @@ export function mapApiStore(input: unknown): Store {
 }
 
 export function storeToApiPayload(store: Store) {
+  const { managerId, assistantManagerIds } = getStoreOfficerIds(store);
   return compact({
     name: store.name,
     code: store.code,
@@ -488,10 +542,16 @@ export function storeToApiPayload(store: Store) {
     manager: store.manager,
     openTime: store.openTime,
     closeTime: store.closeTime,
+    timezone: store.timezone,
+    status: store.status,
     weeklyHours: serializeStoreWeekdayHours(store.weeklyHours),
     latitude: store.latitude,
     longitude: store.longitude,
     geofenceRadius: store.geofenceRadius,
+    storeOfficers: {
+      storeManagerEmployeeId: toOptionalNumberOrString(managerId),
+      deputyManagerEmployeeIds: assistantManagerIds.map(toNumberOrString),
+    },
   });
 }
 
@@ -536,7 +596,12 @@ export function mapApiEmployee(input: unknown): Employee {
     })
     .filter((item) => item.id);
   const storeIds = rawStoreIds.length > 0 ? rawStoreIds : storeDetails.map((item) => item.id);
-  const assignedStores = asArray(raw.assignedStores).map((id) => asString(id));
+  const assignedStores = asArray(raw.assignedStores)
+    .map((item) => {
+      const record = asRecord(item);
+      return asString(record.id || record.storeId || item);
+    })
+    .filter(Boolean);
   const weeklyWorkDays = mapEmployeeWeeklyWorkDays(raw.weeklyWorkDays);
   const weeklyWorkSlots = mapEmployeeWeeklyWorkSlots(raw.weeklyWorkSlots);
   const workDayPattern =
@@ -647,6 +712,8 @@ export function employeeToApiPayload(employee: Employee & { password?: string },
     esctRate: employee.esctRate,
     bankAccountNumber: employee.bankAccountNumber,
     payrollEmployeeId: employee.payrollEmployeeId,
+    areaIds: employee.areaIds,
+    positionIds: employee.positionIds,
     paidHoursPerDay: employee.paidHoursPerDay,
     workDayPattern: serializeWorkDayPattern(employee.workDayPattern),
     weeklyWorkDays: serializeEmployeeWeeklyWorkDays(employee.workDayPattern),
@@ -879,6 +946,12 @@ export const merchantApi = {
     const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("employees"), {
       storeId,
       query: { page: params.page || 1, size: params.size || 100, status: params.status, q: params.q },
+    });
+    return (data?.items || []).map(mapApiEmployee);
+  },
+  listEmployeesByStore: async (storeId: string, params: { page?: number; size?: number; status?: string; q?: string } = {}) => {
+    const data = await apiRequest<{ items?: unknown[] }>(appendEndpointPath(getMerchantEndpoint("employees"), "by-store"), {
+      query: { storeId, page: params.page || 1, size: params.size || 100, status: params.status, q: params.q },
     });
     return (data?.items || []).map(mapApiEmployee);
   },

@@ -27,9 +27,12 @@ import {
   Globe,
   Hash,
   UserCircle,
+  Crown,
+  UserCheck,
 } from "lucide-react";
 import { useLocale } from "../context/LocaleContext";
-import { useData, type CountryOption, type Store, type StoreWeekdayHours } from "../context/DataContext";
+import { useData, type CountryOption, type Employee, type Store, type StoreWeekdayHours } from "../context/DataContext";
+import { merchantApi } from "../lib/merchantApi";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
@@ -69,6 +72,43 @@ function getStoreCountryLabel(code: string, countries: CountryOption[], locale: 
 
 function getStoreInitials(name = "") {
   return name.slice(0, 2).toUpperCase();
+}
+
+function getEmployeeFullName(employee?: Pick<Employee, "firstName" | "lastName"> | null) {
+  return `${employee?.firstName || ""} ${employee?.lastName || ""}`.trim();
+}
+
+function getEmployeeDisplayName(employee?: Employee | null) {
+  return getEmployeeFullName(employee) || employee?.employeeId || employee?.email || employee?.id || "";
+}
+
+function dedupeEmployeesById(items: Employee[]) {
+  const byId = new Map<string, Employee>();
+  items.forEach((item) => {
+    if (!item.id || byId.has(item.id)) return;
+    byId.set(item.id, item);
+  });
+  return Array.from(byId.values());
+}
+
+function employeeBelongsToStore(employee: Employee, storeId: string) {
+  if (!storeId) return true;
+  return (
+    employee.storeIds.includes(storeId) ||
+    (employee.assignedStores || []).includes(storeId) ||
+    (employee.storeDetails || []).some((store) => store.id === storeId)
+  );
+}
+
+function getEmployeeInitials(employee?: Pick<Employee, "firstName" | "lastName"> | { name?: string } | null) {
+  if (!employee) return "";
+  const nameParts = employee as Partial<Pick<Employee, "firstName" | "lastName">>;
+  if (nameParts.firstName || nameParts.lastName) {
+    const firstName = String(nameParts.firstName || "");
+    const lastName = String(nameParts.lastName || "");
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  }
+  return String((employee as { name?: string }).name || "").slice(0, 2).toUpperCase();
 }
 
 type StoreWeekdayHoursFormRow = {
@@ -129,12 +169,20 @@ function getStoreFormInitialValues(store?: Store | null) {
       email: "",
       manager: "",
       weeklyHours: getWeeklyHoursFormRows(),
+      status: "enabled",
+      managerId: undefined,
+      assistantManagerIds: [],
     };
   }
 
   return {
     ...store,
     weeklyHours: getWeeklyHoursFormRows(store),
+    status: store.status || "enabled",
+    managerId: store.managerId || store.storeOfficers?.storeManager?.id || undefined,
+    assistantManagerIds: store.assistantManagerIds?.length
+      ? store.assistantManagerIds
+      : (store.storeOfficers?.deputyManagers || []).map((item) => item.id),
   };
 }
 
@@ -185,7 +233,7 @@ function StoreModal({
 }: {
   open?: boolean;
   store?: Store | null;
-  employees?: { storeIds: string[] }[];
+  employees?: Employee[];
   countries?: CountryOption[];
   locked?: boolean;
   onSave?: (store: Store) => void | Promise<void>;
@@ -196,18 +244,86 @@ function StoreModal({
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState("basic");
   const [geofenceValue, setGeofenceValue] = useState<GeoFenceValue | null>(null);
+  const [storeEmployees, setStoreEmployees] = useState<Employee[]>([]);
+  const [storeEmployeesLoading, setStoreEmployeesLoading] = useState(false);
+  const managerId = Form.useWatch("managerId", form) as string | undefined;
+  const assistantManagerIds = (Form.useWatch("assistantManagerIds", form) as string[] | undefined) || [];
   const isEdit = !!store;
   const st = t.store;
   const countryOptions = countries.length > 0 ? countries : FALLBACK_COUNTRIES;
   const initialValues = useMemo(() => getStoreFormInitialValues(store), [store]);
+  const staffStoreId = store?.id || "";
+  const currentOfficerFallbacks = useMemo(() => {
+    const officerItems = [
+      store?.storeOfficers?.storeManager,
+      ...(store?.storeOfficers?.deputyManagers || []),
+    ];
+    return officerItems.reduce<Employee[]>((items, officer) => {
+      if (!officer?.id || items.some((item) => item.id === officer.id)) return items;
+      items.push({
+        id: officer.id,
+        firstName: officer.name,
+        lastName: "",
+        employeeId: officer.id,
+        role: "staff",
+        phone: "",
+        email: "",
+        status: "active",
+        startDate: "",
+        storeIds: staffStoreId ? [staffStoreId] : [],
+        hourlyRate: 0,
+        notes: "",
+      });
+      return items;
+    }, []);
+  }, [staffStoreId, store]);
+  const activeEmployees = useMemo(
+    () => {
+      const scopedEmployees = staffStoreId
+        ? employees.filter((employee) => employeeBelongsToStore(employee, staffStoreId))
+        : employees;
+      const source = storeEmployees.length > 0 ? storeEmployees : scopedEmployees;
+      return dedupeEmployeesById([...source, ...currentOfficerFallbacks])
+        .filter((employee) => employee.status !== "inactive");
+    },
+    [currentOfficerFallbacks, employees, staffStoreId, storeEmployees]
+  );
 
   useEffect(() => {
     if (!open) return;
     form.resetFields();
     form.setFieldsValue(initialValues);
-    setGeofenceValue(null);
-    setActiveTab("basic");
+    queueMicrotask(() => {
+      setGeofenceValue(null);
+      setActiveTab("basic");
+      setStoreEmployees([]);
+      setStoreEmployeesLoading(false);
+    });
   }, [form, initialValues, open]);
+
+  useEffect(() => {
+    if (!open || activeTab !== "staff" || !staffStoreId) return;
+
+    let cancelled = false;
+    setStoreEmployeesLoading(true);
+    merchantApi.listEmployeesByStore(staffStoreId, { status: "active", size: 200 })
+      .then((items) => {
+        if (cancelled) return;
+        setStoreEmployees(items);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.warn("[StoreModal] failed to load store employees:", error);
+        setStoreEmployees([]);
+      })
+      .finally(() => {
+        if (!cancelled) setStoreEmployeesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, open, staffStoreId]);
 
   const handleOk = async () => {
     try {
@@ -228,6 +344,23 @@ function StoreModal({
         closeTime: primaryHours.closeTime,
         weeklyHours,
         timezone: store?.timezone || "Pacific/Auckland",
+        status: values.status || "enabled",
+        managerId: values.managerId || undefined,
+        assistantManagerIds: (values.assistantManagerIds || []).filter((id: string) => id && id !== values.managerId),
+        storeOfficers: {
+          storeManager: values.managerId
+            ? {
+                id: values.managerId,
+                name: getEmployeeDisplayName(activeEmployees.find((employee) => employee.id === values.managerId)),
+              }
+            : null,
+          deputyManagers: (values.assistantManagerIds || [])
+            .filter((id: string) => id && id !== values.managerId)
+            .map((id: string) => {
+              const employee = activeEmployees.find((item) => item.id === id);
+              return { id, name: getEmployeeDisplayName(employee) };
+            }),
+        },
         ...(geofenceValue
           ? {
               latitude: geofenceValue.latitude,
@@ -326,6 +459,12 @@ function StoreModal({
             <Form.Item name="manager" label={st.manager} style={{ flex: 1 }}>
               <Input placeholder={locale === "zh" ? `负责人姓名` : `Manager name`} />
             </Form.Item>
+            <Form.Item name="status" label={st.status} style={{ flex: 1 }}>
+              <Select>
+                <Option value="enabled">{t.enabled}</Option>
+                <Option value="disabled">{t.disabled}</Option>
+              </Select>
+            </Form.Item>
           </div>
         </Form>
       ),
@@ -355,6 +494,87 @@ function StoreModal({
             defaultLocationQuery={defaultLocationQuery}
           />
         </div>
+      ),
+    },
+    {
+      key: "staff",
+      label: st.tabStaff,
+      children: (
+        <Form form={form} layout="vertical" initialValues={initialValues} preserve={false} size="small" style={{ marginTop: 8 }}>
+          <div className="flex flex-col gap-4">
+            <div
+              className="rounded-md px-4 py-3 text-xs"
+              style={{
+                background: "var(--muted)",
+                border: "1px solid var(--border)",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              {st.staffSectionDesc}
+            </div>
+            <Form.Item name="managerId" label={st.staffManager}>
+              <Select
+                placeholder={st.staffManagerPlaceholder}
+                allowClear
+                showSearch
+                loading={storeEmployeesLoading}
+                notFoundContent={storeEmployeesLoading ? t.loading : t.noData}
+                optionFilterProp="label"
+                onChange={(value) => {
+                  if (!value) return;
+                  const nextAssistantIds = ((form.getFieldValue("assistantManagerIds") as string[] | undefined) || [])
+                    .filter((id) => id !== value);
+                  form.setFieldValue("assistantManagerIds", nextAssistantIds);
+                }}
+              >
+                {activeEmployees.map((employee) => {
+                  const label = getEmployeeDisplayName(employee);
+                  return (
+                    <Option
+                      key={employee.id}
+                      value={employee.id}
+                      label={`${label} ${employee.employeeId} ${employee.email}`}
+                      disabled={assistantManagerIds.includes(employee.id)}
+                    >
+                      {label}
+                      {employee.employeeId ? (
+                        <span style={{ color: "var(--muted-foreground)" }}> · {employee.employeeId}</span>
+                      ) : null}
+                    </Option>
+                  );
+                })}
+              </Select>
+            </Form.Item>
+            <Form.Item name="assistantManagerIds" label={st.staffAssistantManagers}>
+              <Select
+                mode="multiple"
+                placeholder={st.staffAssistantManagersPlaceholder}
+                allowClear
+                showSearch
+                loading={storeEmployeesLoading}
+                notFoundContent={storeEmployeesLoading ? t.loading : t.noData}
+                optionFilterProp="label"
+              >
+                {activeEmployees.map((employee) => {
+                  const label = getEmployeeDisplayName(employee);
+                  return (
+                    <Option
+                      key={employee.id}
+                      value={employee.id}
+                      label={`${label} ${employee.employeeId} ${employee.email}`}
+                      disabled={managerId === employee.id}
+                    >
+                      {label}
+                      {employee.employeeId ? (
+                        <span style={{ color: "var(--muted-foreground)" }}> · {employee.employeeId}</span>
+                      ) : null}
+                    </Option>
+                  );
+                })}
+              </Select>
+            </Form.Item>
+          </div>
+        </Form>
       ),
     },
   ];
@@ -483,10 +703,46 @@ function StoreInfoRow({
   );
 }
 
+function StoreStaffRow({
+  employee,
+  fallback,
+}: {
+  employee?: Employee;
+  fallback?: { id: string; name: string } | null;
+}) {
+  const displayName = employee ? getEmployeeFullName(employee) : fallback?.name || "";
+  const employeeCode = employee?.employeeId || fallback?.id || "";
+  return (
+    <div className="flex items-center gap-3 py-2" style={{ borderBottom: `1px solid var(--border)` }}>
+      <Avatar
+        size={32}
+        style={{
+          background: employee?.employeeColor || "var(--secondary)",
+          color: "var(--primary)",
+          fontSize: 12,
+          fontWeight: 700,
+          flexShrink: 0,
+        }}
+      >
+        {getEmployeeInitials(employee || fallback)}
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
+          {displayName || "-"}
+        </div>
+        <div className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
+          {employeeCode}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Detail Panel ───
 function StoreDetailPanel({
   store,
   employeeCount = 0,
+  employees = [],
   onEdit = () => {},
   onDelete = () => {},
   t,
@@ -495,6 +751,7 @@ function StoreDetailPanel({
 }: {
   store: Store;
   employeeCount?: number;
+  employees?: Employee[];
   onEdit?: () => void;
   onDelete?: () => void;
   t: ReturnType<typeof useLocale>["t"];
@@ -507,6 +764,17 @@ function StoreDetailPanel({
     store.latitude !== undefined &&
     store.longitude !== undefined &&
     store.geofenceRadius !== undefined;
+  const managerId = store.managerId || store.storeOfficers?.storeManager?.id || "";
+  const assistantManagerIds = store.assistantManagerIds?.length
+    ? store.assistantManagerIds
+    : (store.storeOfficers?.deputyManagers || []).map((item) => item.id);
+  const managerEmployee = employees.find((employee) => employee.id === managerId);
+  const managerFallback = store.storeOfficers?.storeManager;
+  const assistantEmployees = assistantManagerIds.map((id) => ({
+    id,
+    employee: employees.find((item) => item.id === id),
+    fallback: store.storeOfficers?.deputyManagers?.find((item) => item.id === id),
+  }));
 
   const tabItems = [
     {
@@ -565,6 +833,50 @@ function StoreDetailPanel({
               <span className="text-sm">{st.geofenceNotSet}</span>
             </div>
           )}
+        </div>
+      ),
+    },
+    {
+      key: "staff",
+      label: st.tabStaff,
+      children: (
+        <div className="flex flex-col gap-4 py-2">
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <Crown size={13} style={{ color: "var(--primary)" }} />
+              <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+                {st.staffManager}
+              </span>
+            </div>
+            {managerEmployee || managerFallback ? (
+              <StoreStaffRow employee={managerEmployee} fallback={managerFallback} />
+            ) : (
+              <div className="text-xs py-2" style={{ color: "var(--muted-foreground)" }}>
+                {st.staffNone}
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <UserCheck size={13} style={{ color: "var(--primary)" }} />
+              <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+                {st.staffAssistantManagers}
+              </span>
+            </div>
+            {assistantEmployees.length > 0 ? (
+              assistantEmployees.map((item) => (
+                <StoreStaffRow
+                  key={item.id}
+                  employee={item.employee}
+                  fallback={item.fallback}
+                />
+              ))
+            ) : (
+              <div className="text-xs py-2" style={{ color: "var(--muted-foreground)" }}>
+                {st.staffNone}
+              </div>
+            )}
+          </div>
         </div>
       ),
     },
@@ -646,8 +958,10 @@ export default function Stores() {
 
   useEffect(() => {
     if (!requiresFirstStore) return;
-    setEditingStore(null);
-    setModalOpen(true);
+    queueMicrotask(() => {
+      setEditingStore(null);
+      setModalOpen(true);
+    });
   }, [requiresFirstStore]);
 
   const filtered = useMemo(() => {
@@ -846,6 +1160,7 @@ export default function Stores() {
             <StoreDetailPanel
               store={selectedStore}
               employeeCount={getEmployeeCount(selectedStore.id)}
+              employees={employees}
               onEdit={handleEdit}
               onDelete={handleDelete}
               t={t}

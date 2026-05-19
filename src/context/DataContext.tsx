@@ -107,11 +107,26 @@ export interface Store {
   openTime: string;
   closeTime: string;
   timezone: string;
+  status?: "enabled" | "disabled" | string;
   weeklyHours?: StoreWeekdayHours[];
+  // Staff appointments
+  managerId?: string;
+  assistantManagerIds?: string[];
+  storeOfficers?: StoreOfficers;
   // Geofence
   latitude?: number;
   longitude?: number;
   geofenceRadius?: number; // meters
+}
+
+export interface StoreOfficerBrief {
+  id: string;
+  name: string;
+}
+
+export interface StoreOfficers {
+  storeManager?: StoreOfficerBrief | null;
+  deputyManagers?: StoreOfficerBrief[];
 }
 
 export interface StoreWeekdayHours {
@@ -646,6 +661,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       : await merchantApi.createEmployee(employee);
     const normalizedSaved: Employee = {
       ...saved,
+      storeIds: saved.storeIds?.length ? saved.storeIds : employee.storeIds || [],
+      assignedStores: saved.assignedStores?.length ? saved.assignedStores : employee.assignedStores || employee.storeIds || [],
       areaIds: saved.areaIds?.length ? saved.areaIds : employee.areaIds || [],
       positionIds: saved.positionIds?.length ? saved.positionIds : employee.positionIds || [],
       workDayPattern: saved.workDayPattern?.length ? saved.workDayPattern : employee.workDayPattern || [],

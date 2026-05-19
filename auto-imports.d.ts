@@ -42,6 +42,7 @@ declare global {
   const Component: typeof import('lucide-react').Component
   const Contact: typeof import('lucide-react').Contact
   const CreditCard: typeof import('lucide-react').CreditCard
+  const Crown: typeof import('lucide-react').Crown
   const DollarSign: typeof import('lucide-react').DollarSign
   const Download: typeof import('lucide-react').Download
   const Edit: typeof import('lucide-react').Edit
@@ -117,6 +118,7 @@ declare global {
   const Upload: typeof import('lucide-react').Upload
   const UploadIcon: typeof import('lucide-react').UploadIcon
   const User: typeof import('lucide-react').User
+  const UserCheck: typeof import('lucide-react').UserCheck
   const UserCircle: typeof import('lucide-react').UserCircle
   const UserMinus: typeof import('lucide-react').UserMinus
   const Users: typeof import('lucide-react').Users
