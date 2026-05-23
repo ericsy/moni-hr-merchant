@@ -16,13 +16,10 @@ import dayjs, { type Dayjs } from "dayjs";
 import {
   AlertTriangleIcon,
   CheckCircleIcon,
-  FingerprintIcon,
-  LayoutDashboardIcon,
   ListIcon,
   LogInIcon,
   LogOutIcon,
   MapPinIcon,
-  RefreshCwIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
   SmartphoneIcon,
@@ -113,7 +110,7 @@ export default function ClockPunchPage() {
   const labels = t.clockPunch;
   const { stores } = useData();
   const { selectedStoreId } = useStore();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("records");
   const [filters, setFilters] = useState<ClockFilters>({
     dateRange: todayRange(),
     storeIds: [],
@@ -275,23 +272,6 @@ export default function ClockPunchPage() {
 
   const tabItems = [
     {
-      key: "overview",
-      label: (
-        <span className="flex items-center gap-1.5">
-          <LayoutDashboardIcon size={14} />
-          {labels.tabOverview}
-        </span>
-      ),
-      children: (
-        <ClockOverview
-          summary={summary}
-          anomalySummary={anomalySummary}
-          labels={labels}
-          loading={summaryLoading}
-        />
-      ),
-    },
-    {
       key: "records",
       label: (
         <span className="flex items-center gap-1.5">
@@ -346,21 +326,6 @@ export default function ClockPunchPage() {
 
   return (
     <div data-cmp="ClockPunchPage" className="flex min-h-[calc(100vh-112px)] flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="mb-1 flex items-center gap-2">
-            <FingerprintIcon size={22} style={{ color: "var(--primary)" }} />
-            <h1 className="text-2xl font-semibold leading-tight" style={{ color: "var(--foreground)" }}>
-              {labels.title}
-            </h1>
-          </div>
-          <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
-        </div>
-        <Button icon={<RefreshCwIcon size={15} />} loading={summaryLoading || punchLoading || anomalyLoading} onClick={reloadAll}>
-          {labels.refreshBtn}
-        </Button>
-      </div>
-
       {error && (
         <Alert
           type="error"
@@ -778,14 +743,12 @@ function PunchDetailDrawer({
             ]}
           />
           <Divider style={{ margin: 0 }} />
-          <Descriptions
-            column={1}
-            size="small"
-            items={[
-              { key: "deviceType", label: labels.deviceType, children: String(record.deviceType || "-").toUpperCase() },
-              { key: "deviceId", label: labels.deviceId, children: <span className="font-mono text-xs">{record.deviceId || "-"}</span> },
-            ]}
-          />
+          <div className="flex flex-col gap-2 text-sm">
+            <DetailRow label={labels.deviceType}>{String(record.deviceType || "-").toUpperCase()}</DetailRow>
+            <DetailRow label={labels.deviceId}>
+              <span className="break-all font-mono text-xs">{record.deviceId || "-"}</span>
+            </DetailRow>
+          </div>
           <Divider style={{ margin: 0 }} />
           <Descriptions
             column={2}
@@ -801,28 +764,33 @@ function PunchDetailDrawer({
             ]}
           />
           <Divider style={{ margin: 0 }} />
-          <Descriptions
-            column={1}
-            size="small"
-            items={[
-              { key: "proxy", label: labels.proxyRisk, children: <ProxyRisk record={record} labels={labels} /> },
-              {
-                key: "shared",
-                label: labels.proxySharedDeviceIds,
-                children: sharedEmployees.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {sharedEmployees.map((employee, index) => (
-                      <Tag key={`${employee.id || employee.merchantAdminId || index}`} color="volcano">
-                        {employee.displayName || employee.name || employee.email || employee.id || employee.merchantAdminId}
-                      </Tag>
-                    ))}
-                  </div>
-                ) : "-",
-              },
-            ]}
-          />
+          <div className="flex flex-col gap-2 text-sm">
+            <DetailRow label={labels.proxyRisk}>
+              <ProxyRisk record={record} labels={labels} />
+            </DetailRow>
+            <DetailRow label={labels.proxySharedDeviceIds}>
+              {sharedEmployees.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {sharedEmployees.map((employee, index) => (
+                    <Tag key={`${employee.id || employee.merchantAdminId || index}`} color="volcano">
+                      {employee.displayName || employee.name || employee.email || employee.id || employee.merchantAdminId}
+                    </Tag>
+                  ))}
+                </div>
+              ) : "-"}
+            </DetailRow>
+          </div>
         </div>
       )}
     </Drawer>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[92px_1fr] items-start gap-2">
+      <span className="text-muted-foreground">{label}:</span>
+      <div className="min-w-0 leading-6">{children}</div>
+    </div>
   );
 }

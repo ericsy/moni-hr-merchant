@@ -11,7 +11,6 @@ import {
   Space,
   Spin,
   Table,
-  Tabs,
   Tag,
   Tooltip,
 } from "antd";
@@ -25,9 +24,7 @@ import {
   EyeIcon,
   FileTextIcon,
   FilterIcon,
-  LayoutDashboardIcon,
   RefreshCwIcon,
-  TrendingUpIcon,
   XCircleIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -370,72 +367,8 @@ export default function AttendanceRequestPage() {
         : `${range[0]}-${range[1]} of ${count}`,
   };
 
-  const tabItems = [
-    {
-      key: "overview",
-      label: (
-        <span className="flex items-center gap-1.5">
-          <LayoutDashboardIcon size={14} />
-          {labels.overview}
-        </span>
-      ),
-      children: (
-        <AttendanceRequestOverview
-          requests={requests}
-          summary={currentSummary}
-          labels={labels}
-          locale={locale}
-        />
-      ),
-    },
-    {
-      key: "requests",
-      label: (
-        <span className="flex items-center gap-1.5">
-          <ClipboardListIcon size={14} />
-          {labels.allRequests}
-        </span>
-      ),
-      children: (
-        <AttendanceRequestList
-          columns={columns}
-          data={requests}
-          employeeLoading={employeeLoading}
-          employeeOptions={employeeOptions}
-          filter={filter}
-          labels={labels}
-          loading={loading}
-          locale={locale}
-          pagination={pagination}
-          summary={currentSummary}
-          stores={stores}
-          totalRecords={total}
-          onEmployeeSearch={loadEmployeeOptions}
-          onFilterChange={(patch) => {
-            setPage(1);
-            setFilter((previous) => ({ ...previous, ...patch }));
-          }}
-          onOpenDetail={openDetail}
-          onResetFilters={resetFilters}
-        />
-      ),
-    },
-  ];
-
   return (
     <div data-cmp="AttendanceRequestPage" className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold leading-tight" style={{ color: "var(--foreground)" }}>
-            {labels.title}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">{labels.subtitle}</p>
-        </div>
-        <Button icon={<RefreshCwIcon size={15} />} loading={loading} onClick={loadData}>
-          {locale === "zh" ? "刷新" : "Refresh"}
-        </Button>
-      </div>
-
       {error && (
         <Alert
           type="error"
@@ -446,10 +379,26 @@ export default function AttendanceRequestPage() {
         />
       )}
 
-      <Tabs
-        defaultActiveKey="requests"
-        items={tabItems}
-        style={{ background: "var(--card)", borderRadius: 8, padding: "0 16px 16px" }}
+      <AttendanceRequestList
+        columns={columns}
+        data={requests}
+        employeeLoading={employeeLoading}
+        employeeOptions={employeeOptions}
+        filter={filter}
+        labels={labels}
+        loading={loading}
+        locale={locale}
+        pagination={pagination}
+        summary={currentSummary}
+        stores={stores}
+        totalRecords={total}
+        onEmployeeSearch={loadEmployeeOptions}
+        onFilterChange={(patch) => {
+          setPage(1);
+          setFilter((previous) => ({ ...previous, ...patch }));
+        }}
+        onOpenDetail={openDetail}
+        onResetFilters={resetFilters}
       />
 
       <AttendanceDetailModal
@@ -493,92 +442,6 @@ function RequestSummary({ request, labels }: { request: MerchantAttendanceReques
       {" · "}
       {formatDateTime(request.actualPunchedAt)}
     </span>
-  );
-}
-
-function AttendanceRequestOverview({
-  requests,
-  summary,
-  labels,
-  locale,
-}: {
-  requests: MerchantAttendanceRequest[];
-  summary: AttendanceSummaryView;
-  labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"];
-  locale: "zh" | "en";
-}) {
-  const reviewedTotal = summary.approved + summary.rejected;
-  const approvalRate = reviewedTotal > 0 ? Math.round((summary.approved / reviewedTotal) * 100) : 0;
-  const recentDays = useMemo(() => {
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = dayjs().subtract(6 - index, "day").startOf("day");
-      const submitted = requests.filter((request) => {
-        if (!request.submittedAt) return false;
-        const submittedDate = dayjs(request.submittedAt);
-        return submittedDate.isValid() && submittedDate.isSame(date, "day");
-      }).length;
-      const resolved = requests.filter((request) => {
-        if (!request.reviewedAt) return false;
-        const reviewedDate = dayjs(request.reviewedAt);
-        return reviewedDate.isValid() && reviewedDate.isSame(date, "day");
-      }).length;
-
-      return {
-        date: date.format(locale === "zh" ? "M月D日" : "MMM D"),
-        submitted,
-        resolved,
-      };
-    });
-  }, [locale, requests]);
-  const activityMax = Math.max(4, ...recentDays.flatMap((day) => [day.submitted, day.resolved]));
-
-  const overviewText = {
-    approvalRate: locale === "zh" ? "通过率" : "Approval Rate",
-    last7Days: locale === "zh" ? "近 7 天动态" : "Last 7 Days Activity",
-    submitted: locale === "zh" ? "提交" : "Submitted",
-    resolved: locale === "zh" ? "已处理" : "Resolved",
-  };
-
-  return (
-    <div data-cmp="AttendanceRequestOverview" className="flex flex-col gap-6 pt-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard label={labels.totalRequests} value={summary.total} icon={<ClipboardListIcon size={20} />} tone="blue" />
-        <StatCard label={labels.pending} value={summary.pending} icon={<ClockIcon size={20} />} tone="amber" />
-        <StatCard label={labels.approved} value={summary.approved} icon={<CheckCircleIcon size={20} />} tone="green" />
-        <StatCard label={labels.rejected} value={summary.rejected} icon={<XCircleIcon size={20} />} tone="red" />
-        <StatCard label={overviewText.approvalRate} value={`${approvalRate}%`} icon={<TrendingUpIcon size={20} />} tone="purple" />
-      </div>
-
-      <div className="rounded-lg border bg-card p-5" style={{ borderColor: "var(--border)" }}>
-        <div className="mb-4 text-sm font-semibold">{labels.requestTypes}</div>
-        <div className="flex flex-col gap-3">
-          <TypeBar label={labels.leaveRequest} value={summary.leave} total={summary.total} color="var(--chart-1)" />
-          <TypeBar label={labels.missedPunch} value={summary.missedPunch} total={summary.total} color="var(--chart-5)" />
-        </div>
-      </div>
-
-      <div className="rounded-lg border bg-card p-5" style={{ borderColor: "var(--border)" }}>
-        <div className="mb-4 flex items-center gap-2">
-          <CalendarIcon size={15} className="text-muted-foreground" />
-          <div className="text-sm font-semibold">{overviewText.last7Days}</div>
-        </div>
-        <div className="flex items-end gap-2" style={{ height: 84 }}>
-          {recentDays.map((day) => (
-            <div key={day.date} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-              <div className="flex w-full items-end justify-center gap-0.5" style={{ height: 56 }}>
-                <ActivityBar value={day.submitted} max={activityMax} color="var(--chart-1)" title={overviewText.submitted} />
-                <ActivityBar value={day.resolved} max={activityMax} color="var(--chart-2)" title={overviewText.resolved} />
-              </div>
-              <div className="truncate text-xs text-muted-foreground">{day.date}</div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 flex gap-4">
-          <LegendDot color="var(--chart-1)" label={overviewText.submitted} />
-          <LegendDot color="var(--chart-2)" label={overviewText.resolved} />
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -721,41 +584,6 @@ function AttendanceRequestList({
   );
 }
 
-function StatCard({
-  label,
-  value,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: number | string;
-  icon: React.ReactNode;
-  tone: "blue" | "amber" | "green" | "red" | "purple";
-}) {
-  const tones = {
-    blue: { color: "#1677ff", bg: "rgba(22,119,255,0.1)" },
-    amber: { color: "#d48806", bg: "rgba(250,173,20,0.14)" },
-    green: { color: "#389e0d", bg: "rgba(82,196,26,0.12)" },
-    red: { color: "#cf1322", bg: "rgba(245,34,45,0.1)" },
-    purple: { color: "#722ed1", bg: "rgba(114,46,209,0.1)" },
-  };
-  const currentTone = tones[tone];
-
-  return (
-    <div className="rounded-lg border bg-card p-4" style={{ borderColor: "var(--border)" }}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ color: currentTone.color, background: currentTone.bg }}>
-          {icon}
-        </div>
-      </div>
-      <div className="mt-3 text-3xl font-semibold" style={{ color: currentTone.color }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
 function CompactStatCard({
   label,
   value,
@@ -788,41 +616,6 @@ function CompactStatCard({
           {value}
         </div>
         <div className="mt-1 text-xs text-muted-foreground">{label}</div>
-      </div>
-    </div>
-  );
-}
-
-function ActivityBar({ value, max, color, title }: { value: number; max: number; color: string; title: string }) {
-  const height = max > 0 ? Math.round((value / max) * 52) : 0;
-  return (
-    <div
-      className="flex-shrink-0 rounded-t"
-      style={{ width: 10, height, background: color, opacity: 0.86 }}
-      title={`${title}: ${value}`}
-    />
-  );
-}
-
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className="rounded-full" style={{ width: 8, height: 8, background: color }} />
-      <span className="text-xs text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
-function TypeBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const percent = total > 0 ? Math.round((value / total) * 100) : 0;
-  return (
-    <div className="mb-3 last:mb-0">
-      <div className="mb-1 flex items-center justify-between text-sm">
-        <span>{label}</span>
-        <span className="font-medium">{value} ({percent}%)</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full" style={{ width: `${percent}%`, background: color }} />
       </div>
     </div>
   );
