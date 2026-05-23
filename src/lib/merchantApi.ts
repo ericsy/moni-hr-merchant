@@ -120,6 +120,185 @@ export interface MerchantDashboardStatistics {
   overtimeRiskEmployees?: number | null;
 }
 
+export type MerchantAttendanceRequestType = "leave" | "missed_punch";
+export type MerchantAttendanceRequestStatus = "pending" | "approved" | "rejected";
+export type MerchantClockPunchType = "clock_in" | "clock_out";
+export type MerchantClockPunchSource = "normal" | "missed_punch_backfill" | "leave";
+
+export interface MerchantEmployeeBrief {
+  merchantAdminId?: number | string | null;
+  id?: number | string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  displayName?: string | null;
+  name?: string | null;
+  employeeCode?: string | null;
+  email?: string | null;
+  role?: string | null;
+}
+
+export interface MerchantAttendanceLeaveItem {
+  id?: number | string | null;
+  publishedCellId?: number | string | null;
+  leaveScope?: string | null;
+  leaveEffect?: "full" | "late_in" | "early_out" | string | null;
+  partialStartTime?: string | null;
+  partialEndTime?: string | null;
+  scheduleDate?: string | null;
+  shiftStartTime?: string | null;
+  shiftEndTime?: string | null;
+}
+
+export interface MerchantAttendanceRequest {
+  id?: number | string | null;
+  storeId?: number | string | null;
+  storeName?: string | null;
+  requestType?: MerchantAttendanceRequestType | string | null;
+  status?: MerchantAttendanceRequestStatus | string | null;
+  reason?: string | null;
+  approverMerchantAdminId?: number | string | null;
+  approverKind?: string | null;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewComment?: string | null;
+  publishedCellId?: number | string | null;
+  punchType?: MerchantClockPunchType | string | null;
+  actualPunchedAt?: string | null;
+  scheduleDate?: string | null;
+  shiftStartTime?: string | null;
+  shiftEndTime?: string | null;
+  applicant?: MerchantEmployeeBrief | null;
+  approver?: MerchantEmployeeBrief | null;
+  reviewerMerchantAdminId?: number | string | null;
+  reviewer?: MerchantEmployeeBrief | null;
+  proxyReviewer?: MerchantEmployeeBrief | null;
+  proxyReview?: boolean | null;
+  leaveItems?: MerchantAttendanceLeaveItem[];
+}
+
+export interface MerchantAttendanceRequestSummary {
+  storeId?: number | string | null;
+  pending?: number | null;
+  approved?: number | null;
+  rejected?: number | null;
+  reviewed?: number | null;
+  total?: number | null;
+  leave?: number | null;
+  missedPunch?: number | null;
+  pendingAssignedToMe?: number | null;
+}
+
+export interface MerchantPageMeta {
+  page?: number | null;
+  size?: number | null;
+  total?: number | null;
+  totalPages?: number | null;
+  pages?: number | null;
+  hasNext?: boolean | null;
+  hasPrevious?: boolean | null;
+}
+
+export interface MerchantAttendanceRequestPage {
+  storeIds?: Array<number | string>;
+  items?: MerchantAttendanceRequest[];
+  page?: MerchantPageMeta | Record<string, unknown>;
+}
+
+export interface MerchantAttendanceRequestPageParams {
+  page?: number;
+  size?: number;
+  storeIds?: Array<number | string>;
+  merchantAdminIds?: Array<number | string>;
+  status?: MerchantAttendanceRequestStatus | "";
+  requestType?: MerchantAttendanceRequestType | "";
+  from?: string;
+  to?: string;
+}
+
+export interface MerchantClockSummary {
+  storeId?: number | string | null;
+  date?: string | null;
+  totalPunches?: number | null;
+  clockInCount?: number | null;
+  clockOutCount?: number | null;
+  employeesPunched?: number | null;
+  suspectedProxyCount?: number | null;
+  normalPunchCount?: number | null;
+  missedPunchBackfillCount?: number | null;
+  leavePunchCount?: number | null;
+  pendingMissedPunchRequests?: number | null;
+}
+
+export interface MerchantClockPunch {
+  id?: number | string | null;
+  storeId?: number | string | null;
+  storeName?: string | null;
+  storeCode?: string | null;
+  merchantAdminId?: number | string | null;
+  employee?: MerchantEmployeeBrief | null;
+  publishedCellId?: number | string | null;
+  punchType?: MerchantClockPunchType | string | null;
+  punchSource?: MerchantClockPunchSource | string | null;
+  punchedAt?: string | null;
+  createdAt?: string | null;
+  deviceType?: string | null;
+  deviceId?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  distanceMeters?: number | null;
+  withinGeofence?: boolean | null;
+  suspectedProxyPunch?: boolean | null;
+  proxyPunchReason?: string | null;
+  proxyPunchReasons?: string[] | null;
+  proxySharedDeviceOtherMerchantAdminIds?: Array<number | string> | null;
+  proxySharedDeviceEmployees?: MerchantEmployeeBrief[] | null;
+  attendanceRequestId?: number | string | null;
+  attendanceLeaveItemId?: number | string | null;
+}
+
+export interface MerchantClockPunchQueryParams {
+  from: string;
+  to: string;
+  storeIds?: Array<number | string>;
+  merchantAdminIds?: Array<number | string>;
+  merchantAdminId?: number | string;
+  punchType?: MerchantClockPunchType | "";
+  punchSource?: MerchantClockPunchSource | "";
+  proxyPunchSuspected?: boolean;
+}
+
+export interface MerchantClockAnomalyPageParams extends MerchantClockPunchQueryParams {
+  page?: number;
+  size?: number;
+}
+
+export interface MerchantClockAnomalySummary {
+  totalCount?: number | null;
+  newDeviceIdCount?: number | null;
+  sharedMerchantDeviceCount?: number | null;
+}
+
+export interface MerchantClockAnomalyPage {
+  storeIds?: Array<number | string>;
+  from?: string | null;
+  to?: string | null;
+  summary?: MerchantClockAnomalySummary | null;
+  items?: MerchantClockPunch[];
+  page?: MerchantPageMeta | Record<string, unknown>;
+}
+
+export interface MerchantClockPunchesDay {
+  storeIds?: Array<number | string>;
+  from?: string | null;
+  to?: string | null;
+  punches?: MerchantClockPunch[];
+}
+
+export interface MerchantEmployeeIdName {
+  id?: number | string | null;
+  name?: string | null;
+}
+
 const EMPTY_PAGE = { items: [] as unknown[] };
 type ApiRecord = Record<string, unknown>;
 type EmployeeUploadKind = "id-front" | "id-back" | "visa" | "passport";
@@ -182,6 +361,241 @@ function mapApiDashboardStatistics(input: unknown): MerchantDashboardStatistics 
   };
 }
 
+function mapPageMeta(input: unknown): MerchantPageMeta {
+  const raw = asRecord(input);
+  const total =
+    raw.total ??
+    raw.totalElements ??
+    raw.totalCount ??
+    raw.count ??
+    raw.records;
+  const page =
+    raw.page ??
+    raw.pageNumber ??
+    raw.current ??
+    raw.currentPage;
+  const size =
+    raw.size ??
+    raw.pageSize ??
+    raw.limit;
+  const totalPages =
+    raw.totalPages ??
+    raw.pages ??
+    raw.pageCount;
+
+  return compactDeep({
+    page: page === undefined ? undefined : asNumber(page),
+    size: size === undefined ? undefined : asNumber(size),
+    total: total === undefined ? undefined : asNumber(total),
+    totalPages: totalPages === undefined ? undefined : asNumber(totalPages),
+    pages: totalPages === undefined ? undefined : asNumber(totalPages),
+    hasNext: typeof raw.hasNext === "boolean" ? raw.hasNext : undefined,
+    hasPrevious: typeof raw.hasPrevious === "boolean" ? raw.hasPrevious : undefined,
+  });
+}
+
+function mapEmployeeBrief(input: unknown): MerchantEmployeeBrief {
+  const raw = asRecord(input);
+  const firstName = asString(raw.firstName);
+  const lastName = asString(raw.lastName);
+  const displayName =
+    asString(raw.displayName || raw.name || raw.fullName || raw.adminName) ||
+    [firstName, lastName].filter(Boolean).join(" ");
+
+  return compactDeep({
+    merchantAdminId: raw.merchantAdminId as number | string | null | undefined ?? raw.id as number | string | null | undefined,
+    id: raw.id as number | string | null | undefined ?? raw.merchantAdminId as number | string | null | undefined,
+    firstName,
+    lastName,
+    displayName,
+    name: displayName,
+    employeeCode: asString(raw.employeeCode || raw.employeeId),
+    email: asString(raw.email),
+    role: asString(raw.role || raw.position),
+  });
+}
+
+function mapAttendanceLeaveItem(input: unknown): MerchantAttendanceLeaveItem {
+  const raw = asRecord(input);
+  return compactDeep({
+    id: raw.id as number | string | null | undefined,
+    publishedCellId: raw.publishedCellId as number | string | null | undefined,
+    leaveScope: asString(raw.leaveScope),
+    leaveEffect: asString(raw.leaveEffect) as MerchantAttendanceLeaveItem["leaveEffect"],
+    partialStartTime: normalizeTime(raw.partialStartTime) || asString(raw.partialStartTime),
+    partialEndTime: normalizeTime(raw.partialEndTime) || asString(raw.partialEndTime),
+    scheduleDate: asString(raw.scheduleDate || raw.shiftDate),
+    shiftStartTime: normalizeTime(raw.shiftStartTime),
+    shiftEndTime: normalizeTime(raw.shiftEndTime),
+  });
+}
+
+function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
+  const raw = asRecord(input);
+  const store = asRecord(raw.store);
+  return compactDeep({
+    id: raw.id as number | string | null | undefined,
+    storeId: raw.storeId as number | string | null | undefined,
+    storeName: asString(raw.storeName || store.name),
+    requestType: asString(raw.requestType) as MerchantAttendanceRequestType,
+    status: asString(raw.status) as MerchantAttendanceRequestStatus,
+    reason: asString(raw.reason),
+    approverMerchantAdminId: raw.approverMerchantAdminId as number | string | null | undefined,
+    approverKind: asString(raw.approverKind),
+    submittedAt: asString(raw.submittedAt || raw.createdAt),
+    reviewedAt: asString(raw.reviewedAt),
+    reviewComment: asString(raw.reviewComment),
+    publishedCellId: raw.publishedCellId as number | string | null | undefined,
+    punchType: asString(raw.punchType) as MerchantClockPunchType,
+    actualPunchedAt: asString(raw.actualPunchedAt),
+    scheduleDate: asString(raw.scheduleDate),
+    shiftStartTime: normalizeTime(raw.shiftStartTime),
+    shiftEndTime: normalizeTime(raw.shiftEndTime),
+    applicant: raw.applicant ? mapEmployeeBrief(raw.applicant) : undefined,
+    approver: raw.approver ? mapEmployeeBrief(raw.approver) : undefined,
+    reviewerMerchantAdminId: raw.reviewerMerchantAdminId as number | string | null | undefined,
+    reviewer: raw.reviewer ? mapEmployeeBrief(raw.reviewer) : undefined,
+    proxyReviewer: raw.proxyReviewer ? mapEmployeeBrief(raw.proxyReviewer) : undefined,
+    proxyReview: typeof raw.proxyReview === "boolean" ? raw.proxyReview : undefined,
+    leaveItems: asArray(raw.leaveItems).map(mapAttendanceLeaveItem),
+  });
+}
+
+function mapAttendanceSummary(input: unknown): MerchantAttendanceRequestSummary {
+  const raw = asRecord(input);
+  return {
+    storeId: raw.storeId as number | string | null | undefined,
+    pending: asNumber(raw.pending),
+    approved: asNumber(raw.approved),
+    rejected: asNumber(raw.rejected),
+    reviewed: asNumber(raw.reviewed),
+    total: asNumber(raw.total),
+    leave: asNumber(raw.leave),
+    missedPunch: asNumber(raw.missedPunch),
+    pendingAssignedToMe: asNumber(raw.pendingAssignedToMe),
+  };
+}
+
+function mapAttendancePage(input: unknown): MerchantAttendanceRequestPage {
+  const raw = asRecord(input);
+  return {
+    storeIds: asArray(raw.storeIds).map((id) => toNumberOrString(asString(id))),
+    items: asArray(raw.items).map(mapAttendanceRequest),
+    page: mapPageMeta(raw.page),
+  };
+}
+
+function attendancePagePayload(params: MerchantAttendanceRequestPageParams = {}) {
+  return compactDeep({
+    page: params.page || 1,
+    size: params.size || 20,
+    storeIds: toNumberOrStringArray(params.storeIds),
+    merchantAdminIds: toNumberOrStringArray(params.merchantAdminIds),
+    status: params.status,
+    requestType: params.requestType,
+    from: params.from,
+    to: params.to,
+  });
+}
+
+function mapClockSummary(input: unknown): MerchantClockSummary {
+  const raw = asRecord(input);
+  return {
+    storeId: raw.storeId as number | string | null | undefined,
+    date: asString(raw.date),
+    totalPunches: asNumber(raw.totalPunches),
+    clockInCount: asNumber(raw.clockInCount),
+    clockOutCount: asNumber(raw.clockOutCount),
+    employeesPunched: asNumber(raw.employeesPunched),
+    suspectedProxyCount: asNumber(raw.suspectedProxyCount),
+    normalPunchCount: asNumber(raw.normalPunchCount),
+    missedPunchBackfillCount: asNumber(raw.missedPunchBackfillCount),
+    leavePunchCount: asNumber(raw.leavePunchCount),
+    pendingMissedPunchRequests: asNumber(raw.pendingMissedPunchRequests),
+  };
+}
+
+function mapClockPunch(input: unknown): MerchantClockPunch {
+  const raw = asRecord(input);
+  return compactDeep({
+    id: raw.id as number | string | null | undefined,
+    storeId: raw.storeId as number | string | null | undefined,
+    storeName: asString(raw.storeName),
+    storeCode: asString(raw.storeCode),
+    merchantAdminId: raw.merchantAdminId as number | string | null | undefined,
+    employee: raw.employee ? mapEmployeeBrief(raw.employee) : undefined,
+    publishedCellId: raw.publishedCellId as number | string | null | undefined,
+    punchType: asString(raw.punchType) as MerchantClockPunchType,
+    punchSource: asString(raw.punchSource) as MerchantClockPunchSource,
+    punchedAt: asString(raw.punchedAt),
+    createdAt: asString(raw.createdAt),
+    deviceType: asString(raw.deviceType),
+    deviceId: asString(raw.deviceId),
+    latitude: raw.latitude === undefined || raw.latitude === null ? undefined : asNumber(raw.latitude),
+    longitude: raw.longitude === undefined || raw.longitude === null ? undefined : asNumber(raw.longitude),
+    distanceMeters: raw.distanceMeters === undefined || raw.distanceMeters === null ? undefined : asNumber(raw.distanceMeters),
+    withinGeofence: typeof raw.withinGeofence === "boolean" ? raw.withinGeofence : undefined,
+    suspectedProxyPunch: typeof raw.suspectedProxyPunch === "boolean" ? raw.suspectedProxyPunch : undefined,
+    proxyPunchReason: asString(raw.proxyPunchReason),
+    proxyPunchReasons: asArray(raw.proxyPunchReasons).map((item) => asString(item)).filter(Boolean),
+    proxySharedDeviceOtherMerchantAdminIds: asArray(raw.proxySharedDeviceOtherMerchantAdminIds)
+      .map((id) => {
+        const rawId = asString(id).trim();
+        return rawId ? toNumberOrString(rawId) : null;
+      })
+      .filter((id): id is number | string => id !== null),
+    proxySharedDeviceEmployees: asArray(raw.proxySharedDeviceEmployees).map(mapEmployeeBrief),
+    attendanceRequestId: raw.attendanceRequestId as number | string | null | undefined,
+    attendanceLeaveItemId: raw.attendanceLeaveItemId as number | string | null | undefined,
+  });
+}
+
+function clockQueryPayload(params: MerchantClockPunchQueryParams | MerchantClockAnomalyPageParams) {
+  return compactDeep({
+    from: params.from,
+    to: params.to,
+    storeIds: toNumberOrStringArray(params.storeIds),
+    merchantAdminIds: toNumberOrStringArray(params.merchantAdminIds),
+    merchantAdminId: params.merchantAdminId === undefined ? undefined : toNumberOrString(asString(params.merchantAdminId)),
+    punchType: params.punchType,
+    punchSource: params.punchSource,
+    proxyPunchSuspected: params.proxyPunchSuspected,
+    page: "page" in params ? params.page : undefined,
+    size: "size" in params ? params.size : undefined,
+  });
+}
+
+function mapAnomalySummary(input: unknown): MerchantClockAnomalySummary {
+  const raw = asRecord(input);
+  return {
+    totalCount: asNumber(raw.totalCount),
+    newDeviceIdCount: asNumber(raw.newDeviceIdCount),
+    sharedMerchantDeviceCount: asNumber(raw.sharedMerchantDeviceCount),
+  };
+}
+
+function mapAnomalyPage(input: unknown): MerchantClockAnomalyPage {
+  const raw = asRecord(input);
+  return {
+    storeIds: asArray(raw.storeIds).map((id) => toNumberOrString(asString(id))),
+    from: asString(raw.from),
+    to: asString(raw.to),
+    summary: mapAnomalySummary(raw.summary),
+    items: asArray(raw.items).map(mapClockPunch),
+    page: mapPageMeta(raw.page),
+  };
+}
+
+function mapClockPunchesDay(input: unknown): MerchantClockPunchesDay {
+  const raw = asRecord(input);
+  return {
+    storeIds: asArray(raw.storeIds).map((id) => toNumberOrString(asString(id))),
+    from: asString(raw.from),
+    to: asString(raw.to),
+    punches: asArray(raw.punches).map(mapClockPunch),
+  };
+}
+
 function toNumberOrString(value: string) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && value.trim() !== "" ? numeric : value;
@@ -193,10 +607,37 @@ function toOptionalNumberOrString(value: string | undefined | null) {
   return toNumberOrString(raw);
 }
 
+function toNumberOrStringArray(values: Array<number | string> | undefined | null) {
+  return (values || [])
+    .map((value) => {
+      const raw = asString(value).trim();
+      return raw ? toNumberOrString(raw) : null;
+    })
+    .filter((value) => value !== null);
+}
+
 function compact<T extends Record<string, unknown>>(payload: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined)
   ) as Partial<T>;
+}
+
+function compactDeep<T extends Record<string, unknown>>(payload: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => {
+      if (value === undefined || value === null || value === "") return false;
+      if (Array.isArray(value) && value.length === 0) return false;
+      return true;
+    })
+  ) as Partial<T>;
+}
+
+function hasStoreIds(params?: { storeIds?: Array<number | string> }) {
+  return !!params?.storeIds?.length;
+}
+
+function optionalStoreHeader(storeId: string | undefined, params?: { storeIds?: Array<number | string> }) {
+  return hasStoreIds(params) ? null : storeId;
 }
 
 function employeeDocumentPayload(employee: Employee) {
@@ -955,6 +1396,23 @@ export const merchantApi = {
     });
     return (data?.items || []).map(mapApiEmployee);
   },
+  listActiveEmployeeBriefs: async (storeIds: Array<number | string>, name?: string) => {
+    const data = await apiRequest<unknown[]>(appendEndpointPath(getMerchantEndpoint("employees"), "active-brief"), {
+      method: "POST",
+      storeId: null,
+      body: compactDeep({
+        storeIds: toNumberOrStringArray(storeIds),
+        name,
+      }),
+    });
+    return (Array.isArray(data) ? data : []).map((item) => {
+      const raw = mapEmployeeBrief(item);
+      return {
+        id: raw.id || raw.merchantAdminId,
+        name: raw.name || raw.displayName || "",
+      } satisfies MerchantEmployeeIdName;
+    });
+  },
   createEmployee: async (employee: Employee & { password?: string }) => {
     const data = await apiRequest<unknown>(getMerchantEndpoint("employees"), {
       method: "POST",
@@ -1094,6 +1552,83 @@ export const merchantApi = {
     apiRequest<MerchantInvoiceList>(appendEndpointPath(getMerchantEndpoint("billing"), "invoices"), {
       query: params,
     }),
+  getAttendanceRequestSummary: async (
+    storeId: string,
+    params: { requestType?: MerchantAttendanceRequestType | ""; from?: string; to?: string } = {},
+  ) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("attendance"), "requests", "summary"), {
+      storeId,
+      query: {
+        requestType: params.requestType,
+        from: params.from,
+        to: params.to,
+      },
+    });
+    return mapAttendanceSummary(data);
+  },
+  listAttendanceRequests: async (
+    storeId: string | undefined,
+    params: MerchantAttendanceRequestPageParams = {},
+  ) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("attendance"), "requests"), {
+      method: "POST",
+      storeId: optionalStoreHeader(storeId, params),
+      body: attendancePagePayload(params),
+    });
+    return mapAttendancePage(data);
+  },
+  getAttendanceRequest: async (id: string | number, storeId: string) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("attendance"), "requests", id), {
+      storeId,
+    });
+    return mapAttendanceRequest(data);
+  },
+  reviewAttendanceRequest: async (
+    id: string | number,
+    storeId: string,
+    payload: { approved: boolean; reviewComment?: string | null },
+  ) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("attendance"), "requests", id, "review"), {
+      method: "POST",
+      storeId,
+      body: {
+        approved: payload.approved,
+        reviewComment: payload.reviewComment || null,
+      },
+    });
+    return mapAttendanceRequest(data);
+  },
+  getClockSummary: async (storeId: string, date: string) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("clock"), "summary"), {
+      storeId,
+      query: { date },
+    });
+    return mapClockSummary(data);
+  },
+  getClockAnomalySummary: async (storeId: string | undefined, params: MerchantClockPunchQueryParams) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("clock"), "anomalies", "summary"), {
+      method: "POST",
+      storeId: optionalStoreHeader(storeId, params),
+      body: clockQueryPayload(params),
+    });
+    return mapAnomalySummary(data);
+  },
+  listClockAnomalies: async (storeId: string | undefined, params: MerchantClockAnomalyPageParams) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("clock"), "anomalies"), {
+      method: "POST",
+      storeId: optionalStoreHeader(storeId, params),
+      body: clockQueryPayload(params),
+    });
+    return mapAnomalyPage(data);
+  },
+  listClockPunches: async (storeId: string | undefined, params: MerchantClockPunchQueryParams) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("clock"), "punches"), {
+      method: "POST",
+      storeId: optionalStoreHeader(storeId, params),
+      body: clockQueryPayload(params),
+    });
+    return mapClockPunchesDay(data);
+  },
   uploadEmployeeContract: (file: File) =>
     uploadMerchantFile("/api/v1/merchant/uploads/employee-contract", file),
   uploadEmployeeAvatar: (file: File) =>

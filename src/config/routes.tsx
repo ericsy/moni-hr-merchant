@@ -20,7 +20,9 @@ export type KnownPageKey =
   | "schedule"
   | "rosters"
   | "rosterTemplate"
-  | "billing";
+  | "billing"
+  | "attendanceRequests"
+  | "clockPunches";
 
 export type PageKey = KnownPageKey | (string & {});
 
@@ -53,6 +55,8 @@ const pageModules = import.meta.glob<PageModule>([
   "../pages/Rosters.tsx",
   "../pages/RosterTemplate.tsx",
   "../pages/Billing.tsx",
+  "../pages/AttendanceRequests.tsx",
+  "../pages/ClockPunches.tsx",
 ]);
 const lazyPageComponents = new Map<string, React.LazyExoticComponent<React.ComponentType<Record<string, unknown>>>>();
 
@@ -146,6 +150,46 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
       "/api/v1/merchant/billing/invoices",
     ],
   },
+  {
+    pageKey: "attendanceRequests",
+    path: "/attendance-requests",
+    componentPath: "../pages/AttendanceRequests.tsx",
+    requestPath: "/api/v1/merchant/attendance/requests",
+    endpointKey: "attendance",
+    aliases: [
+      "/attendance-requests",
+      "/attendance-request",
+      "/attendance",
+      "/requests",
+      "/request-management",
+      "/applications",
+      "/application-management",
+      "/api/v1/merchant/attendance",
+      "/api/v1/merchant/attendance/requests",
+      "/api/v1/merchant/attendance/requests/summary",
+    ],
+  },
+  {
+    pageKey: "clockPunches",
+    path: "/clock-punches",
+    componentPath: "../pages/ClockPunches.tsx",
+    requestPath: "/api/v1/merchant/clock/punches",
+    endpointKey: "clock",
+    aliases: [
+      "/clock-punches",
+      "/clock-punch",
+      "/clock",
+      "/punches",
+      "/clock-management",
+      "/attendance-clock",
+      "/clock-anomalies",
+      "/api/v1/merchant/clock",
+      "/api/v1/merchant/clock/summary",
+      "/api/v1/merchant/clock/punches",
+      "/api/v1/merchant/clock/anomalies",
+      "/api/v1/merchant/clock/anomalies/summary",
+    ],
+  },
 ];
 
 export const merchantRoutes = merchantRouteTemplates;
@@ -160,6 +204,8 @@ const routeTemplateByEndpointKey: Partial<Record<MerchantEndpointKey, MerchantRo
   scheduleTemplates: routeTemplateByPageKey.get("rosterTemplate"),
   schedule: routeTemplateByPageKey.get("schedule"),
   billing: routeTemplateByPageKey.get("billing"),
+  attendance: routeTemplateByPageKey.get("attendanceRequests"),
+  clock: routeTemplateByPageKey.get("clockPunches"),
 };
 
 const pageKeyAliases: Record<string, KnownPageKey> = {
@@ -198,6 +244,22 @@ const pageKeyAliases: Record<string, KnownPageKey> = {
   subscriptions: "billing",
   invoices: "billing",
   invoice: "billing",
+  attendance: "attendanceRequests",
+  merchantattendance: "attendanceRequests",
+  attendancerequests: "attendanceRequests",
+  attendancerequest: "attendanceRequests",
+  requestmanagement: "attendanceRequests",
+  applicationmanagement: "attendanceRequests",
+  applications: "attendanceRequests",
+  requests: "attendanceRequests",
+  clock: "clockPunches",
+  merchantclock: "clockPunches",
+  clockpunches: "clockPunches",
+  clockpunch: "clockPunches",
+  clockmanagement: "clockPunches",
+  attendanceclock: "clockPunches",
+  punches: "clockPunches",
+  anomalies: "clockPunches",
 };
 
 const componentPathFields = ["componentPath", "component", "viewPath", "componentUrl", "componentName"];

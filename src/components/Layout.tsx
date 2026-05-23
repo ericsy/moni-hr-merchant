@@ -18,8 +18,10 @@ import {
   CalendarRange,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Clock,
   CreditCard,
+  Fingerprint,
   Globe,
   House,
   KeyRound,
@@ -160,6 +162,8 @@ export default function AppLayout({
         rosters: <CalendarRange size={18} />,
         rosterTemplate: <CalendarDays size={18} />,
         billing: <CreditCard size={18} />,
+        attendanceRequests: <ClipboardList size={18} />,
+        clockPunches: <Fingerprint size={18} />,
       };
 
       const getNodeLabel = (
@@ -215,12 +219,17 @@ export default function AppLayout({
             const fallbackLabel =
               t.nav[routeConfig.pageKey as keyof typeof t.nav] ??
               routeConfig.pageKey;
+            const label =
+              routeConfig.pageKey === "attendanceRequests" ||
+              routeConfig.pageKey === "clockPunches"
+                ? fallbackLabel
+                : getNodeLabel(node, fallbackLabel);
 
             return [
               {
                 key: routeConfig.pageKey,
                 icon: iconMap[routeConfig.pageKey],
-                label: getNodeLabel(node, fallbackLabel),
+                label,
                 children: children.length > 0 ? children : undefined,
               },
             ];

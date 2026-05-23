@@ -13,7 +13,7 @@ interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers"> {
   body?: unknown;
   headers?: HeadersInit;
   query?: Record<string, QueryValue>;
-  storeId?: string;
+  storeId?: string | null;
   auth?: boolean;
 }
 
@@ -155,7 +155,7 @@ function isSuccessCode(code: unknown) {
 export async function apiRequest<T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { body, query, storeId, auth = true, headers, ...requestOptions } = options;
   const requestHeaders = new Headers(headers);
-  const effectiveStoreId = storeId || getCurrentStoreId();
+  const effectiveStoreId = storeId === null ? "" : storeId || getCurrentStoreId();
   const isFormDataBody = typeof FormData !== "undefined" && body instanceof FormData;
 
   requestHeaders.set("X-Lang", getCurrentLanguage());

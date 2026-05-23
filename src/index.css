@@ -182,6 +182,20 @@
 .schedule-cell:hover {
   background: var(--accent) !important;
 }
+.clock-punch-tabs.ant-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+.clock-punch-tabs .ant-tabs-content-holder {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.clock-punch-tabs .ant-tabs-content,
+.clock-punch-tabs .ant-tabs-tabpane-active {
+  height: 100%;
+}
 
 /* Center global toast messages in the viewport. */
 [data-sonner-toaster].app-toast-center {
