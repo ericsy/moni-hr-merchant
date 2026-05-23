@@ -72,6 +72,7 @@ declare global {
   const Hash: typeof import('lucide-react').Hash
   const Home: typeof import('lucide-react').Home
   const House: typeof import('lucide-react').House
+  const Icon: typeof import('lucide-react').Icon
   const IdCard: typeof import('lucide-react').IdCard
   const Info: typeof import('lucide-react').Info
   const InfoIcon: typeof import('lucide-react').InfoIcon

@@ -60,7 +60,7 @@ const chartColors = ["#1677ff", "#52c41a", "#faad14", "#f5222d"];
 
 function todayRange(): [Dayjs, Dayjs] {
   const today = dayjs();
-  return [today, today];
+  return [today.subtract(6, "day"), today];
 }
 
 function asNumber(value: unknown) {
@@ -621,7 +621,7 @@ function ClockPunchTable({
     {
       title: labels.punchType,
       dataIndex: "punchType",
-      width: 120,
+      width: 140,
       render: (type) => <PunchTypeTag type={type} labels={labels} />,
     },
     {
@@ -705,9 +705,11 @@ function ClockPunchTable({
 
 function PunchTypeTag({ type, labels }: { type?: string | null; labels: ReturnType<typeof useLocale>["t"]["clockPunch"] }) {
   const isOut = type === "clock_out";
+  const Icon = isOut ? LogOutIcon : LogInIcon;
   return (
-    <Tag color={isOut ? "orange" : "blue"} icon={isOut ? <LogOutIcon size={11} /> : <LogInIcon size={11} />}>
-      {punchTypeLabel(type, labels)}
+    <Tag color={isOut ? "orange" : "blue"} style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+      <Icon size={11} style={{ flexShrink: 0 }} />
+      <span>{punchTypeLabel(type, labels)}</span>
     </Tag>
   );
 }
