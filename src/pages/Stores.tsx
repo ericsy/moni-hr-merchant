@@ -37,6 +37,8 @@ import { toast } from "sonner";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import GeoFenceMapPicker from "../components/GeoFenceMapPicker";
+import GoogleAddressAutocompleteInput from "../components/GoogleAddressAutocompleteInput";
+import type { GooglePlaceSummary } from "../lib/googleMaps";
 
 const { Option } = Select;
 
@@ -399,6 +401,28 @@ function StoreModal({
     ? [locationCity, locationCountry].filter(Boolean).join(", ")
     : "";
 
+  const handleAddressPlaceSelected = (place: GooglePlaceSummary) => {
+    const nextFields: Record<string, string> = {
+      address: place.formattedAddress,
+    };
+
+    if (place.city) nextFields.city = place.city;
+    if (place.countryCode) nextFields.country = place.countryCode;
+
+    form.setFieldsValue(nextFields);
+
+    if (
+      typeof place.latitude === "number" &&
+      typeof place.longitude === "number"
+    ) {
+      setGeofenceValue({
+        latitude: place.latitude,
+        longitude: place.longitude,
+        geofenceRadius: geofenceValue?.geofenceRadius ?? store?.geofenceRadius ?? 200,
+      });
+    }
+  };
+
   const tabItems = [
     {
       key: "basic",
@@ -428,7 +452,11 @@ function StoreModal({
             </Form.Item>
           </div>
           <Form.Item name="address" label={st.address}>
-            <Input placeholder={locale === "zh" ? `街道地址` : `Street address`} />
+            <GoogleAddressAutocompleteInput
+              country={(watchedCountry ?? store?.country ?? "").trim()}
+              placeholder={locale === "zh" ? `街道地址` : `Street address`}
+              onPlaceSelected={handleAddressPlaceSelected}
+            />
           </Form.Item>
           <div className="flex gap-4">
             <Form.Item name="phone" label={st.phone} style={{ flex: 1 }}>

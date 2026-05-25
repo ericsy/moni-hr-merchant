@@ -164,6 +164,39 @@
 .ant-layout {
   background: var(--background) !important;
 }
+.pac-container {
+  z-index: 2000 !important;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  font-family: var(--fontSans);
+}
+.pac-container::after {
+  display: none;
+}
+.pac-item {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--foreground);
+}
+.pac-item:first-child {
+  border-top: none;
+}
+.pac-item:hover,
+.pac-item-selected {
+  background: var(--secondary);
+}
+.pac-item-query {
+  font-size: 13px;
+  color: var(--foreground);
+}
+.pac-matched {
+  color: var(--primary);
+  font-weight: 600;
+}
 .ant-layout-header {
   padding: 0 24px !important;
   line-height: 64px !important;

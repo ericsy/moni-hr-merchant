@@ -53,6 +53,7 @@ import {
   getEmployeeInitials,
 } from "../lib/employeeAvatar";
 import { calcShiftHours, datedShiftsOverlap } from "../lib/shift";
+import { isScheduleDateEditable } from "../lib/scheduleLock";
 import { isStoreClosedOnWeekday } from "../lib/storeHours";
 
 dayjs.extend(weekOfYear);
@@ -237,28 +238,39 @@ interface TemplateCardProps {
   template?: RosterTemplateCard;
   onDragStart?: (id: string) => void;
   onDragEnd?: () => void;
+  disabled?: boolean;
 }
 
 function TemplateCard({
   template,
   onDragStart = () => {},
   onDragEnd = () => {},
+  disabled = false,
 }: TemplateCardProps) {
   if (!template) return null;
   const cs = getColorStyle(template.color);
   return (
     <div
       data-cmp="TemplateCard"
-      draggable
+      draggable={!disabled}
       onDragStart={(e) => {
+        if (disabled) {
+          e.preventDefault();
+          return;
+        }
         e.dataTransfer.setData("templateId", template.id);
         e.dataTransfer.effectAllowed = "copy";
         onDragStart(template.id);
         console.log("[Rosters] drag template start:", template.id);
       }}
       onDragEnd={onDragEnd}
-      className="rounded-xl p-3 mb-2 cursor-grab active:cursor-grabbing select-none transition-all hover:shadow-custom"
-      style={{ background: "var(--card)", border: `1px solid var(--border)` }}
+      className="rounded-xl p-3 mb-2 select-none transition-all hover:shadow-custom"
+      style={{
+        background: "var(--card)",
+        border: `1px solid var(--border)`,
+        cursor: disabled ? "default" : "grab",
+        opacity: disabled ? 0.76 : 1,
+      }}
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -333,6 +345,7 @@ interface ShiftEntryProps {
   onDropTemplate?: (templateId: string) => void;
   /** Opens the shift editor so employees can be selected without dragging */
   onAddEmployeeClick?: () => void;
+  readonly?: boolean;
 }
 
 function ShiftEntry({
@@ -344,6 +357,7 @@ function ShiftEntry({
   onDropEmployee = () => {},
   onDropTemplate = () => {},
   onAddEmployeeClick = () => {},
+  readonly = false,
 }: ShiftEntryProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale } = useLocale();
@@ -362,6 +376,7 @@ function ShiftEntry({
         transition: "all 0.15s",
       }}
       onDragOver={(e) => {
+        if (readonly) return;
         e.preventDefault();
         e.stopPropagation();
         setIsDragOver(true);
@@ -370,6 +385,10 @@ function ShiftEntry({
       onDrop={(e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (readonly) {
+          setIsDragOver(false);
+          return;
+        }
         setIsDragOver(false);
         const templateId = e.dataTransfer.getData("templateId");
         if (templateId) {
@@ -449,29 +468,33 @@ function ShiftEntry({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-0.5 justify-self-end opacity-0 transition-opacity flex-shrink-0 group-hover:opacity-100">
-          <button
-            onClick={onEdit}
-            className="rounded p-0.5 hover:opacity-70"
-            style={{ color: "var(--muted-foreground)" }}
-          >
-            <Edit2 size={10} />
-          </button>
-          <Popconfirm
-            title={locale === "zh" ? "确认删除该班次？" : "Delete this shift?"}
-            onConfirm={onDelete}
-            okText={locale === "zh" ? "是" : "Yes"}
-            cancelText={locale === "zh" ? "否" : "No"}
-            placement="topRight"
-          >
+        {!readonly && (
+          <div className="flex items-center gap-0.5 justify-self-end opacity-0 transition-opacity flex-shrink-0 group-hover:opacity-100">
             <button
+              onClick={onEdit}
               className="rounded p-0.5 hover:opacity-70"
-              style={{ color: "var(--destructive)" }}
+              style={{ color: "var(--muted-foreground)" }}
             >
-              <Trash2 size={10} />
+              <Edit2 size={10} />
             </button>
-          </Popconfirm>
-        </div>
+            <Popconfirm
+              title={
+                locale === "zh" ? "确认删除该班次？" : "Delete this shift?"
+              }
+              onConfirm={onDelete}
+              okText={locale === "zh" ? "是" : "Yes"}
+              cancelText={locale === "zh" ? "否" : "No"}
+              placement="topRight"
+            >
+              <button
+                className="rounded p-0.5 hover:opacity-70"
+                style={{ color: "var(--destructive)" }}
+              >
+                <Trash2 size={10} />
+              </button>
+            </Popconfirm>
+          </div>
+        )}
       </div>
 
       {/* Time + hours badge */}
@@ -503,37 +526,39 @@ function ShiftEntry({
       )}
 
       {/* Drop hint / add employee button */}
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onAddEmployeeClick();
-        }}
-        className="w-full flex items-center justify-center rounded-md mt-0.5 transition-all hover:opacity-80"
-        style={{
-          border: `1px dashed ${isDragOver ? "var(--primary)" : cs.border}`,
-          padding: "2px 4px",
-          background: isDragOver ? "var(--secondary)" : "transparent",
-          cursor: "pointer",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        <span
+      {!readonly && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onAddEmployeeClick();
+          }}
+          className="w-full flex items-center justify-center rounded-md mt-0.5 transition-all hover:opacity-80"
           style={{
-            color: isDragOver ? "var(--primary)" : cs.text,
-            fontSize: 9,
+            border: `1px dashed ${isDragOver ? "var(--primary)" : cs.border}`,
+            padding: "2px 4px",
+            background: isDragOver ? "var(--secondary)" : "transparent",
+            cursor: "pointer",
+            position: "relative",
+            zIndex: 1,
           }}
         >
-          {assignedEmployees.length > 0
-            ? locale === "zh"
-              ? `+ 添加员工`
-              : `+ add employee`
-            : locale === "zh"
-              ? `选择员工`
-              : `select employee`}
-        </span>
-      </button>
+          <span
+            style={{
+              color: isDragOver ? "var(--primary)" : cs.text,
+              fontSize: 9,
+            }}
+          >
+            {assignedEmployees.length > 0
+              ? locale === "zh"
+                ? `+ 添加员工`
+                : `+ add employee`
+              : locale === "zh"
+                ? `选择员工`
+                : `select employee`}
+          </span>
+        </button>
+      )}
     </div>
   );
 }
@@ -548,6 +573,7 @@ interface DateColHeaderProps {
   dateFormatCountry?: string;
   onDropTemplate?: (templateId: string, dateStr: string) => void;
   shiftCount?: number;
+  readonly?: boolean;
 }
 
 function DateColHeader({
@@ -558,11 +584,13 @@ function DateColHeader({
   dateFormatCountry = "",
   onDropTemplate = () => {},
   shiftCount = 0,
+  readonly = false,
 }: DateColHeaderProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale } = useLocale();
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (readonly) return;
     if (e.dataTransfer.types.includes("templateid")) {
       e.preventDefault();
       setIsDragOver(true);
@@ -575,6 +603,7 @@ function DateColHeader({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    if (readonly) return;
     const templateId = e.dataTransfer.getData("templateId");
     if (templateId && date) {
       onDropTemplate(templateId, date.format("YYYY-MM-DD"));
@@ -598,6 +627,7 @@ function DateColHeader({
               : "var(--card)",
         cursor: isDragOver ? "copy" : "default",
         border: isDragOver ? `2px dashed var(--primary)` : undefined,
+        opacity: readonly ? 0.82 : 1,
       }}
       onDragOver={handleDragOver}
       onDragLeave={() => setIsDragOver(false)}
@@ -696,6 +726,7 @@ interface AreaDateCellProps {
   ) => string | null;
   isToday?: boolean;
   isClosedDay?: boolean;
+  readonly?: boolean;
 }
 
 function AreaDateCell({
@@ -713,6 +744,7 @@ function AreaDateCell({
   getAvailabilityWarning = () => null,
   isToday = false,
   isClosedDay = false,
+  readonly = false,
 }: AreaDateCellProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale } = useLocale();
@@ -733,6 +765,7 @@ function AreaDateCell({
   const handleCellDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    if (readonly) return;
     const templateId = e.dataTransfer.getData("templateId");
     const empId = e.dataTransfer.getData("employeeId");
     if (templateId) {
@@ -762,8 +795,10 @@ function AreaDateCell({
         transition: "background 0.12s",
         outline: isDragOver ? `2px dashed var(--primary)` : undefined,
         outlineOffset: -2,
+        opacity: readonly ? 0.82 : 1,
       }}
       onDragOver={(e) => {
+        if (readonly) return;
         // Only accept if no shift is being targeted (handled by ShiftEntry itself)
         e.preventDefault();
         setIsDragOver(true);
@@ -809,27 +844,30 @@ function AreaDateCell({
             onDropEmployee={(empId) => onDropEmployeeToShift(empId, sh)}
             onDropTemplate={onDropTemplate}
             onAddEmployeeClick={() => onEditShift(sh)}
+            readonly={readonly}
           />
         );
       })}
 
       {/* Add shift button — matches RosterTemplate's dashed pill button style */}
-      <button
-        onClick={() => onAddShift(areaId, date?.format("YYYY-MM-DD") || "")}
-        className="w-full rounded-lg flex items-center justify-center gap-0.5 transition-all hover:opacity-80"
-        style={{
-          height: 22,
-          border: "1.5px dashed var(--border)",
-          color: "var(--muted-foreground)",
-          background: "transparent",
-          fontSize: 10,
-        }}
-      >
-        <Plus size={10} />
-        <span style={{ fontSize: 10 }}>
-          {locale === "zh" ? "加班次" : "Add shift"}
-        </span>
-      </button>
+      {!readonly && (
+        <button
+          onClick={() => onAddShift(areaId, date?.format("YYYY-MM-DD") || "")}
+          className="w-full rounded-lg flex items-center justify-center gap-0.5 transition-all hover:opacity-80"
+          style={{
+            height: 22,
+            border: "1.5px dashed var(--border)",
+            color: "var(--muted-foreground)",
+            background: "transparent",
+            fontSize: 10,
+          }}
+        >
+          <Plus size={10} />
+          <span style={{ fontSize: 10 }}>
+            {locale === "zh" ? "加班次" : "Add shift"}
+          </span>
+        </button>
+      )}
     </div>
   );
 }
@@ -863,6 +901,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const weekDates = Array.from({ length: 7 }, (_, i) =>
     weekStart.add(i, "day"),
   );
+  const isReadonlyWeek = weekDates.every((date) =>
+    !isScheduleDateEditable(date),
+  );
+  const readonlyRosterMessage = isZh
+    ? "本周之前的排班只能查看，不能修改"
+    : "Rosters before the current week are read-only";
   const todayStr = dayjs().format("YYYY-MM-DD");
   const selectedStore =
     stores.find((store) => store.id === selectedStoreId) || stores[0];
@@ -1089,7 +1133,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const draftCount = scheduleShifts.filter((s) => {
     const d = dayjs(s.date);
     return (
-      s.status === "draft" && d >= weekStart && d <= weekStart.add(6, "day")
+      isScheduleDateEditable(s.date) &&
+      s.status === "draft" &&
+      d >= weekStart &&
+      d <= weekStart.add(6, "day")
     );
   }).length;
 
@@ -1139,6 +1186,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       (template) => template.id === templateId,
     );
     if (!rawTmpl || !startDate) return null;
+    if (!isScheduleDateEditable(startDate)) {
+      toast.warning(readonlyRosterMessage);
+      return null;
+    }
 
     const storeId = rawTmpl.storeId || selectedStoreId || stores[0]?.id || "s1";
     const visibleAreaIds = new Set(displayAreas.map((area) => area.id));
@@ -1169,6 +1220,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       const targetDate = dayjs(startDate)
         .add(cell.dayIndex, "day")
         .format("YYYY-MM-DD");
+      if (!isScheduleDateEditable(targetDate)) return;
 
       const employeeIds = Array.from(new Set(cell.employeeIds || [])).filter(
         Boolean,
@@ -1253,6 +1305,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     plan: TemplateApplyPlan,
     strategy: TemplateConflictStrategy,
   ) => {
+    if (plan.candidateShifts.some((shift) => !isScheduleDateEditable(shift.date))) {
+      toast.warning(readonlyRosterMessage);
+      return;
+    }
+
     type WorkingShift = ScheduleShift & { __temp?: boolean };
 
     const touchedSlotSet = new Set(plan.touchedSlotKeys);
@@ -1494,6 +1551,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   // ── Modal handlers ──────────────────────────────────────────────────────────
 
   const openAddShift = (areaId: string, date: string, empId = "") => {
+    if (!isScheduleDateEditable(date)) {
+      toast.warning(readonlyRosterMessage);
+      return;
+    }
+
     setEditingShift(null);
     setShiftForm({
       presetKey: "",
@@ -1519,6 +1581,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   };
 
   const openEditShift = (shift: ScheduleShift) => {
+    if (!isScheduleDateEditable(shift.date)) {
+      toast.warning(readonlyRosterMessage);
+      return;
+    }
+
     const presetKey = makeShiftPresetKey({
       shiftType: shift.shiftType || "store",
       storeId: shift.storeId,
@@ -1551,6 +1618,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const handleSaveShift = () => {
     if (!shiftForm.date) {
       toast.error(locale === "zh" ? "请选择日期" : "Please select a date");
+      return;
+    }
+    if (!isScheduleDateEditable(shiftForm.date)) {
+      toast.warning(readonlyRosterMessage);
       return;
     }
     if (!shiftForm.shiftName.trim()) {
@@ -1669,11 +1740,23 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   };
 
   const handleDeleteShift = (id: string) => {
+    const targetShift = scheduleShifts.find((shift) => shift.id === id);
+    if (targetShift && !isScheduleDateEditable(targetShift.date)) {
+      toast.warning(readonlyRosterMessage);
+      return;
+    }
+
     setScheduleShifts((prev) => prev.filter((s) => s.id !== id));
     toast.success(locale === "zh" ? "班次已删除" : "Shift deleted");
   };
 
   const handleRemoveEmployeeFromShift = (shiftId: string, empId: string) => {
+    const targetShift = scheduleShifts.find((shift) => shift.id === shiftId);
+    if (targetShift && !isScheduleDateEditable(targetShift.date)) {
+      toast.warning(readonlyRosterMessage);
+      return;
+    }
+
     setScheduleShifts((prev) =>
       prev.map((shift) => {
         if (shift.id !== shiftId) return shift;
@@ -1699,6 +1782,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     areaId: string,
     dateStr: string,
   ) => {
+    if (!isScheduleDateEditable(dateStr)) {
+      toast.warning(readonlyRosterMessage);
+      return;
+    }
+
     console.log(
       "[Rosters] drop employee",
       empId,
@@ -1714,6 +1802,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     empId: string,
     targetShift: ScheduleShift,
   ) => {
+    if (!isScheduleDateEditable(targetShift.date)) {
+      toast.warning(readonlyRosterMessage);
+      return;
+    }
+
     const existingEmployeeIds = getShiftEmployeeIds(targetShift);
     if (existingEmployeeIds.includes(empId)) {
       toast.warning(
@@ -1791,10 +1884,24 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       .filter((s) => {
         const d = dayjs(s.date);
         return (
-          s.status === "draft" && d >= weekStart && d <= weekStart.add(6, "day")
+          isScheduleDateEditable(s.date) &&
+          s.status === "draft" &&
+          d >= weekStart &&
+          d <= weekStart.add(6, "day")
         );
       })
       .map((s) => s.id);
+    if (ids.length === 0) {
+      toast.warning(
+        isReadonlyWeek
+          ? readonlyRosterMessage
+          : isZh
+            ? "当前周没有可发布的草稿排班"
+            : "No draft shifts to publish for this week",
+      );
+      return;
+    }
+
     try {
       await saveScheduleDraft(scheduleShifts, selectedStoreId);
       await publishSchedule(selectedStoreId);
@@ -1810,6 +1917,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   };
 
   const handleSaveRoster = async () => {
+    if (isReadonlyWeek) {
+      toast.warning(readonlyRosterMessage);
+      return;
+    }
+
     try {
       await saveScheduleDraft(scheduleShifts, selectedStoreId);
       onSave();
@@ -1928,6 +2040,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           {draftCount > 0 && (
             <Button
               onClick={handlePublish}
+              disabled={isReadonlyWeek}
               style={{
                 background: "var(--chart-2)",
                 color: "var(--primary-foreground)",
@@ -1945,6 +2058,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
             type="primary"
             icon={<Save size={12} style={{ display: "inline" }} />}
             onClick={handleSaveRoster}
+            disabled={isReadonlyWeek}
             style={{ display: "flex", alignItems: "center", gap: 5 }}
           >
             {isZh ? "保存" : "Save"}
@@ -2061,6 +2175,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     template={tmpl}
                     onDragStart={(id) => setDraggingTemplateId(id)}
                     onDragEnd={() => setDraggingTemplateId(null)}
+                    disabled={isReadonlyWeek}
                   />
                 ))}
                 {filteredTemplates.length === 0 && (
@@ -2128,15 +2243,21 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   return (
                     <div
                       key={emp.id}
-                      draggable
+                      draggable={!isReadonlyWeek}
                       onDragStart={(e) => {
+                        if (isReadonlyWeek) {
+                          e.preventDefault();
+                          return;
+                        }
                         e.dataTransfer.setData("employeeId", emp.id);
                         console.log("[Rosters] drag employee:", emp.id);
                       }}
-                      className="rounded-xl p-2.5 mb-2 cursor-grab active:cursor-grabbing select-none transition-all hover:shadow-custom"
+                      className="rounded-xl p-2.5 mb-2 select-none transition-all hover:shadow-custom"
                       style={{
                         background: "var(--muted)",
                         border: "1px solid var(--border)",
+                        cursor: isReadonlyWeek ? "default" : "grab",
+                        opacity: isReadonlyWeek ? 0.76 : 1,
                       }}
                     >
                       <div className="flex items-center justify-between mb-1.5">
@@ -2312,6 +2433,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     dateFormatCountry={dateFormatCountry}
                     onDropTemplate={handleDropTemplateToDate}
                     shiftCount={cnt}
+                    readonly={!isScheduleDateEditable(d)}
                   />
                 );
               })}
@@ -2370,6 +2492,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     const isToday = dateStr === todayStr;
                     const isClosedDay = isStoreClosedDate(d);
                     const cellShifts = getShifts(area.id, dateStr);
+                    const isReadonlyDate = !isScheduleDateEditable(d);
 
                     return (
                       <AreaDateCell
@@ -2390,6 +2513,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                         getAvailabilityWarning={findAvailabilityWarning}
                         isToday={isToday}
                         isClosedDay={isClosedDay}
+                        readonly={isReadonlyDate}
                       />
                     );
                   })}

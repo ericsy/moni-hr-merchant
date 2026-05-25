@@ -6,7 +6,7 @@
  * - 可拖拽标记调整围栏中心
  * - 圆形围栏半径滑块（50–2000 米）
  *
- * ⚠️  请将下方 GOOGLE_MAPS_API_KEY 替换为您自己的 API Key
+ * ⚠️  Google Maps API Key 通过共享装载器提供
  *     需开启：Maps JavaScript API + Geocoding API + Places API
  */
 
@@ -57,11 +57,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button, Slider, Input, Spin } from "antd";
 import { Search, MapPin, Info } from "lucide-react";
 import { useLocale } from "../context/LocaleContext";
+import { getGoogleMapsWindow, loadGoogleMaps } from "../lib/googleMaps";
 import { toast } from "sonner";
-
-// ─── 替换为您自己的 Google Maps API Key ───────────────────────────────────────
-const GOOGLE_MAPS_API_KEY = "AIzaSyBGGyk3gO2e0sAZhmsU2UqOtO6QOOfhoO8";
-// ─────────────────────────────────────────────────────────────────────────────
 
 // 默认中心：新西兰奥克兰
 const DEFAULT_LAT = -36.8485;
@@ -79,39 +76,6 @@ interface GeoFenceMapPickerProps {
   onChange?: (val: GeoFenceValue) => void;
   storeName?: string;
   defaultLocationQuery?: string;
-}
-
-// Declare google maps types for window
-declare global {
-  interface Window {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    google: any;
-    initGoogleMapsCallback?: () => void;
-  }
-}
-
-let mapsLoadPromise: Promise<void> | null = null;
-
-function loadGoogleMaps(): Promise<void> {
-  if (mapsLoadPromise) return mapsLoadPromise;
-  if (window.google?.maps) {
-    mapsLoadPromise = Promise.resolve();
-    return mapsLoadPromise;
-  }
-  mapsLoadPromise = new Promise<void>((resolve, reject) => {
-    const callbackName = `__gmaps_cb_${Date.now()}`;
-    (window as unknown as Record<string, unknown>)[callbackName] = () => {
-      resolve();
-      delete (window as unknown as Record<string, unknown>)[callbackName];
-    };
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=${callbackName}`;
-    script.async = true;
-    script.defer = true;
-    script.onerror = () => reject(new Error("Google Maps failed to load"));
-    document.head.appendChild(script);
-  });
-  return mapsLoadPromise;
 }
 
 export default function GeoFenceMapPicker({
@@ -178,8 +142,9 @@ export default function GeoFenceMapPicker({
   const geocodeAddress = useCallback(
     (query: string, showError = true) => {
       const address = query.trim();
-      if (!address || !window.google?.maps) return;
-      const geocoder = new window.google.maps.Geocoder();
+      const googleWindow = getGoogleMapsWindow();
+      if (!address || !googleWindow.google?.maps) return;
+      const geocoder = new googleWindow.google.maps.Geocoder();
       geocoder.geocode({ address }, (results, status) => {
         if (status === "OK" && results && results[0]) {
           const loc = results[0].geometry.location;
@@ -205,9 +170,11 @@ export default function GeoFenceMapPicker({
     loadGoogleMaps()
       .then(() => {
         if (cancelled || !mapRef.current) return;
+        const googleWindow = getGoogleMapsWindow();
+        const googleMaps = googleWindow.google.maps;
 
         const center = { lat: initialLat, lng: initialLng };
-        const map = new window.google.maps.Map(mapRef.current, {
+        const map = new googleMaps.Map(mapRef.current, {
           center,
           zoom: 16,
           mapTypeControl: false,
@@ -219,17 +186,17 @@ export default function GeoFenceMapPicker({
         googleMapRef.current = map;
 
         // Draggable marker
-        const marker = new window.google.maps.Marker({
+        const marker = new googleMaps.Marker({
           position: center,
           map,
           draggable: true,
           title: storeName || "Store",
-          animation: window.google.maps.Animation.DROP,
+          animation: googleMaps.Animation.DROP,
         });
         markerRef.current = marker;
 
         // Circle
-        const circle = new window.google.maps.Circle({
+        const circle = new googleMaps.Circle({
           map,
           center,
           radius: initialRadius,
@@ -271,7 +238,7 @@ export default function GeoFenceMapPicker({
 
         // Places Autocomplete
         if (searchInputRef.current) {
-          const autocomplete = new window.google.maps.places.Autocomplete(
+          const autocomplete = new googleMaps.places.Autocomplete(
             searchInputRef.current,
             { types: ["geocode", "establishment"] }
           );

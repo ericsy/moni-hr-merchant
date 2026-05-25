@@ -3,6 +3,7 @@ import {
   isBackendId,
   merchantApi,
 } from "../lib/merchantApi";
+import { isScheduleDateEditable } from "../lib/scheduleLock";
 import { useAuth } from "./AuthContext";
 import { usePermissions } from "./PermissionsContext";
 
@@ -747,6 +748,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     for (const shift of nextShifts) {
       if (shift.isGlobalPreset || !shift.areaId || !shift.date || shift.storeId !== storeId) continue;
+      if (!isScheduleDateEditable(shift.date)) continue;
 
       const shiftId = requireNumericId(shift.shiftId || "", "班次");
       payload.cells.push({
@@ -793,7 +795,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     await Promise.all(contextIds.map((storeId) => merchantApi.publishSchedule(storeId)));
     setScheduleShifts((prev) => prev.map((shift) =>
-      contextIds.includes(shift.storeId) ? { ...shift, status: "published" as const } : shift
+      contextIds.includes(shift.storeId) && isScheduleDateEditable(shift.date)
+        ? { ...shift, status: "published" as const }
+        : shift
     ));
   }, [scheduleShifts]);
 

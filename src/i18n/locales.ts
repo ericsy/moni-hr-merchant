@@ -350,7 +350,7 @@ export const locales = {
       geofenceLat: "纬度",
       geofenceLng: "经度",
       geofenceDragTip: "拖动地图标记可调整围栏中心位置",
-      geofenceApiKeyHint: "请在组件中替换您的 Google Maps API Key",
+      geofenceApiKeyHint: "请在 src/lib/googleMaps.ts 或 VITE_GOOGLE_MAPS_API_KEY 中配置 Google Maps API Key",
     },
 
     // Attendance Requests
@@ -822,7 +822,7 @@ export const locales = {
       geofenceLat: "Latitude",
       geofenceLng: "Longitude",
       geofenceDragTip: "Drag the map marker to adjust the fence center",
-      geofenceApiKeyHint: "Replace with your Google Maps API Key in the component",
+      geofenceApiKeyHint: "Set the Google Maps API key in src/lib/googleMaps.ts or VITE_GOOGLE_MAPS_API_KEY",
     },
 
     attendanceRequest: {
