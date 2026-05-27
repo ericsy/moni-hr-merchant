@@ -119,6 +119,18 @@ export interface Store {
   latitude?: number;
   longitude?: number;
   geofenceRadius?: number; // meters
+  // Public Holidays
+  publicHolidays?: PublicHoliday[];
+  publicHolidayPayRate?: number;
+  syncPublicHolidaysFromSameCountry?: boolean;
+  syncToSameCountryStores?: boolean;
+  holidayPayMultiplier?: number;
+}
+
+export interface PublicHoliday {
+  id?: string | number | null;
+  date: string;
+  name: string;
 }
 
 export interface StoreOfficerBrief {
@@ -636,10 +648,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const saved = existingId
       ? await merchantApi.updateStore(existingId, store)
       : await merchantApi.createStore(store);
+    const normalizedSaved: Store = {
+      ...store,
+      ...saved,
+      id: saved.id || store.id,
+      publicHolidays: saved.publicHolidays?.length ? saved.publicHolidays : store.publicHolidays,
+      publicHolidayPayRate:
+        saved.publicHolidayPayRate ??
+        store.publicHolidayPayRate ??
+        store.holidayPayMultiplier,
+      holidayPayMultiplier:
+        saved.publicHolidayPayRate ??
+        saved.holidayPayMultiplier ??
+        store.publicHolidayPayRate ??
+        store.holidayPayMultiplier,
+      syncPublicHolidaysFromSameCountry:
+        saved.syncPublicHolidaysFromSameCountry ??
+        store.syncPublicHolidaysFromSameCountry,
+    };
     setStores((prev) => existingId
-      ? prev.map((item) => item.id === existingId ? saved : item)
-      : [...prev, saved]);
-    return saved;
+      ? prev.map((item) => item.id === existingId ? normalizedSaved : item)
+      : [...prev, normalizedSaved]);
+    return normalizedSaved;
   }, []);
 
   const deleteStore = useCallback(async (id: string) => {
@@ -773,20 +803,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [areas]);
 
   const saveScheduleDraft = useCallback(async (nextShifts = scheduleShifts, targetStoreId?: string) => {
+    const editableNextShifts = nextShifts.filter((shift) => shift.isGlobalPreset || isScheduleDateEditable(shift.date));
     const contextIds = targetStoreId && targetStoreId !== "all"
       ? [targetStoreId]
-      : Array.from(new Set(nextShifts.filter((shift) => !shift.isGlobalPreset && shift.storeId).map((shift) => shift.storeId)));
+      : Array.from(new Set(editableNextShifts.filter((shift) => !shift.isGlobalPreset && shift.storeId).map((shift) => shift.storeId)));
 
     if (contextIds.length === 0) {
       throw new Error("请先选择具体门店并维护排班内容");
     }
 
     await Promise.all(contextIds.map(async (storeId) => {
-      const payload = await buildScheduleDraftPayload(storeId, nextShifts);
+      const payload = await buildScheduleDraftPayload(storeId, editableNextShifts);
       await merchantApi.saveScheduleDraft(storeId, payload);
     }));
 
-    setScheduleShifts(nextShifts);
+    setScheduleShifts(editableNextShifts);
   }, [buildScheduleDraftPayload, scheduleShifts]);
 
   const publishSchedule = useCallback(async (targetStoreId?: string) => {

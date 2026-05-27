@@ -10,6 +10,8 @@ import {
   Avatar,
   Tabs,
   Switch,
+  InputNumber,
+  Tooltip,
 } from "antd";
 import {
   Plus,
@@ -29,9 +31,12 @@ import {
   UserCircle,
   Crown,
   UserCheck,
+  CalendarDays,
+  ChevronLeft,
+  Info,
 } from "lucide-react";
 import { useLocale } from "../context/LocaleContext";
-import { useData, type CountryOption, type Employee, type Store, type StoreWeekdayHours } from "../context/DataContext";
+import { useData, type CountryOption, type Employee, type PublicHoliday, type Store, type StoreWeekdayHours } from "../context/DataContext";
 import { merchantApi } from "../lib/merchantApi";
 import { toast } from "sonner";
 import dayjs from "dayjs";
@@ -123,9 +128,15 @@ type StoreWeekdayHoursFormRow = {
 const DEFAULT_OPEN_TIME = "09:00";
 const DEFAULT_CLOSE_TIME = "22:00";
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
+const WEEK_DAYS_ZH = ["日", "一", "二", "三", "四", "五", "六"];
+const WEEK_DAYS_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 function timeValue(value?: string | null) {
   return value ? dayjs(`2000-01-01 ${value}`, "YYYY-MM-DD HH:mm") : null;
+}
+
+function formatDate(year: number, month: number, day: number) {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function getStoreWeeklyHours(store?: Store | null): StoreWeekdayHours[] {
@@ -221,12 +232,452 @@ function formatStoreWeeklyHours(store: Store, weekDayLabels: string[]) {
     .join("\n");
 }
 
+function normalizeHolidayDates(items?: PublicHoliday[]) {
+  const byDate = new Map<string, PublicHoliday>();
+  (items || []).forEach((item) => {
+    if (!item.date) return;
+    byDate.set(item.date, { ...item, name: item.name?.trim() || item.date });
+  });
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function getHolidayPayRate(store?: Store | null) {
+  return store?.publicHolidayPayRate ?? store?.holidayPayMultiplier;
+}
+
+function HolidayCalendar({
+  selectedDates = [],
+  onChange = () => {},
+  locale = "zh",
+  t,
+}: {
+  selectedDates?: PublicHoliday[];
+  onChange?: (dates: PublicHoliday[]) => void;
+  locale?: string;
+  t: ReturnType<typeof useLocale>["t"];
+}) {
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [pendingDate, setPendingDate] = useState<string | null>(null);
+  const [pendingName, setPendingName] = useState("");
+  const st = t.store;
+  const weekLabels = locale === "zh" ? WEEK_DAYS_ZH : WEEK_DAYS_EN;
+  const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const cells: Array<number | null> = [];
+
+  for (let i = 0; i < firstDayOfMonth; i += 1) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+
+  const changeMonth = (delta: -1 | 1) => {
+    setPendingDate(null);
+    setPendingName("");
+    const next = new Date(viewYear, viewMonth + delta, 1);
+    setViewYear(next.getFullYear());
+    setViewMonth(next.getMonth());
+  };
+
+  const handleDayClick = (day: number) => {
+    const key = formatDate(viewYear, viewMonth, day);
+    const existing = selectedDates.find((item) => item.date === key);
+    if (existing) {
+      onChange(selectedDates.filter((item) => item.date !== key));
+      return;
+    }
+    setPendingDate(key);
+    setPendingName("");
+  };
+
+  const confirmAdd = () => {
+    if (!pendingDate) return;
+    onChange(normalizeHolidayDates([...selectedDates, { date: pendingDate, name: pendingName.trim() }]));
+    setPendingDate(null);
+    setPendingName("");
+  };
+
+  const monthLabel = locale === "zh"
+    ? `${viewYear} 年 ${viewMonth + 1} 月`
+    : `${new Date(viewYear, viewMonth).toLocaleString("en-US", { month: "long" })} ${viewYear}`;
+
+  return (
+    <div
+      data-cmp="HolidayCalendar"
+      className="rounded-xl overflow-hidden"
+      style={{ border: "1px solid var(--border)", background: "var(--card)" }}
+    >
+      <div
+        className="flex items-center justify-between px-4 py-3"
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--muted)" }}
+      >
+        <button
+          type="button"
+          aria-label={st.holidayPrevMonth}
+          onClick={() => changeMonth(-1)}
+          className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div className="flex items-center gap-2">
+          <CalendarDays size={14} style={{ color: "var(--primary)" }} />
+          <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+            {monthLabel}
+          </span>
+        </div>
+        <button
+          type="button"
+          aria-label={st.holidayNextMonth}
+          onClick={() => changeMonth(1)}
+          className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      <div className="flex px-2 pt-2">
+        {weekLabels.map((day) => (
+          <div key={day} className="flex-1 text-center text-xs font-medium pb-1" style={{ color: "var(--muted-foreground)" }}>
+            {day}
+          </div>
+        ))}
+      </div>
+
+      <div className="px-2 pb-2">
+        {Array.from({ length: Math.ceil(cells.length / 7) }, (_, rowIndex) => (
+          <div key={rowIndex} className="flex">
+            {cells.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, columnIndex) => {
+              if (day === null) return <div key={`empty-${rowIndex}-${columnIndex}`} className="flex-1 h-8" />;
+
+              const dateKey = formatDate(viewYear, viewMonth, day);
+              const holiday = selectedDates.find((item) => item.date === dateKey);
+              const isSelected = !!holiday;
+              const isPending = pendingDate === dateKey;
+              const isToday =
+                today.getFullYear() === viewYear &&
+                today.getMonth() === viewMonth &&
+                today.getDate() === day;
+              const cell = (
+                <button
+                  key={dateKey}
+                  type="button"
+                  onClick={() => handleDayClick(day)}
+                  className="flex-1 flex items-center justify-center h-8 text-xs rounded-md transition-all mx-0.5 my-0.5"
+                  style={{
+                    background: isPending
+                      ? "color-mix(in srgb, var(--primary) 30%, transparent)"
+                      : isSelected
+                      ? "var(--primary)"
+                      : isToday
+                      ? "var(--accent)"
+                      : "transparent",
+                    color: isSelected ? "var(--primary-foreground)" : isToday ? "var(--accent-foreground)" : "var(--foreground)",
+                    fontWeight: isSelected || isToday || isPending ? 700 : 400,
+                    border: isPending
+                      ? "2px solid var(--primary)"
+                      : isToday && !isSelected
+                      ? "1px solid var(--primary)"
+                      : "1px solid transparent",
+                  }}
+                >
+                  {day}
+                </button>
+              );
+
+              if (holiday?.name) {
+                return (
+                  <Tooltip key={dateKey} title={holiday.name} placement="top">
+                    {cell}
+                  </Tooltip>
+                );
+              }
+              return cell;
+            })}
+          </div>
+        ))}
+      </div>
+
+      {pendingDate ? (
+        <div className="px-4 pb-4 pt-2 flex flex-col gap-2" style={{ borderTop: "1px solid var(--border)", background: "var(--muted)" }}>
+          <div className="flex items-center gap-1.5">
+            <CalendarDays size={13} style={{ color: "var(--primary)" }} />
+            <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+              {pendingDate}
+            </span>
+          </div>
+          <Input
+            size="small"
+            value={pendingName}
+            onChange={(event) => setPendingName(event.target.value)}
+            placeholder={st.holidayNamePlaceholder}
+            onPressEnter={confirmAdd}
+          />
+          <div className="flex items-center gap-2">
+            <Button size="small" type="primary" onClick={confirmAdd}>
+              {st.holidayConfirmAdd}
+            </Button>
+            <Button
+              size="small"
+              onClick={() => {
+                setPendingDate(null);
+                setPendingName("");
+              }}
+            >
+              {st.holidayCancelAdd}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function HolidayCalendarReadonly({
+  selectedDates = [],
+  locale = "zh",
+}: {
+  selectedDates?: PublicHoliday[];
+  locale?: string;
+}) {
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const weekLabels = locale === "zh" ? WEEK_DAYS_ZH : WEEK_DAYS_EN;
+  const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const cells: Array<number | null> = [];
+
+  for (let i = 0; i < firstDayOfMonth; i += 1) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+
+  const changeMonth = (delta: -1 | 1) => {
+    const next = new Date(viewYear, viewMonth + delta, 1);
+    setViewYear(next.getFullYear());
+    setViewMonth(next.getMonth());
+  };
+
+  const monthLabel = locale === "zh"
+    ? `${viewYear} 年 ${viewMonth + 1} 月`
+    : `${new Date(viewYear, viewMonth).toLocaleString("en-US", { month: "long" })} ${viewYear}`;
+
+  return (
+    <div
+      data-cmp="HolidayCalendarReadonly"
+      className="rounded-xl overflow-hidden"
+      style={{ border: "1px solid var(--border)", background: "var(--card)" }}
+    >
+      <div
+        className="flex items-center justify-between px-4 py-3"
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--muted)" }}
+      >
+        <button
+          type="button"
+          onClick={() => changeMonth(-1)}
+          className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+          {monthLabel}
+        </span>
+        <button
+          type="button"
+          onClick={() => changeMonth(1)}
+          className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      <div className="flex px-2 pt-2">
+        {weekLabels.map((day) => (
+          <div key={day} className="flex-1 text-center text-xs font-medium pb-1" style={{ color: "var(--muted-foreground)" }}>
+            {day}
+          </div>
+        ))}
+      </div>
+      <div className="px-2 pb-2">
+        {Array.from({ length: Math.ceil(cells.length / 7) }, (_, rowIndex) => (
+          <div key={rowIndex} className="flex">
+            {cells.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, columnIndex) => {
+              if (day === null) return <div key={`empty-${rowIndex}-${columnIndex}`} className="flex-1 h-8" />;
+
+              const dateKey = formatDate(viewYear, viewMonth, day);
+              const holiday = selectedDates.find((item) => item.date === dateKey);
+              const isSelected = !!holiday;
+              const isToday =
+                today.getFullYear() === viewYear &&
+                today.getMonth() === viewMonth &&
+                today.getDate() === day;
+              const cell = (
+                <div
+                  key={dateKey}
+                  className="flex-1 flex items-center justify-center h-8 text-xs rounded-md mx-0.5 my-0.5"
+                  style={{
+                    background: isSelected ? "var(--primary)" : isToday ? "var(--accent)" : "transparent",
+                    color: isSelected ? "var(--primary-foreground)" : isToday ? "var(--accent-foreground)" : "var(--foreground)",
+                    fontWeight: isSelected || isToday ? 700 : 400,
+                    border: isToday && !isSelected ? "1px solid var(--primary)" : "1px solid transparent",
+                  }}
+                >
+                  {day}
+                </div>
+              );
+
+              if (holiday?.name) {
+                return (
+                  <Tooltip key={dateKey} title={holiday.name} placement="top">
+                    {cell}
+                  </Tooltip>
+                );
+              }
+              return cell;
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HolidayTabContent({
+  store = null,
+  allStores = [],
+  holidayDates = [],
+  payMultiplier = 1.5,
+  isAddMode = false,
+  currentCountry = "",
+  onDatesChange = () => {},
+  onMultiplierChange = () => {},
+  onCopyToggle = () => {},
+  t,
+  locale = "zh",
+}: {
+  store?: Store | null;
+  allStores?: Store[];
+  holidayDates?: PublicHoliday[];
+  payMultiplier?: number;
+  isAddMode?: boolean;
+  currentCountry?: string;
+  onDatesChange?: (dates: PublicHoliday[]) => void;
+  onMultiplierChange?: (val: number) => void;
+  onCopyToggle?: (checked: boolean) => void;
+  t: ReturnType<typeof useLocale>["t"];
+  locale?: string;
+}) {
+  const st = t.store;
+  const [copyChecked, setCopyChecked] = useState(false);
+  const sameCountryStores = allStores.filter(
+    (item) => item.country === currentCountry && (store ? item.id !== store.id : true)
+  );
+  const hasSameCountryStores = sameCountryStores.length > 0;
+
+  const handleCopyToggle = (checked: boolean) => {
+    setCopyChecked(checked);
+    onCopyToggle(checked);
+    if (!checked) {
+      onDatesChange([]);
+      return;
+    }
+
+    const merged = normalizeHolidayDates(
+      sameCountryStores.flatMap((item) => item.publicHolidays || []),
+    );
+    onDatesChange(merged);
+    const firstMultiplier = getHolidayPayRate(sameCountryStores.find((item) => getHolidayPayRate(item)));
+    if (firstMultiplier) onMultiplierChange(firstMultiplier);
+  };
+
+  return (
+    <div className="flex flex-col gap-4" style={{ marginTop: 8 }}>
+      <div className="rounded-lg px-4 py-3" style={{ background: "var(--muted)", border: "1px solid var(--border)" }}>
+        <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+          {st.holidayDesc}
+        </p>
+      </div>
+
+      {isAddMode ? (
+        <button
+          type="button"
+          className="flex items-center gap-3 rounded-lg px-4 py-3 text-left transition-all"
+          disabled={!hasSameCountryStores}
+          onClick={() => handleCopyToggle(!copyChecked)}
+          style={{
+            background: copyChecked ? "color-mix(in srgb, var(--primary) 8%, transparent)" : "var(--muted)",
+            border: `1px solid ${copyChecked ? "var(--primary)" : "var(--border)"}`,
+            opacity: hasSameCountryStores ? 1 : 0.55,
+            cursor: hasSameCountryStores ? "pointer" : "not-allowed",
+          }}
+        >
+          <span
+            className="flex items-center justify-center rounded flex-shrink-0"
+            style={{
+              width: 16,
+              height: 16,
+              background: copyChecked ? "var(--primary)" : "transparent",
+              border: `2px solid ${copyChecked ? "var(--primary)" : "var(--border)"}`,
+            }}
+          >
+            {copyChecked ? (
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--primary-foreground)" }} />
+            ) : null}
+          </span>
+          <span className="flex flex-col">
+            <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+              {st.holidayCopyFromStore}
+            </span>
+            {!hasSameCountryStores ? (
+              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {st.holidayCopyFromStoreNone}
+              </span>
+            ) : null}
+          </span>
+        </button>
+      ) : null}
+
+      <div>
+        <label className="text-sm font-medium mb-1.5 block" style={{ color: "var(--foreground)" }}>
+          {st.holidayPayMultiplier}
+        </label>
+        <div className="flex items-center gap-2">
+          <InputNumber
+            min={1}
+            max={5}
+            step={0.1}
+            precision={1}
+            value={payMultiplier}
+            onChange={(value) => {
+              if (value !== null) onMultiplierChange(Number(value));
+            }}
+            placeholder={st.holidayPayMultiplierPlaceholder}
+            style={{ width: 130 }}
+            addonAfter="×"
+          />
+          <Tooltip title={st.holidayPayMultiplierHint}>
+            <span className="flex items-center" style={{ color: "var(--muted-foreground)", cursor: "help" }}>
+              <Info size={14} />
+            </span>
+          </Tooltip>
+          <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            {st.holidayPayMultiplierHint}
+          </span>
+        </div>
+      </div>
+
+      <HolidayCalendar selectedDates={holidayDates} onChange={onDatesChange} locale={locale} t={t} />
+    </div>
+  );
+}
+
 // ─── Store Form Modal ───
 function StoreModal({
   open = false,
   store = null,
   employees = [],
   countries = FALLBACK_COUNTRIES,
+  allStores = [],
   locked = false,
   onSave = () => {},
   onCancel = () => {},
@@ -237,6 +688,7 @@ function StoreModal({
   store?: Store | null;
   employees?: Employee[];
   countries?: CountryOption[];
+  allStores?: Store[];
   locked?: boolean;
   onSave?: (store: Store) => void | Promise<void>;
   onCancel?: () => void;
@@ -246,14 +698,20 @@ function StoreModal({
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState("basic");
   const [geofenceValue, setGeofenceValue] = useState<GeoFenceValue | null>(null);
+  const [holidayDates, setHolidayDates] = useState<PublicHoliday[]>([]);
+  const [payMultiplier, setPayMultiplier] = useState(1.5);
+  const [syncPublicHolidaysFromSameCountry, setSyncPublicHolidaysFromSameCountry] = useState(false);
   const [storeEmployees, setStoreEmployees] = useState<Employee[]>([]);
   const [storeEmployeesLoading, setStoreEmployeesLoading] = useState(false);
   const managerId = Form.useWatch("managerId", form) as string | undefined;
   const assistantManagerIds = (Form.useWatch("assistantManagerIds", form) as string[] | undefined) || [];
+  const formCountry = Form.useWatch("country", form) as string | undefined;
   const isEdit = !!store;
   const st = t.store;
   const countryOptions = countries.length > 0 ? countries : FALLBACK_COUNTRIES;
   const initialValues = useMemo(() => getStoreFormInitialValues(store), [store]);
+  const initialHolidayDates = useMemo(() => normalizeHolidayDates(store?.publicHolidays), [store?.publicHolidays]);
+  const initialHolidayPayRate = getHolidayPayRate(store) ?? 1.5;
   const staffStoreId = store?.id || "";
   const currentOfficerFallbacks = useMemo(() => {
     const officerItems = [
@@ -297,11 +755,14 @@ function StoreModal({
     form.setFieldsValue(initialValues);
     queueMicrotask(() => {
       setGeofenceValue(null);
+      setHolidayDates(initialHolidayDates);
+      setPayMultiplier(initialHolidayPayRate);
+      setSyncPublicHolidaysFromSameCountry(false);
       setActiveTab("basic");
       setStoreEmployees([]);
       setStoreEmployeesLoading(false);
     });
-  }, [form, initialValues, open]);
+  }, [form, initialHolidayDates, initialHolidayPayRate, initialValues, open]);
 
   useEffect(() => {
     if (!open || activeTab !== "staff" || !staffStoreId) return;
@@ -349,6 +810,10 @@ function StoreModal({
         status: values.status || "enabled",
         managerId: values.managerId || undefined,
         assistantManagerIds: (values.assistantManagerIds || []).filter((id: string) => id && id !== values.managerId),
+        publicHolidays: normalizeHolidayDates(holidayDates),
+        publicHolidayPayRate: payMultiplier,
+        syncPublicHolidaysFromSameCountry: !isEdit ? syncPublicHolidaysFromSameCountry : undefined,
+        holidayPayMultiplier: payMultiplier,
         storeOfficers: {
           storeManager: values.managerId
             ? {
@@ -387,11 +852,10 @@ function StoreModal({
   const watchedName = Form.useWatch("name", form) as string | undefined;
   const watchedAddress = Form.useWatch("address", form) as string | undefined;
   const watchedCity = Form.useWatch("city", form) as string | undefined;
-  const watchedCountry = Form.useWatch("country", form) as string | undefined;
   const locationAddress = (watchedAddress ?? store?.address ?? "").trim();
   const locationCity = (watchedCity ?? store?.city ?? "").trim();
   const locationCountry = getCountrySearchName(
-    (watchedCountry ?? store?.country ?? "").trim(),
+    (formCountry ?? store?.country ?? "").trim(),
     countryOptions,
     locale
   );
@@ -453,7 +917,7 @@ function StoreModal({
           </div>
           <Form.Item name="address" label={st.address}>
             <GoogleAddressAutocompleteInput
-              country={(watchedCountry ?? store?.country ?? "").trim()}
+              country={(formCountry ?? store?.country ?? "").trim()}
               placeholder={locale === "zh" ? `街道地址` : `Street address`}
               onPlaceSelected={handleAddressPlaceSelected}
             />
@@ -520,6 +984,27 @@ function StoreModal({
             }}
             storeName={watchedName || store?.name || ""}
             defaultLocationQuery={defaultLocationQuery}
+          />
+        </div>
+      ),
+    },
+    {
+      key: "holiday",
+      label: st.tabHoliday,
+      children: (
+        <div className="mt-2">
+          <HolidayTabContent
+            store={store}
+            allStores={allStores}
+            holidayDates={holidayDates}
+            payMultiplier={payMultiplier}
+            isAddMode={!isEdit}
+            currentCountry={formCountry || store?.country || ""}
+            onDatesChange={setHolidayDates}
+            onMultiplierChange={setPayMultiplier}
+            onCopyToggle={setSyncPublicHolidaysFromSameCountry}
+            t={t}
+            locale={locale}
           />
         </div>
       ),
@@ -803,6 +1288,10 @@ function StoreDetailPanel({
     employee: employees.find((item) => item.id === id),
     fallback: store.storeOfficers?.deputyManagers?.find((item) => item.id === id),
   }));
+  const sortedHolidays = useMemo(
+    () => normalizeHolidayDates(store.publicHolidays),
+    [store.publicHolidays]
+  );
 
   const tabItems = [
     {
@@ -902,6 +1391,42 @@ function StoreDetailPanel({
             ) : (
               <div className="text-xs py-2" style={{ color: "var(--muted-foreground)" }}>
                 {st.staffNone}
+              </div>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "holiday",
+      label: st.tabHoliday,
+      children: (
+        <div className="flex flex-col gap-4 py-2">
+          <StoreInfoRow
+            icon={<CalendarDays size={13} />}
+            label={st.holidayPayMultiplier}
+            value={getHolidayPayRate(store) ? `${getHolidayPayRate(store)}×` : "-"}
+          />
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <CalendarDays size={13} style={{ color: "var(--primary)" }} />
+              <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+                {st.holidaySelectedDates}
+                {sortedHolidays.length > 0 ? (
+                  <span
+                    className="ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[11px]"
+                    style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+                  >
+                    {sortedHolidays.length}
+                  </span>
+                ) : null}
+              </span>
+            </div>
+            {sortedHolidays.length > 0 ? (
+              <HolidayCalendarReadonly selectedDates={sortedHolidays} locale={locale} />
+            ) : (
+              <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
+                {st.holidayNoDates}
               </div>
             )}
           </div>
@@ -1212,6 +1737,7 @@ export default function Stores() {
         store={editingStore}
         employees={employees}
         countries={countryOptions}
+        allStores={stores}
         locked={requiresFirstStore}
         onSave={handleSave}
         onCancel={() => {

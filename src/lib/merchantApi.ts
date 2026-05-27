@@ -3,6 +3,7 @@ import type {
     Area,
     CountryOption,
     Employee,
+    PublicHoliday,
     RosterTemplate,
     RosterTemplateCell,
     ScheduleShift,
@@ -917,6 +918,56 @@ function serializeStoreWeekdayHours(weeklyHours: StoreWeekdayHours[] | undefined
     .filter((item) => typeof item.weekday === "number");
 }
 
+function normalizeDateString(value: unknown) {
+  const raw = asString(value).trim();
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] || "";
+}
+
+function mapPublicHolidays(input: unknown): PublicHoliday[] | undefined {
+  const holidays = asArray(input)
+    .map((item) => {
+      if (typeof item === "string") {
+        const date = normalizeDateString(item);
+        return date ? { date, name: "" } : null;
+      }
+
+      const row = asRecord(item);
+      const date = normalizeDateString(
+        row.date ||
+        row.holidayDate ||
+        row.publicHolidayDate ||
+        row.day
+      );
+      if (!date) return null;
+
+      return compact({
+        id: row.id as string | number | null | undefined,
+        date,
+        name: asString(row.name || row.holidayName || row.title),
+      }) as PublicHoliday;
+    })
+    .filter((item): item is PublicHoliday => !!item)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return holidays.length > 0 ? holidays : undefined;
+}
+
+function serializePublicHolidays(publicHolidays: PublicHoliday[] | undefined) {
+  return publicHolidays
+    ?.map((item) => {
+      const date = normalizeDateString(item.date);
+      if (!date) return null;
+      const name = item.name?.trim() || date;
+
+      return compact({
+        holidayDate: date,
+        name,
+      });
+    })
+    .filter((item): item is NonNullable<typeof item> => !!item);
+}
+
 function asBoolean(value: unknown, fallback = false) {
   if (typeof value === "boolean") return value;
   const normalized = asString(value).trim().toLowerCase();
@@ -979,6 +1030,12 @@ export function isBackendId(id: string | undefined | null) {
 export function mapApiStore(input: unknown): Store {
   const raw = asRecord(input);
   const weeklyHours = mapStoreWeekdayHours(raw.weeklyHours);
+  const publicHolidays = mapPublicHolidays(
+    raw.publicHolidays ||
+    raw.holidays ||
+    raw.storePublicHolidays ||
+    raw.publicHolidayDates
+  );
   const firstBusinessDay = weeklyHours?.find((item) => !item.closed && item.openTime && item.closeTime);
   const rawStoreOfficers = asRecord(raw.storeOfficers);
   const storeManager = mapStoreOfficerBrief(rawStoreOfficers.storeManager);
@@ -1014,6 +1071,21 @@ export function mapApiStore(input: unknown): Store {
       storeManager: storeManager || (managerId ? { id: managerId, name: "" } : null),
       deputyManagers,
     },
+    publicHolidays,
+    publicHolidayPayRate:
+      raw.publicHolidayPayRate === undefined || raw.publicHolidayPayRate === null
+        ? undefined
+        : asNumber(raw.publicHolidayPayRate),
+    syncPublicHolidaysFromSameCountry:
+      raw.syncPublicHolidaysFromSameCountry === undefined || raw.syncPublicHolidaysFromSameCountry === null
+        ? undefined
+        : asBoolean(raw.syncPublicHolidaysFromSameCountry),
+    holidayPayMultiplier:
+      raw.publicHolidayPayRate === undefined || raw.publicHolidayPayRate === null
+        ? raw.holidayPayMultiplier === undefined || raw.holidayPayMultiplier === null
+          ? undefined
+          : asNumber(raw.holidayPayMultiplier)
+        : asNumber(raw.publicHolidayPayRate),
     latitude: raw.latitude === undefined || raw.latitude === null ? undefined : asNumber(raw.latitude),
     longitude: raw.longitude === undefined || raw.longitude === null ? undefined : asNumber(raw.longitude),
     geofenceRadius: raw.geofenceRadius === undefined || raw.geofenceRadius === null ? undefined : asNumber(raw.geofenceRadius),
@@ -1033,9 +1105,10 @@ export function storeToApiPayload(store: Store) {
     manager: store.manager,
     openTime: store.openTime,
     closeTime: store.closeTime,
-    timezone: store.timezone,
     status: store.status,
     weeklyHours: serializeStoreWeekdayHours(store.weeklyHours),
+    publicHolidays: serializePublicHolidays(store.publicHolidays),
+    publicHolidayPayRate: store.publicHolidayPayRate ?? store.holidayPayMultiplier,
     latitude: store.latitude,
     longitude: store.longitude,
     geofenceRadius: store.geofenceRadius,
@@ -1043,6 +1116,20 @@ export function storeToApiPayload(store: Store) {
       storeManagerEmployeeId: toOptionalNumberOrString(managerId),
       deputyManagerEmployeeIds: assistantManagerIds.map(toNumberOrString),
     },
+  });
+}
+
+function storeCreateToApiPayload(store: Store) {
+  return compact({
+    ...storeToApiPayload(store),
+    syncPublicHolidaysFromSameCountry: store.syncPublicHolidaysFromSameCountry,
+  });
+}
+
+function storePatchToApiPayload(store: Store) {
+  return compact({
+    ...storeToApiPayload(store),
+    syncToSameCountryStores: store.syncToSameCountryStores,
   });
 }
 
@@ -1445,14 +1532,14 @@ export const merchantApi = {
   createStore: async (store: Store) => {
     const data = await apiRequest<unknown>(getMerchantEndpoint("stores"), {
       method: "POST",
-      body: storeToApiPayload(store),
+      body: storeCreateToApiPayload(store),
     });
     return mapApiStore(data);
   },
   updateStore: async (id: string, store: Store) => {
     const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("stores"), id), {
       method: "PATCH",
-      body: storeToApiPayload(store),
+      body: storePatchToApiPayload(store),
     });
     return mapApiStore(data);
   },

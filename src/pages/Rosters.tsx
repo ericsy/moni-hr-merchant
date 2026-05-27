@@ -158,6 +158,10 @@ interface TemplateApplyPlan {
 }
 
 const makeAreaDateKey = (areaId: string, date: string) => `${areaId}::${date}`;
+const hasTemplateDragData = (dataTransfer: DataTransfer) =>
+  Array.from(dataTransfer.types).some(
+    (type) => type.toLowerCase() === "templateid",
+  );
 
 const shiftConflictsWithTemplateCandidate = (
   shift: Pick<
@@ -376,7 +380,7 @@ function ShiftEntry({
         transition: "all 0.15s",
       }}
       onDragOver={(e) => {
-        if (readonly) return;
+        if (readonly && !hasTemplateDragData(e.dataTransfer)) return;
         e.preventDefault();
         e.stopPropagation();
         setIsDragOver(true);
@@ -385,16 +389,13 @@ function ShiftEntry({
       onDrop={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (readonly) {
-          setIsDragOver(false);
-          return;
-        }
         setIsDragOver(false);
         const templateId = e.dataTransfer.getData("templateId");
         if (templateId) {
           onDropTemplate(templateId);
           return;
         }
+        if (readonly) return;
         const empId = e.dataTransfer.getData("employeeId");
         if (empId) onDropEmployee(empId);
       }}
@@ -598,8 +599,9 @@ function DateColHeader({
   const { locale } = useLocale();
 
   const handleDragOver = (e: React.DragEvent) => {
-    if (readonly) return;
-    if (e.dataTransfer.types.includes("templateid")) {
+    const isTemplateDrag = hasTemplateDragData(e.dataTransfer);
+    if (readonly && !isTemplateDrag) return;
+    if (isTemplateDrag) {
       e.preventDefault();
       setIsDragOver(true);
     } else {
@@ -611,11 +613,12 @@ function DateColHeader({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    if (readonly) return;
     const templateId = e.dataTransfer.getData("templateId");
     if (templateId && date) {
       onDropTemplate(templateId, date.format("YYYY-MM-DD"));
+      return;
     }
+    if (readonly) return;
   };
 
   return (
@@ -773,11 +776,12 @@ function AreaDateCell({
   const handleCellDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    if (readonly) return;
     const templateId = e.dataTransfer.getData("templateId");
     const empId = e.dataTransfer.getData("employeeId");
     if (templateId) {
       onDropTemplate(templateId);
+    } else if (readonly) {
+      return;
     } else if (empId) {
       const dateStr = date?.format("YYYY-MM-DD") || "";
       // Drop onto the cell itself (no specific shift) → create a new shift for this employee
@@ -806,7 +810,7 @@ function AreaDateCell({
         opacity: readonly ? 0.82 : 1,
       }}
       onDragOver={(e) => {
-        if (readonly) return;
+        if (readonly && !hasTemplateDragData(e.dataTransfer)) return;
         // Only accept if no shift is being targeted (handled by ShiftEntry itself)
         e.preventDefault();
         setIsDragOver(true);
@@ -913,8 +917,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     !isScheduleDateEditable(date),
   );
   const readonlyRosterMessage = isZh
-    ? "本周之前的排班只能查看，不能修改"
-    : "Rosters before the current week are read-only";
+    ? "当前日期及之前的排班只能查看，不能修改"
+    : "Rosters for today and earlier are read-only";
   const todayStr = dayjs().format("YYYY-MM-DD");
   const selectedStore =
     stores.find((store) => store.id === selectedStoreId) || stores[0];
@@ -1194,10 +1198,6 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       (template) => template.id === templateId,
     );
     if (!rawTmpl || !startDate) return null;
-    if (!isScheduleDateEditable(startDate)) {
-      toast.warning(readonlyRosterMessage);
-      return null;
-    }
 
     const storeId = rawTmpl.storeId || selectedStoreId || stores[0]?.id || "s1";
     const visibleAreaIds = new Set(displayAreas.map((area) => area.id));
@@ -1214,7 +1214,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     const coveredDates = Array.from(
       { length: Math.max(rawTmpl.totalDays, 1) },
       (_, index) => dayjs(startDate).add(index, "day").format("YYYY-MM-DD"),
-    );
+    ).filter((date) => isScheduleDateEditable(date));
     const coveredAreaSet = new Set(templateAreaIds);
     const coveredDateSet = new Set(coveredDates);
     const candidateShifts: TemplateCandidateShift[] = [];
@@ -1289,8 +1289,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       templateId,
       templateName: rawTmpl.name,
       startDate,
-      endDate: coveredDates[coveredDates.length - 1] || startDate,
-      totalDays: Math.max(rawTmpl.totalDays, 1),
+      endDate:
+        coveredDates[coveredDates.length - 1] ||
+        dayjs(startDate)
+          .add(Math.max(rawTmpl.totalDays, 1) - 1, "day")
+          .format("YYYY-MM-DD"),
+      totalDays: coveredDates.length,
       storeId,
       coveredAreaIds: templateAreaIds,
       coveredDates,
@@ -1334,6 +1338,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
     const removeMatching = (predicate: (shift: WorkingShift) => boolean) => {
       workingShifts = workingShifts.filter((shift) => {
+        if (!isScheduleDateEditable(shift.date)) return true;
         if (!predicate(shift)) return true;
         if (!shift.__temp) removedIds.add(shift.id);
         return false;
