@@ -1705,8 +1705,8 @@ export const merchantApi = {
     const substitutions = (payload.substitutions || [])
       .filter((item) => item.leaveItemId && item.substituteMerchantAdminId)
       .map((item) => compactDeep({
-        leaveItemId: toNumberOrString(item.leaveItemId),
-        substituteMerchantAdminId: toNumberOrString(item.substituteMerchantAdminId),
+        leaveItemId: toNumberOrString(asString(item.leaveItemId)),
+        substituteMerchantAdminId: toNumberOrString(asString(item.substituteMerchantAdminId)),
         substituteStartTime: item.substituteStartTime || undefined,
         substituteEndTime: item.substituteEndTime || undefined,
       }));
