@@ -1,8 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
+  isMerchantAdminPrincipal,
   isBackendId,
   merchantApi,
   type EmployeeDateLeave,
+  type MerchantPrincipal,
   type MerchantSchedulePublishResult,
 } from "../lib/merchantApi";
 import { isScheduleDateEditable } from "../lib/scheduleLock";
@@ -239,6 +241,8 @@ interface DataContextType {
   storesLoaded: boolean;
   error: string;
   lastStoreId: string;
+  merchantPrincipal: MerchantPrincipal | null;
+  isMerchantAdmin: boolean;
   refreshData: () => Promise<void>;
   reloadForStore: (storeId: string) => Promise<void>;
   employees: Employee[];
@@ -425,6 +429,8 @@ const DataContext = createContext<DataContextType>({
   storesLoaded: false,
   error: "",
   lastStoreId: "",
+  merchantPrincipal: null,
+  isMerchantAdmin: false,
   refreshData: async () => {},
   reloadForStore: async () => {},
   employees: [],
@@ -481,6 +487,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [storesLoaded, setStoresLoaded] = useState(false);
   const [error, setError] = useState("");
   const [lastStoreId, setLastStoreIdState] = useState("");
+  const [merchantPrincipal, setMerchantPrincipal] = useState<MerchantPrincipal | null>(null);
   const lastStoreIdRef = useRef("");
   const currentStoreContextRef = useRef("");
   const loadSeqRef = useRef(0);
@@ -520,6 +527,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setAreas([]);
       setRosterTemplates([]);
       setLastStoreId("");
+      setMerchantPrincipal(null);
       setStoresLoaded(false);
       currentStoreContextRef.current = "";
       inFlightLoadRef.current = null;
@@ -568,6 +576,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (nextStores.length === 0) {
         if (loadSeqRef.current !== seq) return;
 
+        setMerchantPrincipal(principal);
         setStores([]);
         setCountries(nextCountries.length > 0 ? nextCountries : defaultCountries);
         setStoresLoaded(true);
@@ -598,6 +607,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       if (loadSeqRef.current !== seq) return;
 
+      setMerchantPrincipal(principal);
       setStores(nextStores);
       setCountries(nextCountries.length > 0 ? nextCountries : defaultCountries);
       setStoresLoaded(true);
@@ -655,6 +665,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setAreas([]);
         setRosterTemplates([]);
         setLastStoreId("");
+        setMerchantPrincipal(null);
         setStoresLoaded(false);
         currentStoreContextRef.current = "";
       });
@@ -837,7 +848,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       await merchantApi.saveScheduleDraft(storeId, payload);
     }));
 
-    setScheduleShifts(editableNextShifts);
+    setScheduleShifts((prev) => {
+      const readonlyShifts = [...prev, ...nextShifts].filter(
+        (shift) => !shift.isGlobalPreset && !isScheduleDateEditable(shift.date),
+      );
+      return dedupeScheduleShifts(dedupeById([...readonlyShifts, ...editableNextShifts]));
+    });
   }, [buildScheduleDraftPayload, scheduleShifts]);
 
   const publishSchedule = useCallback(async (targetStoreId?: string) => {
@@ -930,6 +946,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     <DataContext.Provider value={{
       loading, storesLoaded, error, refreshData, reloadForStore,
       lastStoreId,
+      merchantPrincipal,
+      isMerchantAdmin: isMerchantAdminPrincipal(merchantPrincipal),
       employees, setEmployees,
       saveEmployee, deleteEmployee,
       stores, setStores,

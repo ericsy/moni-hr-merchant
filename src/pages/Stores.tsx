@@ -1354,6 +1354,36 @@ function StoreDetailPanel({
       ),
     },
     {
+      key: "holiday",
+      label: st.tabHoliday,
+      children: (
+        <div className="flex flex-col gap-4 py-2">
+          <StoreInfoRow
+            icon={<CalendarDays size={13} />}
+            label={st.holidayPayMultiplier}
+            value={getHolidayPayRate(store) ? `${getHolidayPayRate(store)}×` : "-"}
+          />
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <CalendarDays size={13} style={{ color: "var(--primary)" }} />
+              <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+                {st.holidaySelectedDates}
+                {sortedHolidays.length > 0 ? (
+                  <span
+                    className="ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[11px]"
+                    style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+                  >
+                    {sortedHolidays.length}
+                  </span>
+                ) : null}
+              </span>
+            </div>
+            <HolidayCalendarReadonly selectedDates={sortedHolidays} locale={locale} />
+          </div>
+        </div>
+      ),
+    },
+    {
       key: "staff",
       label: st.tabStaff,
       children: (
@@ -1391,42 +1421,6 @@ function StoreDetailPanel({
             ) : (
               <div className="text-xs py-2" style={{ color: "var(--muted-foreground)" }}>
                 {st.staffNone}
-              </div>
-            )}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: "holiday",
-      label: st.tabHoliday,
-      children: (
-        <div className="flex flex-col gap-4 py-2">
-          <StoreInfoRow
-            icon={<CalendarDays size={13} />}
-            label={st.holidayPayMultiplier}
-            value={getHolidayPayRate(store) ? `${getHolidayPayRate(store)}×` : "-"}
-          />
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <CalendarDays size={13} style={{ color: "var(--primary)" }} />
-              <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
-                {st.holidaySelectedDates}
-                {sortedHolidays.length > 0 ? (
-                  <span
-                    className="ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[11px]"
-                    style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
-                  >
-                    {sortedHolidays.length}
-                  </span>
-                ) : null}
-              </span>
-            </div>
-            {sortedHolidays.length > 0 ? (
-              <HolidayCalendarReadonly selectedDates={sortedHolidays} locale={locale} />
-            ) : (
-              <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
-                {st.holidayNoDates}
               </div>
             )}
           </div>
@@ -1496,10 +1490,11 @@ function StoreDetailPanel({
 // ─── Main Stores Page ───
 export default function Stores() {
   const { t, locale } = useLocale();
-  const { stores, storesLoaded, saveStore, deleteStore, employees, countries } = useData();
+  const { stores, storesLoaded, saveStore, deleteStore, employees, countries, isMerchantAdmin } = useData();
   const st = t.store;
   const countryOptions = countries.length > 0 ? countries : FALLBACK_COUNTRIES;
-  const requiresFirstStore = storesLoaded && stores.length === 0;
+  const canCreateStore = isMerchantAdmin;
+  const requiresFirstStore = canCreateStore && storesLoaded && stores.length === 0;
 
   const [search, setSearch] = useState("");
   const [filterCountry, setFilterCountry] = useState("all");
@@ -1536,6 +1531,7 @@ export default function Stores() {
     employees.filter((e) => e.storeIds.includes(storeId) && e.status === "active").length;
 
   const handleAdd = () => {
+    if (!canCreateStore) return;
     setEditingStore(null);
     setModalOpen(true);
   };
@@ -1558,6 +1554,8 @@ export default function Stores() {
   };
 
   const handleSave = async (store: Store) => {
+    if (!editingStore && !canCreateStore) return;
+
     try {
       const saved = await saveStore(store, editingStore?.id);
       setSelectedId(saved.id);
@@ -1600,14 +1598,16 @@ export default function Stores() {
             {t.total} {filtered.length} {t.items}
           </span>
         </div>
-        <Button
-          type="primary"
-          icon={<Plus size={14} />}
-          onClick={handleAdd}
-          disabled={requiresFirstStore && modalOpen}
-        >
-          {st.addStore}
-        </Button>
+        {canCreateStore ? (
+          <Button
+            type="primary"
+            icon={<Plus size={14} />}
+            onClick={handleAdd}
+            disabled={requiresFirstStore && modalOpen}
+          >
+            {st.addStore}
+          </Button>
+        ) : null}
       </div>
 
       {requiresFirstStore && (

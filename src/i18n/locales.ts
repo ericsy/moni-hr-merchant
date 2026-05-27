@@ -332,7 +332,7 @@ export const locales = {
       // Geofence
       tabBasic: "基本信息",
       tabGeofence: "电子围栏",
-      tabStaff: "店铺任职",
+      tabStaff: "店面任职",
       tabHoliday: "公共假期",
       staffManager: "店长",
       staffAssistantManagers: "副店长",
@@ -831,7 +831,7 @@ export const locales = {
       // Geofence
       tabBasic: "Basic Info",
       tabGeofence: "Geo-Fence",
-      tabStaff: "Appointments",
+      tabStaff: "store role",
       tabHoliday: "Public Holidays",
       staffManager: "Store Manager",
       staffAssistantManagers: "Assistant Managers",

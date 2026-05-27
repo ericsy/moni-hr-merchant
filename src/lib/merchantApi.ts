@@ -30,11 +30,83 @@ export interface MerchantActivationEmail {
   adminName?: string | null;
 }
 
+export interface MerchantAdminPrincipal {
+  id?: number | string | null;
+  merchantAdminId?: number | string | null;
+  adminName?: string | null;
+  adminType?: number | string | null;
+  admin_type?: number | string | null;
+  isAdmin?: boolean | number | string | null;
+  is_admin?: boolean | number | string | null;
+  admin?: boolean | number | string | null;
+  role?: string | null;
+  roleKey?: string | null;
+  [key: string]: unknown;
+}
+
 export interface MerchantPrincipal {
-  merchantAdminId?: number;
-  merchantId?: number;
-  adminName?: string;
-  lastStoreId?: number | null;
+  merchantAdminId?: number | string | null;
+  merchantId?: number | string | null;
+  adminName?: string | null;
+  lastStoreId?: number | string | null;
+  merchantAdmin?: MerchantAdminPrincipal | boolean | number | string | null;
+  adminType?: number | string | null;
+  admin_type?: number | string | null;
+  isAdmin?: boolean | number | string | null;
+  is_admin?: boolean | number | string | null;
+  admin?: boolean | number | string | null;
+  role?: string | null;
+  roleKey?: string | null;
+}
+
+function normalizeFlag(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (["true", "1", "yes", "y", "admin", "owner", "super_admin", "merchant_admin"].includes(normalized)) return true;
+  if (["false", "0", "no", "n", "employee", "staff", "member"].includes(normalized)) return false;
+  return null;
+}
+
+function normalizePrincipalType(value: unknown) {
+  if (value === undefined || value === null) return "";
+  return String(value).trim().toLowerCase();
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+export function isMerchantAdminPrincipal(principal?: MerchantPrincipal | null) {
+  if (!principal) return false;
+
+  const nested = isObjectRecord(principal.merchantAdmin) ? principal.merchantAdmin : null;
+  const merchantAdminFlag = normalizeFlag(principal.merchantAdmin);
+  if (merchantAdminFlag !== null) return merchantAdminFlag;
+
+  const explicitFlag = normalizeFlag(
+    nested?.isAdmin ??
+      nested?.is_admin ??
+      nested?.admin ??
+      principal.isAdmin ??
+      principal.is_admin ??
+      principal.admin
+  );
+  if (explicitFlag !== null) return explicitFlag;
+
+  const role = normalizePrincipalType(nested?.role ?? nested?.roleKey ?? principal.role ?? principal.roleKey);
+  if (["employee", "staff", "member"].includes(role)) return false;
+  if (["admin", "owner", "super_admin", "merchant_admin", "main_admin", "primary_admin"].includes(role)) return true;
+
+  const adminType = normalizePrincipalType(nested?.adminType ?? nested?.admin_type ?? principal.adminType ?? principal.admin_type);
+  if (["2", "employee", "staff", "member"].includes(adminType)) return false;
+  return ["1", "admin", "owner", "super_admin", "merchant_admin", "main_admin", "primary_admin"].includes(adminType);
 }
 
 export interface MerchantFeatureTreeNode {
