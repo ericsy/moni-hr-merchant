@@ -312,7 +312,8 @@ export default function AttendanceRequestPage() {
       let substitutions: LeaveSubstitutionReviewItem[] | undefined;
       if (
         status === "approved" &&
-        selectedRequest.requestType === "leave"
+        selectedRequest.requestType === "leave" &&
+        selectedRequest.leaveMode !== "date_range"
       ) {
         substitutions = Object.entries(substitutionDrafts)
           .filter(([, draft]) => draft.enabled && draft.substituteId)
@@ -376,7 +377,9 @@ export default function AttendanceRequestPage() {
       title: locale === "zh" ? "类型" : "Type",
       dataIndex: "requestType",
       width: 120,
-      render: (type) => <RequestTypeTag type={type} labels={labels} />,
+      render: (type, record) => (
+        <RequestTypeTag type={type} leaveMode={record.leaveMode} labels={labels} />
+      ),
     },
     {
       title: t.status,
@@ -514,12 +517,32 @@ function StatusTag({ status, labels }: { status?: string | null; labels: ReturnT
   return <Tag color={statusColor(status)}>{text}</Tag>;
 }
 
-function RequestTypeTag({ type, labels }: { type?: string | null; labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"] }) {
-  const text = type === "leave" ? labels.leaveRequest : labels.missedPunch;
+function RequestTypeTag({
+  type,
+  leaveMode,
+  labels,
+}: {
+  type?: string | null;
+  leaveMode?: string | null;
+  labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"];
+}) {
+  const text =
+    type === "leave" && leaveMode === "date_range"
+      ? labels.dateRangeLeave
+      : type === "leave"
+        ? labels.leaveRequest
+        : labels.missedPunch;
   return <Tag color={requestTypeColor(type)}>{text}</Tag>;
 }
 
 function RequestSummary({ request, labels }: { request: MerchantAttendanceRequest; labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"] }) {
+  if (request.requestType === "leave" && request.leaveMode === "date_range") {
+    return (
+      <span className="text-sm text-muted-foreground">
+        {request.leaveDateFrom} ~ {request.leaveDateTo}
+      </span>
+    );
+  }
   if (request.requestType === "leave") {
     return (
       <span className="text-sm text-muted-foreground">
@@ -748,7 +771,10 @@ function AttendanceDetailModal({
 }) {
   const isPending = request?.status === "pending";
   const showSubstitutionEditor =
-    isPending && request?.requestType === "leave" && (request.leaveItems?.length || 0) > 0;
+    isPending &&
+    request?.requestType === "leave" &&
+    request?.leaveMode !== "date_range" &&
+    (request.leaveItems?.length || 0) > 0;
 
   return (
     <Modal
@@ -761,7 +787,7 @@ function AttendanceDetailModal({
           <Space>
             <FileTextIcon size={18} />
             <span>{labels.requestDetail}</span>
-            <RequestTypeTag type={request.requestType} labels={labels} />
+            <RequestTypeTag type={request.requestType} leaveMode={request.leaveMode} labels={labels} />
             <StatusTag status={request.status} labels={labels} />
           </Space>
         ) : labels.requestDetail
@@ -788,7 +814,19 @@ function AttendanceDetailModal({
               ]}
             />
 
-            {request.requestType === "leave" ? (
+            {request.requestType === "leave" && request.leaveMode === "date_range" ? (
+              <div className="rounded-lg border p-4 text-sm" style={{ borderColor: "var(--border)" }}>
+                <div className="font-semibold">{labels.dateRangeLeave}</div>
+                <div className="mt-2 text-muted-foreground">
+                  {request.leaveDateFrom} ~ {request.leaveDateTo}
+                </div>
+                <div className="mt-2 text-muted-foreground">
+                  {locale === "zh"
+                    ? "日期请假不绑定已发布班次，审批无需安排替班。"
+                    : "Date-range leave is not tied to published shifts; no substitute required."}
+                </div>
+              </div>
+            ) : request.requestType === "leave" ? (
               <LeaveDetail
                 items={request.leaveItems || []}
                 labels={labels}
@@ -910,7 +948,9 @@ function LeaveDetail({
         {labels.leaveItems}
       </div>
       {items.length === 0 ? (
-        <div className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">{labels.noLeaveItems}</div>
+        <div className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
+          {labels.noLeaveItems}
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
           {items.map((item, index) => {

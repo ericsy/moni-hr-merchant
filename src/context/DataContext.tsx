@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import {
   isBackendId,
   merchantApi,
+  type EmployeeDateLeave,
   type MerchantSchedulePublishResult,
 } from "../lib/merchantApi";
 import { isScheduleDateEditable } from "../lib/scheduleLock";
@@ -256,6 +257,8 @@ interface DataContextType {
   setWorkAreas: React.Dispatch<React.SetStateAction<EmployeeDictItem[]>>;
   scheduleShifts: ScheduleShift[];
   setScheduleShifts: React.Dispatch<React.SetStateAction<ScheduleShift[]>>;
+  employeeDateLeaves: EmployeeDateLeave[];
+  setEmployeeDateLeaves: React.Dispatch<React.SetStateAction<EmployeeDateLeave[]>>;
   saveGlobalShift: (shift: ScheduleShift, existingShiftId?: string) => Promise<ScheduleShift>;
   deleteGlobalShift: (shiftId: string) => Promise<void>;
   saveScheduleDraft: (nextShifts?: ScheduleShift[], targetStoreId?: string) => Promise<void>;
@@ -285,6 +288,7 @@ interface PersistedDataSnapshot {
   positions: EmployeeDictItem[];
   workAreas: EmployeeDictItem[];
   scheduleShifts: ScheduleShift[];
+  employeeDateLeaves: EmployeeDateLeave[];
   areas: Area[];
   rosterTemplates: RosterTemplate[];
 }
@@ -296,6 +300,7 @@ const getDefaultDataSnapshot = (): PersistedDataSnapshot => ({
   positions: [],
   workAreas: [],
   scheduleShifts: [],
+  employeeDateLeaves: [],
   areas: [],
   rosterTemplates: [],
 });
@@ -438,6 +443,8 @@ const DataContext = createContext<DataContextType>({
   setWorkAreas: () => {},
   scheduleShifts: [],
   setScheduleShifts: () => {},
+  employeeDateLeaves: [],
+  setEmployeeDateLeaves: () => {},
   saveGlobalShift: async (shift) => shift,
   deleteGlobalShift: async () => {},
   saveScheduleDraft: async () => {},
@@ -465,6 +472,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [positions, setPositions] = useState<EmployeeDictItem[]>(initialData.positions);
   const [workAreas, setWorkAreas] = useState<EmployeeDictItem[]>(initialData.workAreas);
   const [scheduleShifts, setScheduleShifts] = useState<ScheduleShift[]>(initialData.scheduleShifts);
+  const [employeeDateLeaves, setEmployeeDateLeaves] = useState<EmployeeDateLeave[]>(
+    initialData.employeeDateLeaves,
+  );
   const [areas, setAreas] = useState<Area[]>(initialData.areas);
   const [rosterTemplates, setRosterTemplates] = useState<RosterTemplate[]>(initialData.rosterTemplates);
   const [loading, setLoading] = useState(false);
@@ -600,8 +610,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (globalShiftResult.ok || scheduleResult.ok) {
         setScheduleShifts(dedupeScheduleShifts(dedupeById([
           ...(globalShiftResult.ok ? globalShiftResult.value : []),
-          ...(scheduleResult.ok ? scheduleResult.value.flat() : []),
+          ...(scheduleResult.ok ? scheduleResult.value.flatMap((r) => r.cells) : []),
         ])));
+        if (scheduleResult.ok) {
+          setEmployeeDateLeaves(
+            scheduleResult.value.flatMap((r) => r.employeeDateLeaves ?? []),
+          );
+        }
       }
     } catch (loadError) {
       const message = getOperationMessage(loadError, "加载数据失败");
@@ -923,6 +938,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       positions, setPositions,
       workAreas, setWorkAreas,
       scheduleShifts, setScheduleShifts,
+      employeeDateLeaves, setEmployeeDateLeaves,
       saveGlobalShift, deleteGlobalShift,
       saveScheduleDraft, publishSchedule,
       areas, setAreas,

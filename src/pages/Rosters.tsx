@@ -907,6 +907,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     employees,
     scheduleShifts,
     setScheduleShifts,
+    employeeDateLeaves,
     saveScheduleDraft,
     publishSchedule,
     stores,
@@ -1014,10 +1015,32 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     empColorMap[e.id] = e.employeeColor || "var(--primary)";
   });
 
+  const findDateLeaveWarning = (empId: string, dateStr: string): string | null => {
+    const hit = employeeDateLeaves.find((leave) => {
+      if (String(leave.merchantAdminId) !== String(empId)) return false;
+      const from = (leave.leaveDateFrom ?? "").slice(0, 10);
+      const to = (leave.leaveDateTo ?? "").slice(0, 10);
+      if (!from || !to) return false;
+      return dateStr >= from && dateStr <= to;
+    });
+    if (!hit) return null;
+    const range = `${(hit.leaveDateFrom ?? "").slice(0, 10)} ~ ${(hit.leaveDateTo ?? "").slice(0, 10)}`;
+    if (hit.status === "pending") {
+      return isZh
+        ? `该员工在此区间有待审批请假（${range}），建议勿排班`
+        : `Pending date leave (${range}); avoid scheduling`;
+    }
+    return isZh
+      ? `该员工在此区间已请假（${range}），建议勿排班`
+      : `Approved date leave (${range}); avoid scheduling`;
+  };
+
   const findAvailabilityWarning = (
     empId: string,
     shift: Pick<ScheduleShift, "date" | "startTime" | "endTime">,
   ) => {
+    const dateLeaveWarning = findDateLeaveWarning(empId, shift.date);
+    if (dateLeaveWarning) return dateLeaveWarning;
     const employee = activeEmployees.find((item) => item.id === empId);
     if (!employee) return null;
     return getDatedShiftAvailabilityWarning(employee, shift, locale);

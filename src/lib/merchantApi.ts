@@ -185,11 +185,23 @@ export interface MerchantSchedulePublishResult {
   orphanedSubstitutions?: ScheduleSubstitutionOrphaned[];
 }
 
+export interface EmployeeDateLeave {
+  merchantAdminId?: number | string | null;
+  displayName?: string | null;
+  leaveDateFrom?: string | null;
+  leaveDateTo?: string | null;
+  status?: string | null;
+  requestId?: number | string | null;
+}
+
 export interface MerchantAttendanceRequest {
   id?: number | string | null;
   storeId?: number | string | null;
   storeName?: string | null;
   requestType?: MerchantAttendanceRequestType | string | null;
+  leaveMode?: "shift" | "date_range" | string | null;
+  leaveDateFrom?: string | null;
+  leaveDateTo?: string | null;
   status?: MerchantAttendanceRequestStatus | string | null;
   reason?: string | null;
   approverMerchantAdminId?: number | string | null;
@@ -489,6 +501,9 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
     storeId: raw.storeId as number | string | null | undefined,
     storeName: asString(raw.storeName || store.name),
     requestType: asString(raw.requestType) as MerchantAttendanceRequestType,
+    leaveMode: asString(raw.leaveMode) || "shift",
+    leaveDateFrom: asString(raw.leaveDateFrom),
+    leaveDateTo: asString(raw.leaveDateTo),
     status: asString(raw.status) as MerchantAttendanceRequestStatus,
     reason: asString(raw.reason),
     approverMerchantAdminId: raw.approverMerchantAdminId as number | string | null | undefined,
@@ -1688,8 +1703,24 @@ export const merchantApi = {
       method: "DELETE",
     }),
   getSchedule: async (storeId: string) => {
-    const data = await apiRequest<{ cells?: unknown[] }>(getMerchantEndpoint("schedule"), { storeId });
-    return (data?.cells || []).map((cell) => mapApiScheduleCell(cell, storeId));
+    const data = await apiRequest<{ cells?: unknown[]; employeeDateLeaves?: unknown[] }>(
+      getMerchantEndpoint("schedule"),
+      { storeId },
+    );
+    const cells = (data?.cells || []).map((cell) => mapApiScheduleCell(cell, storeId));
+    const employeeDateLeaves = asArray(data?.employeeDateLeaves).map((row) => {
+      const raw = asRecord(row);
+      return compactDeep({
+        storeId,
+        merchantAdminId: raw.merchantAdminId as number | string | null | undefined,
+        displayName: asString(raw.displayName),
+        leaveDateFrom: asString(raw.leaveDateFrom),
+        leaveDateTo: asString(raw.leaveDateTo),
+        status: asString(raw.status),
+        requestId: raw.requestId as number | string | null | undefined,
+      }) as EmployeeDateLeave & { storeId: string };
+    });
+    return { cells, employeeDateLeaves };
   },
   saveScheduleDraft: (storeId: string, payload: unknown) =>
     apiRequest<null>(appendEndpointPath(getMerchantEndpoint("schedule"), "draft"), {
