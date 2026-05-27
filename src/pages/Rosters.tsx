@@ -31,7 +31,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ColorSwatchPicker,
@@ -924,6 +924,15 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const weekDates = Array.from({ length: 7 }, (_, i) =>
     weekStart.add(i, "day"),
   );
+  const weekFromStr = weekDates[0].format("YYYY-MM-DD");
+  const weekToStr = weekDates[6].format("YYYY-MM-DD");
+
+  const dateLeavesForStore = useMemo(() => {
+    if (!selectedStoreId) return employeeDateLeaves;
+    return employeeDateLeaves.filter(
+      (l) => !l.storeId || String(l.storeId) === String(selectedStoreId),
+    );
+  }, [employeeDateLeaves, selectedStoreId]);
   const isReadonlyWeek = weekDates.every((date) =>
     !isScheduleDateEditable(date),
   );
@@ -1015,8 +1024,28 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     empColorMap[e.id] = e.employeeColor || "var(--primary)";
   });
 
+  const getSidebarDateLeaveWarning = (empId: string): string | null => {
+    const hit = dateLeavesForStore.find((leave) => {
+      if (String(leave.merchantAdminId) !== String(empId)) return false;
+      const from = (leave.leaveDateFrom ?? "").slice(0, 10);
+      const to = (leave.leaveDateTo ?? "").slice(0, 10);
+      if (!from || !to) return false;
+      return weekFromStr <= to && weekToStr >= from;
+    });
+    if (!hit) return null;
+    const range = `${(hit.leaveDateFrom ?? "").slice(0, 10)} ~ ${(hit.leaveDateTo ?? "").slice(0, 10)}`;
+    if (hit.status === "pending") {
+      return isZh
+        ? `本周与待审批按日期请假重叠（${range}），建议勿排班`
+        : `Overlaps pending date leave this week (${range}); avoid scheduling`;
+    }
+    return isZh
+      ? `本周与已批准按日期请假重叠（${range}），建议勿排班`
+      : `Overlaps approved date leave this week (${range}); avoid scheduling`;
+  };
+
   const findDateLeaveWarning = (empId: string, dateStr: string): string | null => {
-    const hit = employeeDateLeaves.find((leave) => {
+    const hit = dateLeavesForStore.find((leave) => {
       if (String(leave.merchantAdminId) !== String(empId)) return false;
       const from = (leave.leaveDateFrom ?? "").slice(0, 10);
       const to = (leave.leaveDateTo ?? "").slice(0, 10);
@@ -2328,9 +2357,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                 {filteredEmployees.map((emp) => {
                   const hrs = parseFloat(weekHoursForEmp(emp.id));
                   const shortDays = ["M", "T", "W", "T", "F", "S", "S"];
+                  const sidebarLeaveWarn = getSidebarDateLeaveWarning(emp.id);
                   return (
-                    <div
+                    <Tooltip
                       key={emp.id}
+                      title={sidebarLeaveWarn || undefined}
+                    >
+                    <div
                       draggable={!isReadonlyWeek}
                       onDragStart={(e) => {
                         if (isReadonlyWeek) {
@@ -2343,7 +2376,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                       className="rounded-xl p-2.5 mb-2 select-none transition-all hover:shadow-custom"
                       style={{
                         background: "var(--muted)",
-                        border: "1px solid var(--border)",
+                        border: sidebarLeaveWarn
+                          ? "1px solid var(--destructive)"
+                          : "1px solid var(--border)",
                         cursor: isReadonlyWeek ? "default" : "grab",
                         opacity: isReadonlyWeek ? 0.76 : 1,
                       }}
@@ -2455,6 +2490,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                         })}
                       </div>
                     </div>
+                    </Tooltip>
                   );
                 })}
                 {filteredEmployees.length === 0 && (

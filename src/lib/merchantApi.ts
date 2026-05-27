@@ -186,6 +186,7 @@ export interface MerchantSchedulePublishResult {
 }
 
 export interface EmployeeDateLeave {
+  storeId?: number | string | null;
   merchantAdminId?: number | string | null;
   displayName?: string | null;
   leaveDateFrom?: string | null;
