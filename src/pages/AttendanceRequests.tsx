@@ -117,7 +117,7 @@ function requestTypeColor(type?: string | null) {
 export default function AttendanceRequestPage() {
   const { locale, t } = useLocale();
   const labels = t.attendanceRequest;
-  const { stores } = useData();
+  const { stores, reloadForStore } = useData();
   const { selectedStoreId } = useStore();
   const [filter, setFilter] = useState<RequestFilter>({
     employeeIds: [],
@@ -323,15 +323,22 @@ export default function AttendanceRequestPage() {
             substituteEndTime: draft.endTime || null,
           }));
       }
-      const updated = await merchantApi.reviewAttendanceRequest(selectedRequest.id, reviewStoreId, {
-        approved: status === "approved",
-        reviewComment,
-        substitutions,
-      });
+      const updated = await merchantApi.reviewAttendanceRequest(
+        selectedRequest.id,
+        reviewStoreId,
+        {
+          approved: status === "approved",
+          reviewComment,
+          substitutions,
+        },
+      );
       toast.success(labels.reviewSuccess);
       setSelectedRequest(updated);
       setRequests((previous) => previous.map((item) => String(item.id) === String(updated.id) ? updated : item));
       await loadData();
+      if (updated.scheduleDate && updated.shiftStartTime && updated.shiftEndTime && reviewStoreId) {
+        await reloadForStore(String(reviewStoreId));
+      }
     } catch (reviewError) {
       console.log("[AttendanceRequestPage] failed to review:", reviewError);
       toast.error(reviewError instanceof Error ? reviewError.message : labels.reviewFailed);
