@@ -784,6 +784,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     for (const shift of nextShifts) {
       if (shift.isGlobalPreset || !shift.areaId || !shift.date || shift.storeId !== storeId) continue;
       if (!isScheduleDateEditable(shift.date)) continue;
+      // 替班班次（originType=substitution）属于已发布 overlay，不应被写入草稿；
+      // 否则每次保存草稿/发布都会把替班“复制”为一条正常排班。
+      if (shift.isSubstitution || shift.originType === "substitution" || shift.substitutionId) continue;
 
       const shiftId = requireNumericId(shift.shiftId || "", "班次");
       payload.cells.push({
