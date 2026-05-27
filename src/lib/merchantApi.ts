@@ -1389,6 +1389,8 @@ export function mapApiScheduleCell(input: unknown, storeId: string): ScheduleShi
     substitutionId: raw.substitutionId as number | string | null | undefined,
     isSubstitution: raw.isSubstitution === true || asString(raw.originType) === "substitution",
     substitutionStatus: asString(raw.substitutionStatus),
+    originalMerchantAdminId: raw.originalMerchantAdminId as number | string | null | undefined,
+    originalDisplayName: asString(raw.originalDisplayName),
   };
 }
 

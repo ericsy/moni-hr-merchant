@@ -184,6 +184,8 @@ export interface ScheduleShift {
   substitutionId?: string | number | null;
   isSubstitution?: boolean;
   substitutionStatus?: string;
+  originalMerchantAdminId?: string | number | null;
+  originalDisplayName?: string | null;
 }
 
 export interface Area {

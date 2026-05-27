@@ -364,7 +364,7 @@ function ShiftEntry({
   readonly = false,
 }: ShiftEntryProps) {
   const [isDragOver, setIsDragOver] = useState(false);
-  const { locale } = useLocale();
+  const { locale, t } = useLocale();
   if (!shift) return null;
   const cs = getColorStyle(shift.color);
   const hrs = calcHours(shift.startTime, shift.endTime, shift.breakMinutes);
@@ -523,6 +523,16 @@ function ShiftEntry({
           {hrs}h
         </span>
       </div>
+
+      {shift.isSubstitution && shift.originalDisplayName ? (
+        <div
+          className="mt-0.5 truncate"
+          style={{ fontSize: 9, color: "#6d28d9", fontWeight: 600 }}
+          title={`${t.schedule.substitutionReplacedFor}: ${shift.originalDisplayName}`}
+        >
+          {t.schedule.substitutionReplacedFor}: {shift.originalDisplayName}
+        </div>
+      ) : null}
 
       {/* Shift label when employees are present */}
       {assignedEmployees.length > 0 && shift.shiftName && (
