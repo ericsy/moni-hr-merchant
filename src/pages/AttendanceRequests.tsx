@@ -40,8 +40,16 @@ import {
   type MerchantAttendanceRequestSummary,
   type MerchantAttendanceRequestType,
   type MerchantEmployeeBrief,
+  type LeaveSubstitutionReviewItem,
   type MerchantEmployeeIdName,
 } from "../lib/merchantApi";
+
+type SubstitutionDraft = {
+  enabled: boolean;
+  substituteId: string;
+  startTime: string;
+  endTime: string;
+};
 
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
@@ -131,6 +139,13 @@ export default function AttendanceRequestPage() {
   const [selectedRequest, setSelectedRequest] = useState<MerchantAttendanceRequest | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [reviewing, setReviewing] = useState<"approved" | "rejected" | null>(null);
+  const [substitutionDrafts, setSubstitutionDrafts] = useState<Record<string, SubstitutionDraft>>({});
+  const [substituteOptionsByLeaveItem, setSubstituteOptionsByLeaveItem] = useState<
+    Record<string, MerchantEmployeeIdName[]>
+  >({});
+  const [substituteOptionsLoadingByLeaveItem, setSubstituteOptionsLoadingByLeaveItem] = useState<
+    Record<string, boolean>
+  >({});
 
   const activeStoreIds = filter.storeIds.length > 0 ? filter.storeIds : selectedStoreId ? [selectedStoreId] : [];
   const activeStoreId = activeStoreIds[0] || selectedStoreId;
@@ -234,6 +249,26 @@ export default function AttendanceRequestPage() {
       const detail = await merchantApi.getAttendanceRequest(record.id, detailStoreId);
       setSelectedRequest(detail);
       setReviewComment(detail.reviewComment || "");
+      if (detail.requestType === "leave" && detail.status === "pending") {
+        const drafts: Record<string, SubstitutionDraft> = {};
+        for (const item of detail.leaveItems || []) {
+          const key = String(item.id || "");
+          if (!key) continue;
+          drafts[key] = {
+            enabled: false,
+            substituteId: "",
+            startTime: item.partialStartTime || item.shiftStartTime || "",
+            endTime: item.partialEndTime || item.shiftEndTime || "",
+          };
+        }
+        setSubstitutionDrafts(drafts);
+        setSubstituteOptionsByLeaveItem({});
+        setSubstituteOptionsLoadingByLeaveItem({});
+      } else {
+        setSubstitutionDrafts({});
+        setSubstituteOptionsByLeaveItem({});
+        setSubstituteOptionsLoadingByLeaveItem({});
+      }
     } catch (detailError) {
       console.log("[AttendanceRequestPage] failed to load detail:", detailError);
       toast.error(detailError instanceof Error ? detailError.message : labels.loadFailed);
@@ -242,10 +277,30 @@ export default function AttendanceRequestPage() {
     }
   };
 
+  const loadSubstituteOptionsForLeaveItem = useCallback(
+    async (storeId: string, leaveItemId: string) => {
+      if (!storeId || !leaveItemId) return;
+      setSubstituteOptionsLoadingByLeaveItem((previous) => ({ ...previous, [leaveItemId]: true }));
+      try {
+        const items = await merchantApi.listSubstituteCandidates(storeId, { leaveItemId });
+        setSubstituteOptionsByLeaveItem((previous) => ({ ...previous, [leaveItemId]: items }));
+      } catch (loadError) {
+        console.log("[AttendanceRequestPage] failed to load substitute candidates:", loadError);
+        setSubstituteOptionsByLeaveItem((previous) => ({ ...previous, [leaveItemId]: [] }));
+      } finally {
+        setSubstituteOptionsLoadingByLeaveItem((previous) => ({ ...previous, [leaveItemId]: false }));
+      }
+    },
+    [],
+  );
+
   const closeDetail = () => {
     if (reviewing) return;
     setSelectedRequest(null);
     setReviewComment("");
+    setSubstitutionDrafts({});
+    setSubstituteOptionsByLeaveItem({});
+    setSubstituteOptionsLoadingByLeaveItem({});
   };
 
   const submitReview = async (status: "approved" | "rejected") => {
@@ -254,9 +309,24 @@ export default function AttendanceRequestPage() {
 
     try {
       setReviewing(status);
+      let substitutions: LeaveSubstitutionReviewItem[] | undefined;
+      if (
+        status === "approved" &&
+        selectedRequest.requestType === "leave"
+      ) {
+        substitutions = Object.entries(substitutionDrafts)
+          .filter(([, draft]) => draft.enabled && draft.substituteId)
+          .map(([leaveItemId, draft]) => ({
+            leaveItemId,
+            substituteMerchantAdminId: draft.substituteId,
+            substituteStartTime: draft.startTime || null,
+            substituteEndTime: draft.endTime || null,
+          }));
+      }
       const updated = await merchantApi.reviewAttendanceRequest(selectedRequest.id, reviewStoreId, {
         approved: status === "approved",
         reviewComment,
+        substitutions,
       });
       toast.success(labels.reviewSuccess);
       setSelectedRequest(updated);
@@ -410,6 +480,21 @@ export default function AttendanceRequestPage() {
         reviewing={reviewing}
         reviewComment={reviewComment}
         onReviewCommentChange={setReviewComment}
+        substitutionDrafts={substitutionDrafts}
+        substituteOptionsByLeaveItem={substituteOptionsByLeaveItem}
+        substituteOptionsLoadingByLeaveItem={substituteOptionsLoadingByLeaveItem}
+        onLoadSubstituteOptions={(leaveItemId) => {
+          const storeId = String(selectedRequest?.storeId || activeStoreId || "");
+          if (storeId) {
+            void loadSubstituteOptionsForLeaveItem(storeId, leaveItemId);
+          }
+        }}
+        onSubstitutionDraftChange={(leaveItemId, patch) => {
+          setSubstitutionDrafts((previous) => ({
+            ...previous,
+            [leaveItemId]: { ...previous[leaveItemId], ...patch },
+          }));
+        }}
         onClose={closeDetail}
         onReview={submitReview}
       />
@@ -630,6 +715,11 @@ function AttendanceDetailModal({
   reviewing,
   reviewComment,
   onReviewCommentChange,
+  substitutionDrafts,
+  substituteOptionsByLeaveItem,
+  substituteOptionsLoadingByLeaveItem,
+  onLoadSubstituteOptions,
+  onSubstitutionDraftChange,
   onClose,
   onReview,
 }: {
@@ -641,10 +731,17 @@ function AttendanceDetailModal({
   reviewing: "approved" | "rejected" | null;
   reviewComment: string;
   onReviewCommentChange: (value: string) => void;
+  substitutionDrafts: Record<string, SubstitutionDraft>;
+  substituteOptionsByLeaveItem: Record<string, MerchantEmployeeIdName[]>;
+  substituteOptionsLoadingByLeaveItem: Record<string, boolean>;
+  onLoadSubstituteOptions: (leaveItemId: string) => void;
+  onSubstitutionDraftChange: (leaveItemId: string, patch: Partial<SubstitutionDraft>) => void;
   onClose: () => void;
   onReview: (status: "approved" | "rejected") => void;
 }) {
   const isPending = request?.status === "pending";
+  const showSubstitutionEditor =
+    isPending && request?.requestType === "leave" && (request.leaveItems?.length || 0) > 0;
 
   return (
     <Modal
@@ -685,7 +782,16 @@ function AttendanceDetailModal({
             />
 
             {request.requestType === "leave" ? (
-              <LeaveDetail items={request.leaveItems || []} labels={labels} locale={locale} />
+              <LeaveDetail
+                items={request.leaveItems || []}
+                labels={labels}
+                locale={locale}
+                substitutionDrafts={showSubstitutionEditor ? substitutionDrafts : undefined}
+                substituteOptionsByLeaveItem={substituteOptionsByLeaveItem}
+                substituteOptionsLoadingByLeaveItem={substituteOptionsLoadingByLeaveItem}
+                onLoadSubstituteOptions={onLoadSubstituteOptions}
+                onSubstitutionDraftChange={onSubstitutionDraftChange}
+              />
             ) : (
               <Descriptions
                 size="small"
@@ -768,10 +874,20 @@ function LeaveDetail({
   items,
   labels,
   locale,
+  substitutionDrafts,
+  substituteOptionsByLeaveItem,
+  substituteOptionsLoadingByLeaveItem,
+  onLoadSubstituteOptions,
+  onSubstitutionDraftChange,
 }: {
   items: MerchantAttendanceLeaveItem[];
   labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"];
   locale: "zh" | "en";
+  substitutionDrafts?: Record<string, SubstitutionDraft>;
+  substituteOptionsByLeaveItem?: Record<string, MerchantEmployeeIdName[]>;
+  substituteOptionsLoadingByLeaveItem?: Record<string, boolean>;
+  onLoadSubstituteOptions?: (leaveItemId: string) => void;
+  onSubstitutionDraftChange?: (leaveItemId: string, patch: Partial<SubstitutionDraft>) => void;
 }) {
   const leaveScopeLabel = (scope?: string | null) => scope === "partial" ? labels.partialShift : labels.fullShift;
   const leaveEffectLabel = (effect?: string | null) => {
@@ -790,8 +906,15 @@ function LeaveDetail({
         <div className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">{labels.noLeaveItems}</div>
       ) : (
         <div className="flex flex-col gap-2">
-          {items.map((item, index) => (
-            <div key={String(item.id || index)} className="rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
+          {items.map((item, index) => {
+            const itemKey = String(item.id || index);
+            const leaveItemKey = String(item.id || "");
+            const draft = substitutionDrafts?.[leaveItemKey];
+            const sub = item.substitution;
+            const substituteOptions = substituteOptionsByLeaveItem?.[leaveItemKey] || [];
+            const substituteOptionsLoading = !!substituteOptionsLoadingByLeaveItem?.[leaveItemKey];
+            return (
+            <div key={itemKey} className="rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
                 <Info label={labels.scheduleDate} value={item.scheduleDate || "-"} />
                 <Info label={labels.shift} value={formatShift(item.shiftStartTime, item.shiftEndTime)} />
@@ -800,9 +923,71 @@ function LeaveDetail({
                 {item.leaveScope === "partial" && (
                   <Info label={labels.timeRange} value={`${item.partialStartTime || "-"} - ${item.partialEndTime || "-"}`} />
                 )}
+                {sub?.substituteDisplayName ? (
+                  <Info
+                    label={labels.substitute}
+                    value={`${sub.substituteDisplayName} (${sub.substituteStartTime || ""}–${sub.substituteEndTime || ""})`}
+                    tagColor="purple"
+                  />
+                ) : null}
               </div>
+              {draft && onSubstitutionDraftChange ? (
+                <div className="mt-3 rounded-md bg-muted/40 p-3">
+                  <div className="mb-2 text-xs font-semibold text-muted-foreground">{labels.substituteOptional}</div>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <Select
+                      allowClear
+                      showSearch
+                      optionFilterProp="label"
+                      loading={substituteOptionsLoading}
+                      placeholder={labels.selectSubstitute}
+                      style={{ minWidth: 200 }}
+                      value={draft.enabled && draft.substituteId ? draft.substituteId : undefined}
+                      options={substituteOptions.map((employee) => ({
+                        value: String(employee.id),
+                        label: employee.name || String(employee.id),
+                      }))}
+                      onDropdownVisibleChange={(open) => {
+                        if (open && leaveItemKey && onLoadSubstituteOptions) {
+                          onLoadSubstituteOptions(leaveItemKey);
+                        }
+                      }}
+                      onChange={(value) => {
+                        onSubstitutionDraftChange(leaveItemKey, {
+                          enabled: !!value,
+                          substituteId: value ? String(value) : "",
+                        });
+                      }}
+                    />
+                    <Input
+                      style={{ width: 88 }}
+                      placeholder="HH:mm"
+                      value={draft.startTime}
+                      onChange={(event) =>
+                        onSubstitutionDraftChange(String(item.id), {
+                          enabled: draft.enabled || !!draft.substituteId,
+                          startTime: event.target.value,
+                        })
+                      }
+                    />
+                    <span className="text-muted-foreground">–</span>
+                    <Input
+                      style={{ width: 88 }}
+                      placeholder="HH:mm"
+                      value={draft.endTime}
+                      onChange={(event) =>
+                        onSubstitutionDraftChange(String(item.id), {
+                          enabled: draft.enabled || !!draft.substituteId,
+                          endTime: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
       {locale === "zh" ? null : null}

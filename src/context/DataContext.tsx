@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import {
   isBackendId,
   merchantApi,
+  type MerchantSchedulePublishResult,
 } from "../lib/merchantApi";
 import { isScheduleDateEditable } from "../lib/scheduleLock";
 import { useAuth } from "./AuthContext";
@@ -167,6 +168,10 @@ export interface ScheduleShift {
   color: string;
   note: string;
   status: "draft" | "published";
+  originType?: string;
+  substitutionId?: string | number | null;
+  isSubstitution?: boolean;
+  substitutionStatus?: string;
 }
 
 export interface Area {
@@ -240,7 +245,7 @@ interface DataContextType {
   saveGlobalShift: (shift: ScheduleShift, existingShiftId?: string) => Promise<ScheduleShift>;
   deleteGlobalShift: (shiftId: string) => Promise<void>;
   saveScheduleDraft: (nextShifts?: ScheduleShift[], targetStoreId?: string) => Promise<void>;
-  publishSchedule: (targetStoreId?: string) => Promise<void>;
+  publishSchedule: (targetStoreId?: string) => Promise<MerchantSchedulePublishResult>;
   areas: Area[];
   setAreas: React.Dispatch<React.SetStateAction<Area[]>>;
   saveArea: (area: Area, existingId?: string) => Promise<Area>;
@@ -422,7 +427,7 @@ const DataContext = createContext<DataContextType>({
   saveGlobalShift: async (shift) => shift,
   deleteGlobalShift: async () => {},
   saveScheduleDraft: async () => {},
-  publishSchedule: async () => {},
+  publishSchedule: async () => ({}),
   areas: [],
   setAreas: () => {},
   saveArea: async (area) => area,
@@ -793,12 +798,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       throw new Error("请先选择具体门店并维护排班内容");
     }
 
-    await Promise.all(contextIds.map((storeId) => merchantApi.publishSchedule(storeId)));
+    const results = await Promise.all(contextIds.map((storeId) => merchantApi.publishSchedule(storeId)));
     setScheduleShifts((prev) => prev.map((shift) =>
       contextIds.includes(shift.storeId) && isScheduleDateEditable(shift.date)
         ? { ...shift, status: "published" as const }
         : shift
     ));
+    return results.reduce<MerchantSchedulePublishResult>(
+      (acc, item) => ({
+        conflicts: [...(acc.conflicts || []), ...(item.conflicts || [])],
+        orphanedSubstitutions: [...(acc.orphanedSubstitutions || []), ...(item.orphanedSubstitutions || [])],
+      }),
+      {},
+    );
   }, [scheduleShifts]);
 
   const buildTemplatePayload = useCallback(async (template: RosterTemplate) => {

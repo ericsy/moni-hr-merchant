@@ -498,11 +498,19 @@ function ShiftEntry({
       </div>
 
       {/* Time + hours badge */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 flex-wrap">
         <Clock size={8} style={{ color: cs.text }} />
         <span style={{ fontSize: 9, color: cs.text }}>
           {formatTime12(shift.startTime)} – {formatTime12(shift.endTime)}
         </span>
+        {shift.isSubstitution ? (
+          <span
+            className="rounded px-1 font-bold"
+            style={{ fontSize: 8, background: "#f3e8ff", color: "#7c3aed", border: "1px solid #c4b5fd" }}
+          >
+            {locale === "zh" ? "替班" : "Sub"}
+          </span>
+        ) : null}
         <span
           className="rounded-full px-1 ml-auto font-semibold"
           style={{
@@ -1904,12 +1912,54 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
     try {
       await saveScheduleDraft(scheduleShifts, selectedStoreId);
-      await publishSchedule(selectedStoreId);
+      const publishResult = await publishSchedule(selectedStoreId);
       toast.success(
         locale === "zh"
           ? `已发布 ${ids.length} 个班次`
           : `Published ${ids.length} shifts`,
       );
+      const conflicts = publishResult.conflicts || [];
+      const orphaned = publishResult.orphanedSubstitutions || [];
+      if (conflicts.length > 0 || orphaned.length > 0) {
+        Modal.info({
+          title: locale === "zh" ? "发布完成（替班提示）" : "Published (substitution notes)",
+          width: 560,
+          content: (
+            <div className="flex flex-col gap-3 text-sm">
+              {conflicts.length > 0 ? (
+                <div>
+                  <div className="font-semibold mb-1">
+                    {locale === "zh" ? "冲突" : "Conflicts"}
+                  </div>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {conflicts.map((item, index) => (
+                      <li key={`c-${item.substitutionId || index}`}>
+                        {item.message || item.conflictCode || "-"}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {orphaned.length > 0 ? (
+                <div>
+                  <div className="font-semibold mb-1">
+                    {locale === "zh" ? "已作废替班" : "Cancelled substitutions"}
+                  </div>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {orphaned.map((item, index) => (
+                      <li key={`o-${item.substitutionId || index}`}>
+                        {locale === "zh"
+                          ? `请假明细 #${item.leaveItemId ?? "-"}`
+                          : `Leave item #${item.leaveItemId ?? "-"}`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ),
+        });
+      }
       console.log("[Rosters] published", ids.length, "shifts");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Publish failed");

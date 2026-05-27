@@ -137,6 +137,22 @@ export interface MerchantEmployeeBrief {
   role?: string | null;
 }
 
+export interface ScheduleSubstitutionBrief {
+  substitutionId?: number | string | null;
+  substituteMerchantAdminId?: number | string | null;
+  substituteDisplayName?: string | null;
+  substituteStartTime?: string | null;
+  substituteEndTime?: string | null;
+  substitutionStatus?: string | null;
+}
+
+export interface LeaveSubstitutionReviewItem {
+  leaveItemId: number | string;
+  substituteMerchantAdminId: number | string;
+  substituteStartTime?: string | null;
+  substituteEndTime?: string | null;
+}
+
 export interface MerchantAttendanceLeaveItem {
   id?: number | string | null;
   publishedCellId?: number | string | null;
@@ -147,6 +163,25 @@ export interface MerchantAttendanceLeaveItem {
   scheduleDate?: string | null;
   shiftStartTime?: string | null;
   shiftEndTime?: string | null;
+  substitution?: ScheduleSubstitutionBrief | null;
+}
+
+export interface ScheduleSubstitutionConflict {
+  substitutionId?: number | string | null;
+  leaveItemId?: number | string | null;
+  conflictCode?: string | null;
+  message?: string | null;
+}
+
+export interface ScheduleSubstitutionOrphaned {
+  substitutionId?: number | string | null;
+  leaveItemId?: number | string | null;
+  substituteMerchantAdminId?: number | string | null;
+}
+
+export interface MerchantSchedulePublishResult {
+  conflicts?: ScheduleSubstitutionConflict[];
+  orphanedSubstitutions?: ScheduleSubstitutionOrphaned[];
 }
 
 export interface MerchantAttendanceRequest {
@@ -415,6 +450,20 @@ function mapEmployeeBrief(input: unknown): MerchantEmployeeBrief {
   });
 }
 
+function mapScheduleSubstitutionBrief(input: unknown): ScheduleSubstitutionBrief | undefined {
+  if (!input) return undefined;
+  const raw = asRecord(input);
+  if (!raw.substitutionId && !raw.substituteMerchantAdminId) return undefined;
+  return compactDeep({
+    substitutionId: raw.substitutionId as number | string | null | undefined,
+    substituteMerchantAdminId: raw.substituteMerchantAdminId as number | string | null | undefined,
+    substituteDisplayName: asString(raw.substituteDisplayName),
+    substituteStartTime: normalizeTime(raw.substituteStartTime) || asString(raw.substituteStartTime),
+    substituteEndTime: normalizeTime(raw.substituteEndTime) || asString(raw.substituteEndTime),
+    substitutionStatus: asString(raw.substitutionStatus),
+  });
+}
+
 function mapAttendanceLeaveItem(input: unknown): MerchantAttendanceLeaveItem {
   const raw = asRecord(input);
   return compactDeep({
@@ -427,6 +476,7 @@ function mapAttendanceLeaveItem(input: unknown): MerchantAttendanceLeaveItem {
     scheduleDate: asString(raw.scheduleDate || raw.shiftDate),
     shiftStartTime: normalizeTime(raw.shiftStartTime),
     shiftEndTime: normalizeTime(raw.shiftEndTime),
+    substitution: mapScheduleSubstitutionBrief(raw.substitution),
   });
 }
 
@@ -1248,6 +1298,33 @@ export function mapApiScheduleCell(input: unknown, storeId: string): ScheduleShi
     color: asString(raw.color, "blue"),
     note: asString(raw.note),
     status: "draft",
+    originType: asString(raw.originType, "draft"),
+    substitutionId: raw.substitutionId as number | string | null | undefined,
+    isSubstitution: raw.isSubstitution === true || asString(raw.originType) === "substitution",
+    substitutionStatus: asString(raw.substitutionStatus),
+  };
+}
+
+function mapSchedulePublishResult(input: unknown): MerchantSchedulePublishResult {
+  const raw = asRecord(input);
+  return {
+    conflicts: asArray(raw.conflicts).map((item) => {
+      const c = asRecord(item);
+      return {
+        substitutionId: c.substitutionId as number | string | null | undefined,
+        leaveItemId: c.leaveItemId as number | string | null | undefined,
+        conflictCode: asString(c.conflictCode),
+        message: asString(c.message),
+      };
+    }),
+    orphanedSubstitutions: asArray(raw.orphanedSubstitutions).map((item) => {
+      const o = asRecord(item);
+      return {
+        substitutionId: o.substitutionId as number | string | null | undefined,
+        leaveItemId: o.leaveItemId as number | string | null | undefined,
+        substituteMerchantAdminId: o.substituteMerchantAdminId as number | string | null | undefined,
+      };
+    }),
   };
 }
 
@@ -1531,11 +1608,13 @@ export const merchantApi = {
       storeId,
       body: payload,
     }),
-  publishSchedule: (storeId: string) =>
-    apiRequest<null>(appendEndpointPath(getMerchantEndpoint("schedule"), "publish"), {
+  publishSchedule: async (storeId: string) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("schedule"), "publish"), {
       method: "POST",
       storeId,
-    }),
+    });
+    return mapSchedulePublishResult(data);
+  },
   subscribeBilling: (planId: number, quantity: number) =>
     apiRequest<MerchantCheckoutSession>(appendEndpointPath(getMerchantEndpoint("billing"), "subscribe"), {
       method: "POST",
@@ -1583,18 +1662,62 @@ export const merchantApi = {
     });
     return mapAttendanceRequest(data);
   },
+  listSubstituteCandidates: async (
+    storeId: string,
+    params: {
+      leaveItemId?: string | number;
+      scheduleDate?: string;
+      startTime?: string;
+      endTime?: string;
+      excludeMerchantAdminId?: string | number;
+    },
+  ) => {
+    const query = new URLSearchParams();
+    if (params.leaveItemId != null) query.set("leaveItemId", String(params.leaveItemId));
+    if (params.scheduleDate) query.set("scheduleDate", params.scheduleDate);
+    if (params.startTime) query.set("startTime", params.startTime);
+    if (params.endTime) query.set("endTime", params.endTime);
+    if (params.excludeMerchantAdminId != null) {
+      query.set("excludeMerchantAdminId", String(params.excludeMerchantAdminId));
+    }
+    const qs = query.toString();
+    const data = await apiRequest<{ storeId?: number | string; items?: unknown[] }>(
+      appendEndpointPath(getMerchantEndpoint("attendance"), "substitute-candidates") + (qs ? `?${qs}` : ""),
+      { storeId },
+    );
+    return (data?.items || []).map((item) => {
+      const raw = asRecord(item);
+      return {
+        id: raw.id as number | string,
+        name: asString(raw.name),
+      } satisfies MerchantEmployeeIdName;
+    });
+  },
   reviewAttendanceRequest: async (
     id: string | number,
     storeId: string,
-    payload: { approved: boolean; reviewComment?: string | null },
+    payload: {
+      approved: boolean;
+      reviewComment?: string | null;
+      substitutions?: LeaveSubstitutionReviewItem[];
+    },
   ) => {
+    const substitutions = (payload.substitutions || [])
+      .filter((item) => item.leaveItemId && item.substituteMerchantAdminId)
+      .map((item) => compactDeep({
+        leaveItemId: toNumberOrString(item.leaveItemId),
+        substituteMerchantAdminId: toNumberOrString(item.substituteMerchantAdminId),
+        substituteStartTime: item.substituteStartTime || undefined,
+        substituteEndTime: item.substituteEndTime || undefined,
+      }));
     const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("attendance"), "requests", id, "review"), {
       method: "POST",
       storeId,
-      body: {
+      body: compactDeep({
         approved: payload.approved,
         reviewComment: payload.reviewComment || null,
-      },
+        substitutions: substitutions.length > 0 ? substitutions : undefined,
+      }),
     });
     return mapAttendanceRequest(data);
   },
