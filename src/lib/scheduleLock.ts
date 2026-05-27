@@ -1,19 +1,16 @@
 import dayjs, { type Dayjs } from "dayjs";
-import isoWeek from "dayjs/plugin/isoWeek";
 
-dayjs.extend(isoWeek);
+export const getScheduleEditableDateStart = () =>
+  dayjs().add(1, "day").startOf("day");
 
-export const getCurrentScheduleWeekStart = () =>
-  dayjs().startOf("isoWeek").startOf("day");
-
-export const isBeforeCurrentScheduleWeek = (
+export const isOnOrBeforeCurrentScheduleDate = (
   date?: string | Dayjs | null,
 ) => {
   if (!date) return false;
   const value = dayjs.isDayjs(date) ? date : dayjs(date);
   if (!value.isValid()) return false;
-  return value.isBefore(getCurrentScheduleWeekStart(), "day");
+  return value.isBefore(getScheduleEditableDateStart(), "day");
 };
 
 export const isScheduleDateEditable = (date?: string | Dayjs | null) =>
-  !isBeforeCurrentScheduleWeek(date);
+  !isOnOrBeforeCurrentScheduleDate(date);

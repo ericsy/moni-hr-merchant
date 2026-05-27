@@ -217,11 +217,32 @@
     "manager": "string",
     "openTime": "string",
     "closeTime": "string",
-    "timezone": "string",
-    "status": "string",
+    "weeklyHours": [
+        {
+            "weekday": 1,
+            "closed": true,
+            "openTime": "string",
+            "closeTime": "string"
+        }
+    ],
+    "status": 0,
     "latitude": 0,
     "longitude": 0,
-    "geofenceRadius": 0
+    "geofenceRadius": 0,
+    "storeOfficers": {
+        "storeManagerEmployeeId": 0,
+        "deputyManagerEmployeeIds": [
+            0
+        ]
+    },
+    "publicHolidayPayRate": 0,
+    "publicHolidays": [
+        {
+            "holidayDate": "2019-08-24",
+            "name": "string"
+        }
+    ],
+    "syncPublicHolidaysFromSameCountry": true
 }
 ```
 - Response：
@@ -253,11 +274,32 @@
     "manager": "string",
     "openTime": "string",
     "closeTime": "string",
-    "timezone": "string",
-    "status": "string",
+    "weeklyHours": [
+        {
+            "weekday": 1,
+            "closed": true,
+            "openTime": "string",
+            "closeTime": "string"
+        }
+    ],
+    "status": 0,
     "latitude": 0,
     "longitude": 0,
-    "geofenceRadius": 0
+    "geofenceRadius": 0,
+    "storeOfficers": {
+        "storeManagerEmployeeId": 0,
+        "deputyManagerEmployeeIds": [
+            0
+        ]
+    },
+    "publicHolidayPayRate": 0,
+    "publicHolidays": [
+        {
+            "holidayDate": "2019-08-24",
+            "name": "string"
+        }
+    ],
+    "syncToSameCountryStores": true
 }
 ```
 - Response：
@@ -1370,12 +1412,15 @@
 | email | string | 否 | - |
 | manager | string | 否 | - |
 | openTime | string | 否 | HH:mm |
-| closeTime | string | 否 | HH:mm |
-| timezone | string | 否 | - |
-| status | string | 否 | enabled 或 disabled |
+| closeTime | string | 否 | HH:mm（与分日 weeklyHours 并存；weeklyHours 未设置时可用作统一营业时间） |
+| weeklyHours | StoreWeekdayHours[] | 否 | 分日营业；null 表示未配置，沿用 openTime/closeTime；非空时为 7 条（weekday 1–7） |
+| status | integer | 否 | 1 enabled，0 disabled |
 | latitude | number(double) | 否 | - |
 | longitude | number(double) | 否 | - |
 | geofenceRadius | integer | 否 | 米 |
+| storeOfficers | StoreOfficers | 否 | 门店任职（店长至多一名、副店长可多名；独立表 merchant_store_office） |
+| publicHolidayPayRate | number(double) \| null | 否 | 公共假期工资系数，如 1.5 表示 150% |
+| publicHolidays | StorePublicHolidayItem[] | 否 | 公共假期列表 |
 
 ### MerchantStoreCreateRequest
 
@@ -1393,11 +1438,15 @@
 | manager | string | 否 | - |
 | openTime | string | 否 | - |
 | closeTime | string | 否 | - |
-| timezone | string | 否 | - |
-| status | string | 否 | - |
+| weeklyHours | StoreWeekdayHours[] | 否 | 可选，与 openTime/closeTime 并存；非空须 7 条 weekday 1–7 各一条 |
+| status | integer \| string | 否 | 1=enabled，0=disabled；亦接受字符串 enabled/disabled（大小写不敏感） |
 | latitude | number(double) | 否 | - |
 | longitude | number(double) | 否 | - |
 | geofenceRadius | integer | 否 | - |
+| storeOfficers | StoreOfficersInput | 否 | 可选；创建时设置门店任职 |
+| publicHolidayPayRate | number(double) \| null | 否 | 公共假期工资系数 |
+| publicHolidays | StorePublicHolidayItem[] | 否 | 公共假期列表 |
+| syncPublicHolidaysFromSameCountry | boolean | 否 | 未传假期/系数时，从同国家其他门店复制 |
 
 ### MerchantStoreDeletePayload
 
@@ -1407,6 +1456,53 @@
 |---|---|---|---|
 | id | integer(int64) | 否 | - |
 | deleted | boolean | 否 | - |
+
+### StoreWeekdayHours
+
+- Schema ID：272453167
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| weekday | integer | 是 | 1=周一 … 7=周日 |
+| closed | boolean | 否 | true 表示该日关店（忽略 openTime/closeTime） |
+| openTime | string | 否 | 营业日 HH:mm；关店日可省略 |
+| closeTime | string | 否 | 营业日 HH:mm；关店日可省略 |
+
+### StoreOfficerEmployee
+
+- Schema ID：275648216
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | integer(int64) | 否 | merchant_admin.id |
+| name | string | 否 | - |
+
+### StoreOfficers
+
+- Schema ID：275648217
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| storeManager | StoreOfficerEmployee \| null | 否 | 店长（可选） |
+| deputyManagers | StoreOfficerEmployee[] | 否 | 副店长列表（可为空） |
+
+### StoreOfficersInput
+
+- Schema ID：275648218
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| storeManagerEmployeeId | integer(int64) \| null | 否 | 店长员工 id；null 表示不设店长 |
+| deputyManagerEmployeeIds | integer(int64)[] | 否 | 副店长员工 id 列表 |
+
+### StorePublicHolidayItem
+
+- Schema ID：278218117
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| holidayDate | string(date) \| null | 否 | 有值时才会保存 |
+| name | string \| null | 否 | 假期名称，可选 |
 
 ### MerchantStoreList
 
@@ -1432,11 +1528,15 @@
 | manager | string | 否 | - |
 | openTime | string | 否 | - |
 | closeTime | string | 否 | - |
-| timezone | string | 否 | - |
-| status | string | 否 | - |
+| weeklyHours | StoreWeekdayHours[] \| null | 否 | null 不修改；[] 清除分日配置；非空须 7 条 weekday 1–7 各一条 |
+| status | integer \| string | 否 | 1=enabled，0=disabled；亦接受字符串 enabled/disabled（大小写不敏感） |
 | latitude | number(double) | 否 | - |
 | longitude | number(double) | 否 | - |
 | geofenceRadius | integer | 否 | - |
+| storeOfficers | StoreOfficersInput \| null | 否 | null 不修改；非 null 时整单替换店长/副店长（可清空） |
+| publicHolidayPayRate | number(double) \| null | 否 | null 不修改 |
+| publicHolidays | StorePublicHolidayItem[] \| null | 否 | null 不修改；非 null 整单替换（含 [] 清空） |
+| syncToSameCountryStores | boolean | 否 | 为 true 时同步到同国家其他门店（仅主管理员） |
 
 ### MerchantSubscription
 
