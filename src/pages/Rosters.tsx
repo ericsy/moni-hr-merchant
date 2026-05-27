@@ -1898,9 +1898,17 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       endTime: targetShift.endTime,
     };
 
-    const availabilityWarning = findAvailabilityWarning(empId, nextShift);
-    if (availabilityWarning) {
-      toast.error(availabilityWarning);
+    const dateLeaveWarning = findDateLeaveWarning(empId, targetShift.date);
+    const employee = activeEmployees.find((item) => item.id === empId);
+    const patternAvailabilityWarning = employee
+      ? getDatedShiftAvailabilityWarning(employee, nextShift, locale)
+      : null;
+
+    if (dateLeaveWarning) {
+      toast.warning(dateLeaveWarning);
+    }
+    if (patternAvailabilityWarning) {
+      toast.error(patternAvailabilityWarning);
       return;
     }
 

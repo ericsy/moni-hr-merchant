@@ -372,6 +372,25 @@ function asString(value: unknown, fallback = "") {
   return String(value);
 }
 
+/** 将接口中的 LocalDate（字符串或 [y,m,d] 数组等）规范为 YYYY-MM-DD，供排班请假区间比较 */
+function normalizeApiLocalDate(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    return s;
+  }
+  if (Array.isArray(value) && value.length >= 3) {
+    const y = Number(value[0]);
+    const m = Number(value[1]);
+    const d = Number(value[2]);
+    if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+  return "";
+}
+
 function isHttpUrl(value: string) {
   return /^https?:\/\//i.test(value.trim());
 }
@@ -1711,14 +1730,19 @@ export const merchantApi = {
     const cells = (data?.cells || []).map((cell) => mapApiScheduleCell(cell, storeId));
     const employeeDateLeaves = asArray(data?.employeeDateLeaves).map((row) => {
       const raw = asRecord(row);
+      const leaveDateFrom = normalizeApiLocalDate(
+        raw.leaveDateFrom ?? raw.leave_date_from,
+      );
+      const leaveDateTo = normalizeApiLocalDate(raw.leaveDateTo ?? raw.leave_date_to);
       return compactDeep({
         storeId,
-        merchantAdminId: raw.merchantAdminId as number | string | null | undefined,
-        displayName: asString(raw.displayName),
-        leaveDateFrom: asString(raw.leaveDateFrom),
-        leaveDateTo: asString(raw.leaveDateTo),
+        merchantAdminId:
+          (raw.merchantAdminId ?? raw.merchant_admin_id) as number | string | null | undefined,
+        displayName: asString(raw.displayName ?? raw.display_name),
+        leaveDateFrom,
+        leaveDateTo,
         status: asString(raw.status),
-        requestId: raw.requestId as number | string | null | undefined,
+        requestId: (raw.requestId ?? raw.request_id) as number | string | null | undefined,
       }) as EmployeeDateLeave & { storeId: string };
     });
     return { cells, employeeDateLeaves };
