@@ -400,15 +400,49 @@ function ShiftEntry({
         if (empId) onDropEmployee(empId);
       }}
     >
-      {/* Top row: fixed info + action buttons */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1 mb-0.5">
+      {/* Time + hours badge (moved up) */}
+      <div className="flex items-center gap-1 flex-wrap mb-0.5">
+        <Clock size={8} style={{ color: cs.text }} />
+        <span style={{ fontSize: 9, color: cs.text }}>
+          {formatTime12(shift.startTime)} – {formatTime12(shift.endTime)}
+        </span>
+        <span
+          className="rounded-full px-1 ml-auto font-semibold"
+          style={{
+            fontSize: 8,
+            background: cs.border,
+            color: "var(--primary-foreground)",
+          }}
+        >
+          {hrs}h
+        </span>
+      </div>
+
+      {/* Shift name + action buttons (moved down) */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
         <div className="min-w-0 w-full overflow-hidden">
-          <span
-            className="text-xs font-semibold truncate"
-            style={{ color: cs.text, fontSize: 10 }}
-            title={shift.shiftName || ""}
-          >
-            {shift.shiftName || formatTime12(shift.startTime)}
+          <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
+            <span
+              className="text-xs font-semibold truncate"
+              style={{ color: cs.text, fontSize: 10 }}
+              title={shift.shiftName || ""}
+            >
+              {shift.shiftName || formatTime12(shift.startTime)}
+            </span>
+            {shift.isSubstitution ? (
+              <span
+                className="rounded px-1 font-bold flex-shrink-0"
+                style={{
+                  fontSize: 8,
+                  background: "#f3e8ff",
+                  color: "#7c3aed",
+                  border: "1px solid #c4b5fd",
+                  lineHeight: 1.2,
+                }}
+              >
+                {locale === "zh" ? "替班" : "Sub"}
+              </span>
+            ) : null}
           </span>
         </div>
         {!readonly && (
@@ -440,32 +474,6 @@ function ShiftEntry({
         )}
       </div>
 
-      {/* Time + hours badge */}
-      <div className="flex items-center gap-1 flex-wrap">
-        <Clock size={8} style={{ color: cs.text }} />
-        <span style={{ fontSize: 9, color: cs.text }}>
-          {formatTime12(shift.startTime)} – {formatTime12(shift.endTime)}
-        </span>
-        {shift.isSubstitution ? (
-          <span
-            className="rounded px-1 font-bold"
-            style={{ fontSize: 8, background: "#f3e8ff", color: "#7c3aed", border: "1px solid #c4b5fd" }}
-          >
-            {locale === "zh" ? "替班" : "Sub"}
-          </span>
-        ) : null}
-        <span
-          className="rounded-full px-1 ml-auto font-semibold"
-          style={{
-            fontSize: 8,
-            background: cs.border,
-            color: "var(--primary-foreground)",
-          }}
-        >
-          {hrs}h
-        </span>
-      </div>
-
       {shift.isSubstitution && shift.originalDisplayName ? (
         <div
           className="mt-0.5 truncate"
@@ -475,6 +483,41 @@ function ShiftEntry({
           {t.schedule.substitutionReplacedFor}: {shift.originalDisplayName}
         </div>
       ) : null}
+
+      {/* Add employee button (above employee list) */}
+      {!readonly && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onAddEmployeeClick();
+          }}
+          className="w-full flex items-center justify-center rounded-md mt-0.5 transition-all hover:opacity-80"
+          style={{
+            border: `1px dashed ${isDragOver ? "var(--primary)" : cs.border}`,
+            padding: "2px 4px",
+            background: isDragOver ? "var(--secondary)" : "transparent",
+            cursor: "pointer",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <span
+            style={{
+              color: isDragOver ? "var(--primary)" : cs.text,
+              fontSize: 9,
+            }}
+          >
+            {assignedEmployees.length > 0
+              ? locale === "zh"
+                ? `+ 添加员工`
+                : `+ add employee`
+              : locale === "zh"
+                ? `选择员工`
+                : `select employee`}
+          </span>
+        </button>
+      )}
 
       {/* Employees (dynamic) */}
       {assignedEmployees.length > 0 && (
@@ -531,41 +574,6 @@ function ShiftEntry({
             </Tooltip>
           ))}
         </div>
-      )}
-
-      {/* Drop hint / add employee button */}
-      {!readonly && (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onAddEmployeeClick();
-          }}
-          className="w-full flex items-center justify-center rounded-md mt-0.5 transition-all hover:opacity-80"
-          style={{
-            border: `1px dashed ${isDragOver ? "var(--primary)" : cs.border}`,
-            padding: "2px 4px",
-            background: isDragOver ? "var(--secondary)" : "transparent",
-            cursor: "pointer",
-            position: "relative",
-            zIndex: 1,
-          }}
-        >
-          <span
-            style={{
-              color: isDragOver ? "var(--primary)" : cs.text,
-              fontSize: 9,
-            }}
-          >
-            {assignedEmployees.length > 0
-              ? locale === "zh"
-                ? `+ 添加员工`
-                : `+ add employee`
-              : locale === "zh"
-                ? `选择员工`
-                : `select employee`}
-          </span>
-        </button>
       )}
     </div>
   );

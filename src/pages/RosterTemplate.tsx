@@ -243,8 +243,26 @@ function ShiftCell({
         if (id) onDrop(id);
       }}
     >
-      {/* Top row: fixed info + action buttons */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1 mb-0.5">
+      {/* Time row (moved up) */}
+      <div className="flex items-center gap-1 mb-0.5">
+        <Clock size={8} style={{ color: sc.text }} />
+        <span style={{ fontSize: 9, color: sc.text }}>
+          {formatTime12(cell.startTime)} – {formatTime12(cell.endTime)}
+        </span>
+        <span
+          className="rounded-full px-1 ml-auto font-semibold"
+          style={{
+            fontSize: 8,
+            background: sc.border,
+            color: "var(--primary-foreground)",
+          }}
+        >
+          {hrs}h
+        </span>
+      </div>
+
+      {/* Shift name + action buttons (moved down) */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
         <div className="min-w-0 w-full overflow-hidden">
           <span
             className="text-xs font-semibold truncate"
@@ -272,23 +290,32 @@ function ShiftCell({
         </div>
       </div>
 
-      {/* Time row */}
-      <div className="flex items-center gap-1">
-        <Clock size={8} style={{ color: sc.text }} />
-        <span style={{ fontSize: 9, color: sc.text }}>
-          {formatTime12(cell.startTime)} – {formatTime12(cell.endTime)}
-        </span>
+      {/* Add employee button (above employee list) */}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onAddEmployeeClick();
+        }}
+        className="w-full flex items-center justify-center rounded-md mt-0.5 transition-all hover:opacity-80"
+        style={{
+          border: `1px dashed ${isDragOver ? "var(--primary)" : sc.border}`,
+          padding: "2px 4px",
+          background: isDragOver ? "var(--secondary)" : "transparent",
+          cursor: "pointer",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
         <span
-          className="rounded-full px-1 ml-auto font-semibold"
           style={{
-            fontSize: 8,
-            background: sc.border,
-            color: "var(--primary-foreground)",
+            color: isDragOver ? "var(--primary)" : sc.text,
+            fontSize: 9,
           }}
         >
-          {hrs}h
+          {employees.length > 0 ? `+ 添加员工` : `选择员工`}
         </span>
-      </div>
+      </button>
 
       {/* Employees (dynamic) */}
       {employees.length > 0 && (
@@ -349,33 +376,6 @@ function ShiftCell({
           ))}
         </div>
       )}
-
-      {/* Drop hint / add employee button */}
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onAddEmployeeClick();
-        }}
-        className="w-full flex items-center justify-center rounded-md mt-0.5 transition-all hover:opacity-80"
-        style={{
-          border: `1px dashed ${isDragOver ? "var(--primary)" : sc.border}`,
-          padding: "2px 4px",
-          background: isDragOver ? "var(--secondary)" : "transparent",
-          cursor: "pointer",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        <span
-          style={{
-            color: isDragOver ? "var(--primary)" : sc.text,
-            fontSize: 9,
-          }}
-        >
-          {employees.length > 0 ? `+ 添加员工` : `选择员工`}
-        </span>
-      </button>
     </div>
   );
 }
