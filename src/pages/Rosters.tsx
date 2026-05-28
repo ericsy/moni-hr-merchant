@@ -589,6 +589,8 @@ interface DateColHeaderProps {
   dayLabel?: string;
   isToday?: boolean;
   isClosedDay?: boolean;
+  isPublicHoliday?: boolean;
+  publicHolidayName?: string;
   dateFormatCountry?: string;
   onDropTemplate?: (templateId: string, dateStr: string) => void;
   shiftCount?: number;
@@ -600,6 +602,8 @@ function DateColHeader({
   dayLabel = "",
   isToday = false,
   isClosedDay = false,
+  isPublicHoliday = false,
+  publicHolidayName = "",
   dateFormatCountry = "",
   onDropTemplate = () => {},
   shiftCount = 0,
@@ -643,6 +647,8 @@ function DateColHeader({
           ? "var(--accent)"
           : isToday
             ? "var(--primary)"
+            : isPublicHoliday
+              ? "rgba(250, 204, 21, 0.16)"
             : isClosedDay
               ? "var(--workday-weekend-header)"
               : "var(--card)",
@@ -674,6 +680,8 @@ function DateColHeader({
         style={{
           color: isToday
             ? "var(--primary-foreground)"
+            : isPublicHoliday
+              ? "rgba(161, 98, 7, 0.95)"
             : isClosedDay
               ? "var(--workday-weekend-text)"
               : "var(--muted-foreground)",
@@ -687,6 +695,8 @@ function DateColHeader({
           fontSize: 15,
           color: isToday
             ? "var(--primary-foreground)"
+            : isPublicHoliday
+              ? "rgba(120, 53, 15, 0.98)"
             : isClosedDay
               ? "var(--workday-weekend-text)"
               : "var(--foreground)",
@@ -694,6 +704,22 @@ function DateColHeader({
       >
         {dayLabel}
       </span>
+      {isPublicHoliday && !isDragOver && (
+        <span
+          className="mt-0.5 rounded-full px-2 py-0.5"
+          title={publicHolidayName || (locale === "zh" ? "公共假期" : "Public holiday")}
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            background: "rgba(250, 204, 21, 0.26)",
+            color: "rgba(120, 53, 15, 0.98)",
+            border: "1px solid rgba(250, 204, 21, 0.55)",
+            lineHeight: 1,
+          }}
+        >
+          {locale === "zh" ? "公假" : "Holiday"}
+        </span>
+      )}
       {shiftCount > 0 && !isDragOver && (
         <div
           className="rounded-full flex items-center justify-center mt-0.5"
@@ -747,6 +773,7 @@ interface AreaDateCellProps {
   ) => string | null;
   isToday?: boolean;
   isClosedDay?: boolean;
+  isPublicHoliday?: boolean;
   readonly?: boolean;
 }
 
@@ -765,6 +792,7 @@ function AreaDateCell({
   getAvailabilityWarning = () => null,
   isToday = false,
   isClosedDay = false,
+  isPublicHoliday = false,
   readonly = false,
 }: AreaDateCellProps) {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -811,6 +839,8 @@ function AreaDateCell({
           ? "var(--secondary)"
           : isToday
             ? "var(--workday-active-bg)"
+            : isPublicHoliday
+              ? "rgba(250, 204, 21, 0.12)"
             : isClosedDay
               ? "var(--workday-weekend-header)"
               : "transparent",
@@ -945,6 +975,15 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const dateFormatCountry = selectedStore?.country;
   const isStoreClosedDate = (date: dayjs.Dayjs) =>
     isStoreClosedOnWeekday(selectedStore, date.isoWeekday());
+  const publicHolidayNameByDate = useMemo(() => {
+    const map = new Map<string, string>();
+    (selectedStore?.publicHolidays || []).forEach((holiday) => {
+      const dateStr = (holiday?.date || "").slice(0, 10);
+      if (!dateStr) return;
+      map.set(dateStr, holiday?.name || "");
+    });
+    return map;
+  }, [selectedStore?.publicHolidays]);
 
   // ── Left panel state ────────────────────────────────────────────────────────
   const [leftTab, setLeftTab] = useState<"templates" | "employees">(
@@ -2552,9 +2591,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
               {/* Date columns */}
               {weekDates.map((d, i) => {
-                const isToday = d.format("YYYY-MM-DD") === todayStr;
+                const dateStr = d.format("YYYY-MM-DD");
+                const isToday = dateStr === todayStr;
                 const isClosedDay = isStoreClosedDate(d);
-                const cnt = dateTotalShifts(d.format("YYYY-MM-DD"));
+                const publicHolidayName =
+                  publicHolidayNameByDate.get(dateStr) || "";
+                const cnt = dateTotalShifts(dateStr);
                 return (
                   <DateColHeader
                     key={i}
@@ -2562,6 +2604,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     dayLabel={dayLabels[i]}
                     isToday={isToday}
                     isClosedDay={isClosedDay}
+                    isPublicHoliday={!!publicHolidayName}
+                    publicHolidayName={publicHolidayName}
                     dateFormatCountry={dateFormatCountry}
                     onDropTemplate={handleDropTemplateToDate}
                     shiftCount={cnt}
@@ -2623,6 +2667,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     const dateStr = d.format("YYYY-MM-DD");
                     const isToday = dateStr === todayStr;
                     const isClosedDay = isStoreClosedDate(d);
+                    const isPublicHoliday = publicHolidayNameByDate.has(dateStr);
                     const cellShifts = getShifts(area.id, dateStr);
                     const isReadonlyDate = !isScheduleDateEditable(d);
 
@@ -2645,6 +2690,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                         getAvailabilityWarning={findAvailabilityWarning}
                         isToday={isToday}
                         isClosedDay={isClosedDay}
+                        isPublicHoliday={isPublicHoliday}
                         readonly={isReadonlyDate}
                       />
                     );
