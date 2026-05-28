@@ -700,26 +700,32 @@ function DateColHeader({
             : isClosedDay
               ? "var(--workday-weekend-text)"
               : "var(--foreground)",
+          lineHeight: 1.05,
         }}
       >
-        {dayLabel}
-      </span>
-      {isPublicHoliday && !isDragOver && (
-        <span
-          className="mt-0.5 rounded-full px-2 py-0.5"
-          title={publicHolidayName || (locale === "zh" ? "公共假期" : "Public holiday")}
-          style={{
-            fontSize: 9,
-            fontWeight: 700,
-            background: "rgba(250, 204, 21, 0.26)",
-            color: "rgba(120, 53, 15, 0.98)",
-            border: "1px solid rgba(250, 204, 21, 0.55)",
-            lineHeight: 1,
-          }}
-        >
-          {locale === "zh" ? "公假" : "Holiday"}
+        <span className="inline-flex items-center gap-1">
+          <span>{dayLabel}</span>
+          {isPublicHoliday && !isDragOver && (
+            <span
+              className="rounded-full px-1.5 py-0.5"
+              title={
+                publicHolidayName ||
+                (locale === "zh" ? "公共假期" : "Public holiday")
+              }
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                background: "rgba(250, 204, 21, 0.26)",
+                color: "rgba(120, 53, 15, 0.98)",
+                border: "1px solid rgba(250, 204, 21, 0.55)",
+                lineHeight: 1,
+              }}
+            >
+              {locale === "zh" ? "公假" : "Holiday"}
+            </span>
+          )}
         </span>
-      )}
+      </span>
       {shiftCount > 0 && !isDragOver && (
         <div
           className="rounded-full flex items-center justify-center mt-0.5"

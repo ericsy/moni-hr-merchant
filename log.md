@@ -9,3 +9,5 @@
 - **排班请假数据与拖入提示**：后端 `MerchantScheduleService.wrapWithDateLeaves` 原先仅用已有格子日期区间查请假，与当前浏览周无交集时接口返回空 `employeeDateLeaves`，导致列表/格子均无提示。现改为「格子日期 ∪ 门店今天前 120 天～后 730 天」再查重叠请假。**`EmployeeDateLeaveVo`** 为请假起止日增加 **`@JSONField(format = "yyyy-MM-dd")`**。**`merchantApi.getSchedule`** 对请假日期做 **`normalizeApiLocalDate`** 并兼容 snake_case 字段。拖入已有班次时：按日期请假仅 **`toast.warning`** 仍允许加入；与周模板冲突等仍 **`toast.error`** 拦截。
 
 - 更新 `Rosters.tsx`：如果当前门店某天为 **公共假期**（`selectedStore.publicHolidays` 命中），则在日历表头显示 **“公假/Holiday”** 标识，并将该日期整列背景色与普通日期/周末区分开。
+
+- 更新 `Rosters.tsx`：将公共假期标识与星期文本放在同一行显示（更紧凑，便于快速识别）。
