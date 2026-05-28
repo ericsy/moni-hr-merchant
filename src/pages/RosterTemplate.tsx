@@ -768,6 +768,49 @@ export default function RosterTemplatePage({
     );
   };
 
+  const conflictEmployeeIdSet = useMemo(() => {
+    if (!cellModalOpen) return new Set<string>();
+    const set = new Set<string>();
+    for (const emp of activeEmployees) {
+      const conflict = findConflict(
+        emp.id,
+        editingDayIndex,
+        cellForm.startTime,
+        cellForm.endTime,
+        editingCell?.id,
+      );
+      if (conflict) set.add(emp.id);
+    }
+    return set;
+  }, [
+    activeEmployees,
+    cellForm.endTime,
+    cellForm.startTime,
+    cellModalOpen,
+    editingCell?.id,
+    editingDayIndex,
+    findConflict,
+  ]);
+
+  useEffect(() => {
+    if (!cellModalOpen) return;
+    if (cellForm.employeeIds.length === 0) return;
+    if (conflictEmployeeIdSet.size === 0) return;
+    const conflicted = cellForm.employeeIds.filter((id) =>
+      conflictEmployeeIdSet.has(id),
+    );
+    if (conflicted.length === 0) return;
+    setCellForm((prev) => ({
+      ...prev,
+      employeeIds: prev.employeeIds.filter((id) => !conflictEmployeeIdSet.has(id)),
+    }));
+    toast.warning(
+      locale === "zh"
+        ? `已移除 ${conflicted.length} 名时间冲突员工`
+        : `Removed ${conflicted.length} conflicting employee(s)`,
+    );
+  }, [cellForm.employeeIds, cellModalOpen, conflictEmployeeIdSet, locale]);
+
   // ── Template CRUD ─────────────────────────────────────────────────────────
 
   const createDraftTemplate = (initialAreaIds: string[] = []) => {
@@ -2213,7 +2256,9 @@ export default function RosterTemplatePage({
                 );
               }}
             >
-              {activeEmployees.map((e) => (
+              {activeEmployees
+                .filter((e) => !conflictEmployeeIdSet.has(e.id))
+                .map((e) => (
                 <Option key={e.id} value={e.id}>
                   {e.firstName} {e.lastName}
                 </Option>

@@ -31,7 +31,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ColorSwatchPicker,
@@ -1037,6 +1037,61 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   // ── Computed ────────────────────────────────────────────────────────────────
   const activeEmployees = employees.filter((e) => e.status === "active");
+  const conflictEmployeeIdSet = useMemo(() => {
+    if (!shiftForm.date || !shiftForm.startTime || !shiftForm.endTime) {
+      return new Set<string>();
+    }
+    const nextShift = {
+      date: shiftForm.date,
+      startTime: shiftForm.startTime,
+      endTime: shiftForm.endTime,
+    };
+    const set = new Set<string>();
+    for (const emp of activeEmployees) {
+      const empId = emp.id;
+      const hasConflict = scheduleShifts.some((s) => {
+        if (!s.date) return false;
+        if (s.isGlobalPreset) return false;
+        if (s.id === editingShift?.id) return false;
+        if (!getShiftEmployeeIds(s).includes(empId)) return false;
+        return datedShiftsOverlap(nextShift, s);
+      });
+      if (hasConflict) set.add(empId);
+    }
+    return set;
+  }, [
+    activeEmployees,
+    editingShift?.id,
+    scheduleShifts,
+    shiftForm.date,
+    shiftForm.endTime,
+    shiftForm.startTime,
+  ]);
+
+  useEffect(() => {
+    if (shiftForm.employeeIds.length === 0) return;
+    if (conflictEmployeeIdSet.size === 0) return;
+    const conflicted = shiftForm.employeeIds.filter((id) =>
+      conflictEmployeeIdSet.has(id),
+    );
+    if (conflicted.length === 0) return;
+
+    setShiftForm((prev) => {
+      const nextIds = prev.employeeIds.filter(
+        (id) => !conflictEmployeeIdSet.has(id),
+      );
+      return {
+        ...prev,
+        employeeIds: nextIds,
+        employeeId: nextIds[0] || "",
+      };
+    });
+    toast.warning(
+      locale === "zh"
+        ? `已移除 ${conflicted.length} 名时间冲突员工`
+        : `Removed ${conflicted.length} conflicting employee(s)`,
+    );
+  }, [conflictEmployeeIdSet, locale, shiftForm.employeeIds]);
 
   // Areas: use shared base area data from context
   const displayAreas: Area[] = areas
@@ -2999,7 +3054,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                 );
               }}
             >
-              {activeEmployees.map((e) => (
+              {activeEmployees
+                .filter((e) => !conflictEmployeeIdSet.has(e.id))
+                .map((e) => (
                 <Option
                   key={e.id}
                   value={e.id}
