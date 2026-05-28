@@ -2001,14 +2001,6 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       ? getDatedShiftAvailabilityWarning(employee, nextShift, locale)
       : null;
 
-    if (dateLeaveWarning) {
-      toast.warning(dateLeaveWarning);
-    }
-    if (patternAvailabilityWarning) {
-      toast.error(patternAvailabilityWarning);
-      return;
-    }
-
     const hasConflict = scheduleShifts.some((shift) => {
       if (shift.id === targetShift.id) return false;
       if (!getShiftEmployeeIds(shift).includes(empId)) return false;
@@ -2024,22 +2016,22 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       return;
     }
 
-    setScheduleShifts((prev) =>
-      prev.map((shift) => {
-        if (shift.id !== targetShift.id) return shift;
+    // Other hints should behave like the modal: warning only (not blocking).
+    if (dateLeaveWarning) toast.warning(dateLeaveWarning);
+    if (patternAvailabilityWarning) toast.warning(patternAvailabilityWarning);
 
-        const nextEmployeeIds = [...getShiftEmployeeIds(shift), empId];
-        return {
-          ...shift,
-          employeeId: nextEmployeeIds[0] || empId,
-          employeeIds: nextEmployeeIds,
-          status: "draft",
-        };
-      }),
-    );
-    toast.success(
-      locale === "zh" ? "员工已添加到班次" : "Employee added to shift",
-    );
+    // Keep drag-to-shift behavior consistent with "添加员工":
+    // open the edit modal and pre-select the dropped employee,
+    // instead of directly mutating scheduleShifts.
+    openEditShift(targetShift);
+    setShiftForm((prev) => {
+      const nextEmployeeIds = Array.from(new Set([...prev.employeeIds, empId]));
+      return {
+        ...prev,
+        employeeIds: nextEmployeeIds,
+        employeeId: nextEmployeeIds[0] || "",
+      };
+    });
   };
 
   // ── Drop template onto the current visible week body ────────────────────────
