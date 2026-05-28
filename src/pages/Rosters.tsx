@@ -366,6 +366,8 @@ function ShiftEntry({
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale, t } = useLocale();
   if (!shift) return null;
+  const isSubstitutionLocked = !!shift.isSubstitution;
+  const isLocked = readonly || isSubstitutionLocked;
   const cs = getColorStyle(shift.color);
   const hrs = calcHours(shift.startTime, shift.endTime, shift.breakMinutes);
 
@@ -380,7 +382,7 @@ function ShiftEntry({
         transition: "all 0.15s",
       }}
       onDragOver={(e) => {
-        if (readonly && !hasTemplateDragData(e.dataTransfer)) return;
+        if (isLocked && !hasTemplateDragData(e.dataTransfer)) return;
         e.preventDefault();
         e.stopPropagation();
         setIsDragOver(true);
@@ -392,10 +394,11 @@ function ShiftEntry({
         setIsDragOver(false);
         const templateId = e.dataTransfer.getData("templateId");
         if (templateId) {
+          if (isLocked) return;
           onDropTemplate(templateId);
           return;
         }
-        if (readonly) return;
+        if (isLocked) return;
         const empId = e.dataTransfer.getData("employeeId");
         if (empId) onDropEmployee(empId);
       }}
@@ -445,7 +448,7 @@ function ShiftEntry({
             ) : null}
           </span>
         </div>
-        {!readonly && (
+        {!isLocked && (
           <div className="flex items-center gap-0.5 justify-self-end opacity-0 transition-opacity flex-shrink-0 group-hover:opacity-100">
             <button
               onClick={onEdit}
@@ -485,7 +488,7 @@ function ShiftEntry({
       ) : null}
 
       {/* Add employee button (above employee list) */}
-      {!readonly && (
+      {!isLocked && (
         <button
           type="button"
           onClick={(event) => {
@@ -563,13 +566,15 @@ function ShiftEntry({
                     style={{ color: "var(--destructive)", flexShrink: 0 }}
                   />
                 )}
-                <button
-                  onClick={() => onRemoveEmployee(emp.id)}
-                  className="rounded-full hover:opacity-70"
-                  style={{ color: "var(--muted-foreground)", flexShrink: 0 }}
-                >
-                  <X size={9} />
-                </button>
+                {!isLocked && (
+                  <button
+                    onClick={() => onRemoveEmployee(emp.id)}
+                    className="rounded-full hover:opacity-70"
+                    style={{ color: "var(--muted-foreground)", flexShrink: 0 }}
+                  >
+                    <X size={9} />
+                  </button>
+                )}
               </div>
             </Tooltip>
           ))}
