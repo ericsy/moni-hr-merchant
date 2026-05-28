@@ -2020,18 +2020,23 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     if (dateLeaveWarning) toast.warning(dateLeaveWarning);
     if (patternAvailabilityWarning) toast.warning(patternAvailabilityWarning);
 
-    // Keep drag-to-shift behavior consistent with "添加员工":
-    // open the edit modal and pre-select the dropped employee,
-    // instead of directly mutating scheduleShifts.
-    openEditShift(targetShift);
-    setShiftForm((prev) => {
-      const nextEmployeeIds = Array.from(new Set([...prev.employeeIds, empId]));
-      return {
-        ...prev,
-        employeeIds: nextEmployeeIds,
-        employeeId: nextEmployeeIds[0] || "",
-      };
-    });
+    // Drag-to-shift: directly apply, no modal confirmation.
+    setScheduleShifts((prev) =>
+      prev.map((shift) => {
+        if (shift.id !== targetShift.id) return shift;
+
+        const nextEmployeeIds = [...getShiftEmployeeIds(shift), empId];
+        return {
+          ...shift,
+          employeeId: nextEmployeeIds[0] || empId,
+          employeeIds: nextEmployeeIds,
+          status: "draft",
+        };
+      }),
+    );
+    toast.success(
+      locale === "zh" ? "员工已添加到班次" : "Employee added to shift",
+    );
   };
 
   // ── Drop template onto the current visible week body ────────────────────────
