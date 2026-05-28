@@ -47,6 +47,7 @@ export const locales = {
     nav: {
       home: "控制台",
       employees: "员工管理",
+      employeeStats: "员工统计",
       stores: "店面管理",
       areas: "区域管理",
       schedule: "班次管理",
@@ -543,6 +544,7 @@ export const locales = {
     nav: {
       home: "Dashboard",
       employees: "Employees",
+      employeeStats: "Employee Stats",
       stores: "Stores",
       areas: "Areas",
       schedule: "Shift Management",

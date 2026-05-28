@@ -23,6 +23,12 @@ interface ApiResult<T> {
   data?: T;
 }
 
+export interface ApiBlobResult {
+  blob: Blob;
+  filename?: string;
+  contentType?: string;
+}
+
 export class ApiError extends Error {
   status?: number;
   code?: number | string;
@@ -152,6 +158,32 @@ function isSuccessCode(code: unknown) {
   return ["0", "200", "201"].includes(String(code));
 }
 
+function tryParseJson(text: string) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function getFilenameFromContentDisposition(value?: string | null) {
+  const raw = String(value || "");
+  if (!raw) return "";
+
+  const encodedMatch = raw.match(/filename\*\s*=\s*([^']*)''([^;]+)/i);
+  if (encodedMatch?.[2]) {
+    try {
+      return decodeURIComponent(encodedMatch[2].trim().replace(/^"|"$/g, ""));
+    } catch {
+      return encodedMatch[2].trim().replace(/^"|"$/g, "");
+    }
+  }
+
+  const filenameMatch = raw.match(/filename\s*=\s*("?)([^";]+)\1/i);
+  return filenameMatch?.[2]?.trim() || "";
+}
+
 export async function apiRequest<T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { body, query, storeId, auth = true, headers, ...requestOptions } = options;
   const requestHeaders = new Headers(headers);
@@ -204,4 +236,72 @@ export async function apiRequest<T = unknown>(path: string, options: ApiRequestO
   }
 
   return payload as T;
+}
+
+export async function apiRequestBlob(path: string, options: ApiRequestOptions = {}): Promise<ApiBlobResult> {
+  const { body, query, storeId, auth = true, headers, ...requestOptions } = options;
+  const requestHeaders = new Headers(headers);
+  const effectiveStoreId = storeId === null ? "" : storeId || getCurrentStoreId();
+  const isFormDataBody = typeof FormData !== "undefined" && body instanceof FormData;
+
+  requestHeaders.set("X-Lang", getCurrentLanguage());
+
+  if (body !== undefined && !isFormDataBody && !requestHeaders.has("Content-Type")) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
+
+  if (auth && effectiveStoreId) {
+    requestHeaders.set("X-Store-Id", effectiveStoreId);
+  }
+
+  if (auth) {
+    const token = getStoredAccessToken();
+    if (token) {
+      requestHeaders.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
+  const response = await fetch(buildUrl(path, query), {
+    ...requestOptions,
+    headers: requestHeaders,
+    body: body === undefined ? undefined : isFormDataBody ? body : JSON.stringify(body),
+  });
+
+  const contentType = response.headers.get("Content-Type") || "";
+  const filename = getFilenameFromContentDisposition(response.headers.get("Content-Disposition"));
+
+  if (!response.ok) {
+    const text = await response.text();
+    const payload = tryParseJson(text);
+    const message = isApiResult(payload) ? payload.message : text || response.statusText;
+    if (auth && response.status === 401) {
+      notifyAuthExpired();
+    }
+    throw new ApiError(message || "Request failed", response.status);
+  }
+
+  if (contentType.toLowerCase().includes("application/json")) {
+    const text = await response.text();
+    const payload = tryParseJson(text);
+    if (isApiResult(payload)) {
+      const code = payload.code;
+      if (code !== undefined && !isSuccessCode(code)) {
+        if (auth && isUnauthorizedCode(code)) {
+          notifyAuthExpired();
+        }
+        throw new ApiError(payload.message || "Request failed", response.status, code);
+      }
+    }
+    return {
+      blob: new Blob([text], { type: contentType }),
+      filename,
+      contentType,
+    };
+  }
+
+  return {
+    blob: await response.blob(),
+    filename,
+    contentType,
+  };
 }

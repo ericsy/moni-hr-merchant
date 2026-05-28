@@ -13,6 +13,7 @@ import {
   type MenuProps,
 } from "antd";
 import {
+  BarChart3,
   Bell,
   CalendarDays,
   CalendarRange,
@@ -156,6 +157,7 @@ export default function AppLayout({
         home: <House size={18} />,
         dashboard: <LayoutDashboard size={18} />,
         employees: <Users size={18} />,
+        employeeStats: <BarChart3 size={18} />,
         stores: <Store size={18} />,
         areas: <MapPin size={18} />,
         schedule: <Clock size={18} />,
@@ -221,7 +223,8 @@ export default function AppLayout({
               routeConfig.pageKey;
             const label =
               routeConfig.pageKey === "attendanceRequests" ||
-              routeConfig.pageKey === "clockPunches"
+              routeConfig.pageKey === "clockPunches" ||
+              routeConfig.pageKey === "employeeStats"
                 ? fallbackLabel
                 : getNodeLabel(node, fallbackLabel);
 

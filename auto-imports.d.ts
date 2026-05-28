@@ -14,6 +14,8 @@ declare global {
   const Badge: typeof import('lucide-react').Badge
   const BadgeCheck: typeof import('lucide-react').BadgeCheck
   const Banknote: typeof import('lucide-react').Banknote
+  const BarChart3: typeof import('lucide-react').BarChart3
+  const BarChart3Icon: typeof import('lucide-react').BarChart3Icon
   const Bell: typeof import('lucide-react').Bell
   const Briefcase: typeof import('lucide-react').Briefcase
   const Building2: typeof import('lucide-react').Building2
@@ -50,6 +52,7 @@ declare global {
   const Crown: typeof import('lucide-react').Crown
   const DollarSign: typeof import('lucide-react').DollarSign
   const Download: typeof import('lucide-react').Download
+  const DownloadIcon: typeof import('lucide-react').DownloadIcon
   const Edit: typeof import('lucide-react').Edit
   const Edit2: typeof import('lucide-react').Edit2
   const ExternalLink: typeof import('lucide-react').ExternalLink

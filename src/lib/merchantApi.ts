@@ -13,7 +13,7 @@ import type {
     TimeSlot,
     WorkDayPattern,
 } from "../context/DataContext";
-import { apiRequest } from "./apiClient";
+import { apiRequest, apiRequestBlob } from "./apiClient";
 
 export interface MerchantLoginResult {
   accessToken?: string | null;
@@ -420,6 +420,34 @@ export interface MerchantEmployeeIdName {
   name?: string | null;
 }
 
+export interface MerchantEmployeeStatisticsItem {
+  merchantAdminId?: number | string | null;
+  displayName?: string | null;
+  plannedWorkHours?: number | null;
+  actualWorkHours?: number | null;
+  leaveRequestCount?: number | null;
+  leaveApprovedCount?: number | null;
+  leaveRejectedCount?: number | null;
+  missedPunchRequestCount?: number | null;
+  missedPunchApprovedCount?: number | null;
+  missedPunchRejectedCount?: number | null;
+  clockAnomalyCount?: number | null;
+}
+
+export interface MerchantEmployeeStatisticsPayload {
+  storeIds?: Array<number | string>;
+  from?: string | null;
+  to?: string | null;
+  items?: MerchantEmployeeStatisticsItem[];
+}
+
+export interface MerchantEmployeeStatisticsParams {
+  from?: string;
+  to?: string;
+  merchantAdminIds?: Array<number | string>;
+  storeIds?: Array<number | string>;
+}
+
 const EMPTY_PAGE = { items: [] as unknown[] };
 type ApiRecord = Record<string, unknown>;
 type EmployeeUploadKind = "id-front" | "id-back" | "visa" | "passport";
@@ -754,6 +782,42 @@ function mapClockPunchesDay(input: unknown): MerchantClockPunchesDay {
   };
 }
 
+function employeeStatisticsPayload(params: MerchantEmployeeStatisticsParams = {}) {
+  return compactDeep({
+    from: params.from,
+    to: params.to,
+    merchantAdminIds: toNumberOrStringArray(params.merchantAdminIds),
+    storeIds: toNumberOrStringArray(params.storeIds),
+  });
+}
+
+function mapEmployeeStatisticsItem(input: unknown): MerchantEmployeeStatisticsItem {
+  const raw = asRecord(input);
+  return compactDeep({
+    merchantAdminId: raw.merchantAdminId as number | string | null | undefined,
+    displayName: asString(raw.displayName || raw.name || raw.adminName),
+    plannedWorkHours: asNumber(raw.plannedWorkHours),
+    actualWorkHours: asNumber(raw.actualWorkHours),
+    leaveRequestCount: asNumber(raw.leaveRequestCount),
+    leaveApprovedCount: asNumber(raw.leaveApprovedCount),
+    leaveRejectedCount: asNumber(raw.leaveRejectedCount),
+    missedPunchRequestCount: asNumber(raw.missedPunchRequestCount),
+    missedPunchApprovedCount: asNumber(raw.missedPunchApprovedCount),
+    missedPunchRejectedCount: asNumber(raw.missedPunchRejectedCount),
+    clockAnomalyCount: asNumber(raw.clockAnomalyCount),
+  });
+}
+
+function mapEmployeeStatisticsPayload(input: unknown): MerchantEmployeeStatisticsPayload {
+  const raw = asRecord(input);
+  return {
+    storeIds: asArray(raw.storeIds).map((id) => toNumberOrString(asString(id))),
+    from: asString(raw.from),
+    to: asString(raw.to),
+    items: asArray(raw.items).map(mapEmployeeStatisticsItem),
+  };
+}
+
 function toNumberOrString(value: string) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && value.trim() !== "" ? numeric : value;
@@ -796,6 +860,10 @@ function hasStoreIds(params?: { storeIds?: Array<number | string> }) {
 
 function optionalStoreHeader(storeId: string | undefined, params?: { storeIds?: Array<number | string> }) {
   return hasStoreIds(params) ? null : storeId;
+}
+
+function employeeStatisticsStoreHeader(storeId: string | undefined, params?: { storeIds?: Array<number | string> }) {
+  return hasStoreIds(params) ? "all" : storeId;
 }
 
 function employeeDocumentPayload(employee: Employee) {
@@ -1686,6 +1754,26 @@ export const merchantApi = {
       } satisfies MerchantEmployeeIdName;
     });
   },
+  getEmployeeStatistics: async (
+    storeId: string | undefined,
+    params: MerchantEmployeeStatisticsParams = {},
+  ) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("employees"), "statistics"), {
+      method: "POST",
+      storeId: employeeStatisticsStoreHeader(storeId, params),
+      body: employeeStatisticsPayload(params),
+    });
+    return mapEmployeeStatisticsPayload(data);
+  },
+  exportEmployeeStatistics: (
+    storeId: string | undefined,
+    params: MerchantEmployeeStatisticsParams = {},
+  ) =>
+    apiRequestBlob(appendEndpointPath(getMerchantEndpoint("employees"), "statistics", "export"), {
+      method: "POST",
+      storeId: employeeStatisticsStoreHeader(storeId, params),
+      body: employeeStatisticsPayload(params),
+    }),
   createEmployee: async (employee: Employee & { password?: string }) => {
     const data = await apiRequest<unknown>(getMerchantEndpoint("employees"), {
       method: "POST",

@@ -133,6 +133,16 @@ function normalizeAliasKey(value: string) {
   return value.replace(/\.[jt]sx?$/i, "").replace(/[^a-z0-9]/gi, "").toLowerCase();
 }
 
+function isEndpointBasePath(value: string, endpointKey: MerchantEndpointKey) {
+  const normalized = normalizeEndpointPath(value);
+  const defaultPath = normalizeEndpointPath(DEFAULT_MERCHANT_ENDPOINTS[endpointKey]);
+  if (normalized === defaultPath) return true;
+
+  const defaultLastSegment = defaultPath.split("/").filter(Boolean).pop();
+  const valueLastSegment = normalized.split("/").filter(Boolean).pop();
+  return !!defaultLastSegment && defaultLastSegment === valueLastSegment;
+}
+
 function getPathnameFromMaybeAbsoluteUrl(value: string) {
   if (!/^https?:\/\//i.test(value)) return value;
 
@@ -267,7 +277,7 @@ export function collectMerchantEndpointOverrides(features: MerchantFeatureTreeNo
       const requestAddress = getFeatureRequestAddress(node);
       if (requestAddress) {
         const endpointKey = getEndpointKeyByRequestPath(requestAddress) || getEndpointKeyByComponent(node);
-        if (endpointKey) {
+        if (endpointKey && isEndpointBasePath(requestAddress, endpointKey)) {
           overrides[endpointKey] = requestAddress;
         }
       }

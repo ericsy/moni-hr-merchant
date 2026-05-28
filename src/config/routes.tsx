@@ -15,6 +15,7 @@ export type KnownPageKey =
   | "home"
   | "dashboard"
   | "employees"
+  | "employeeStats"
   | "stores"
   | "areas"
   | "schedule"
@@ -49,6 +50,7 @@ export interface MerchantRouteConfig {
 const pageModules = import.meta.glob<PageModule>([
   "../pages/Dashboard.tsx",
   "../pages/Employees.tsx",
+  "../pages/EmployeeStats.tsx",
   "../pages/Stores.tsx",
   "../pages/Areas.tsx",
   "../pages/Schedule.tsx",
@@ -75,6 +77,21 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
     requestPath: "/api/v1/merchant/employees",
     endpointKey: "employees",
     aliases: ["/employees", "/employee", "/employee-management", "/api/v1/merchant/employees"],
+  },
+  {
+    pageKey: "employeeStats",
+    path: "/employee-statistics",
+    componentPath: "../pages/EmployeeStats.tsx",
+    requestPath: "/api/v1/merchant/employees/statistics",
+    endpointKey: "employees",
+    aliases: [
+      "/employee-statistics",
+      "/employee-stats",
+      "/employees/statistics",
+      "/employees/statistics/export",
+      "/api/v1/merchant/employees/statistics",
+      "/api/v1/merchant/employees/statistics/export",
+    ],
   },
   {
     pageKey: "stores",
@@ -214,6 +231,11 @@ const pageKeyAliases: Record<string, KnownPageKey> = {
   employees: "employees",
   employee: "employees",
   employeemanagement: "employees",
+  employeestats: "employeeStats",
+  employeestatistics: "employeeStats",
+  employeereports: "employeeStats",
+  staffstats: "employeeStats",
+  staffstatistics: "employeeStats",
   stores: "stores",
   store: "stores",
   storemanagement: "stores",
@@ -404,13 +426,26 @@ function getRouteTemplateByFeatureUrl(url?: string | null) {
   const normalizedUrl = normalizeFeatureUrl(url);
   if (!normalizedUrl) return undefined;
 
-  return merchantRouteTemplates.find((route) =>
-    route.aliases.some((alias) => {
+  let bestMatch: { route: MerchantRouteTemplate; score: number } | undefined;
+
+  for (const route of merchantRouteTemplates) {
+    for (const alias of route.aliases) {
       const normalizedAlias = normalizeFeatureUrl(alias);
-      if (normalizedUrl === normalizedAlias) return true;
-      return normalizedAlias.startsWith("/api/") && normalizedUrl.startsWith(`${normalizedAlias}/`);
-    })
-  );
+      let score = 0;
+
+      if (normalizedUrl === normalizedAlias) {
+        score = 10000 + normalizedAlias.length;
+      } else if (normalizedAlias.startsWith("/api/") && normalizedUrl.startsWith(`${normalizedAlias}/`)) {
+        score = normalizedAlias.length;
+      }
+
+      if (score > (bestMatch?.score || 0)) {
+        bestMatch = { route, score };
+      }
+    }
+  }
+
+  return bestMatch?.route;
 }
 
 function getRouteTemplateForFeature(node: MerchantFeatureTreeNode) {
@@ -424,6 +459,9 @@ function getRouteTemplateForFeature(node: MerchantFeatureTreeNode) {
   }
 
   const requestAddress = getFeatureRequestAddress(node);
+  const byFeatureUrl = getRouteTemplateByFeatureUrl(requestAddress || node.url);
+  if (byFeatureUrl) return byFeatureUrl;
+
   const endpointKey = getEndpointKeyByRequestPath(requestAddress);
   if (endpointKey && routeTemplateByEndpointKey[endpointKey]) return routeTemplateByEndpointKey[endpointKey];
 

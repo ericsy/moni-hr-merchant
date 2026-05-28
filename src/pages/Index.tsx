@@ -4,6 +4,7 @@ import type { PageKey } from "../components/Layout";
 import Home from "./Home";
 import Dashboard from "./Dashboard";
 import Employees from "./Employees";
+import EmployeeStatsPage from "./EmployeeStats";
 import Stores from "./Stores";
 import Areas from "./Areas";
 import Schedule from "./Schedule";
@@ -28,6 +29,8 @@ export default function Index() {
         return <Dashboard onNavigate={handleNavigate} />;
       case "employees":
         return <Employees />;
+      case "employeeStats":
+        return <EmployeeStatsPage />;
       case "stores":
         return <Stores />;
       case "areas":
