@@ -141,6 +141,8 @@ const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
   esctRate: undefined,
   bankAccountNumber: "",
   payrollEmployeeId: "",
+  ks1DocumentKey: "",
+  ir330DocumentKey: "",
   positionIds: [],
   paidHoursPerDay: 8,
   workDayPattern: cloneWorkDayPattern(defaultWorkDayPattern),
@@ -179,9 +181,11 @@ type EmployeeDocumentField =
   | "idDocumentFront"
   | "idDocumentBack"
   | "visaDocument"
-  | "passportDocument";
+  | "passportDocument"
+  | "ks1Document"
+  | "ir330Document";
 
-type EmployeeDocumentUploadKind = "id-front" | "id-back" | "visa" | "passport";
+type EmployeeDocumentUploadKind = "id-front" | "id-back" | "visa" | "passport" | "ks1" | "ir330";
 type EmployeeIdentityDocumentType = "id" | "passport";
 
 const EMPLOYEE_DOCUMENT_FIELDS: Record<
@@ -216,6 +220,18 @@ const EMPLOYEE_DOCUMENT_FIELDS: Record<
     urlField: "passportDocumentUrl",
     uploadKind: "passport",
     labelKey: "passportDocument",
+  },
+  ks1Document: {
+    keyField: "ks1DocumentKey",
+    urlField: "ks1DocumentUrl",
+    uploadKind: "ks1",
+    labelKey: "ks1Document",
+  },
+  ir330Document: {
+    keyField: "ir330DocumentKey",
+    urlField: "ir330DocumentUrl",
+    uploadKind: "ir330",
+    labelKey: "ir330Document",
   },
 };
 
@@ -255,6 +271,8 @@ const EMPLOYEE_FORM_FIELD_TAB: Record<string, EmployeeFormTabKey> = {
   esctRate: "payroll",
   bankAccountNumber: "payroll",
   payrollEmployeeId: "payroll",
+  ks1DocumentKey: "payroll",
+  ir330DocumentKey: "payroll",
   workDayPattern: "workdays",
   contractType: "employment",
   endDate: "employment",
@@ -834,6 +852,8 @@ export function EmployeeModal({
     idDocumentBack: false,
     visaDocument: false,
     passportDocument: false,
+    ks1Document: false,
+    ir330Document: false,
   });
   const identityDocumentType = Form.useWatch("identityDocumentType", form);
   const kiwiSaverStatus = Form.useWatch("kiwiSaverStatus", form);
@@ -866,6 +886,10 @@ export function EmployeeModal({
           employee.visaDocumentKey || employee.visaDocumentUrl || "",
         passportDocumentKey:
           employee.passportDocumentKey || employee.passportDocumentUrl || "",
+        ks1DocumentKey:
+          employee.ks1DocumentKey || employee.ks1DocumentUrl || "",
+        ir330DocumentKey:
+          employee.ir330DocumentKey || employee.ir330DocumentUrl || "",
       }
     : getEmptyEmployeeFormValues(defaultStoreIds);
   const formInstanceKey = employee
@@ -931,6 +955,8 @@ export function EmployeeModal({
     idDocumentBack: buildDocumentFileList(employee, "idDocumentBack"),
     visaDocument: buildDocumentFileList(employee, "visaDocument"),
     passportDocument: buildDocumentFileList(employee, "passportDocument"),
+    ks1Document: buildDocumentFileList(employee, "ks1Document"),
+    ir330Document: buildDocumentFileList(employee, "ir330Document"),
   }));
 
   useEffect(() => {
@@ -944,6 +970,8 @@ export function EmployeeModal({
         idDocumentBack: buildDocumentFileList(employee, "idDocumentBack"),
         visaDocument: buildDocumentFileList(employee, "visaDocument"),
         passportDocument: buildDocumentFileList(employee, "passportDocument"),
+        ks1Document: buildDocumentFileList(employee, "ks1Document"),
+        ir330Document: buildDocumentFileList(employee, "ir330Document"),
       });
       setUploadingContract(false);
       setUploadingAvatar(false);
@@ -952,6 +980,8 @@ export function EmployeeModal({
         idDocumentBack: false,
         visaDocument: false,
         passportDocument: false,
+        ks1Document: false,
+        ir330Document: false,
       });
       setActiveTabKey("general");
     });
@@ -1034,13 +1064,22 @@ export function EmployeeModal({
       const requiredDocumentFields = getEmployeeDocumentFieldsByType(
         selectedDocumentTypeBeforeValidation,
       );
-      const uploadingDocumentField = requiredDocumentFields.find(
+      const uploadingDocumentField = ([
+        ...requiredDocumentFields,
+        "ks1Document",
+        "ir330Document",
+      ] as EmployeeDocumentField[]).find(
         (field) => uploadingDocuments[field],
       );
       if (uploadingDocumentField) {
         const meta = EMPLOYEE_DOCUMENT_FIELDS[uploadingDocumentField];
         const message = et.documentUploading as string;
-        setActiveTabKey("employment");
+        setActiveTabKey(
+          uploadingDocumentField === "ks1Document" ||
+            uploadingDocumentField === "ir330Document"
+            ? "payroll"
+            : "employment",
+        );
         form.setFields([{ name: meta.keyField, errors: [message] }]);
         toast.error(message);
         return;
@@ -1146,6 +1185,18 @@ export function EmployeeModal({
         esctRate: values.esctRate ?? "",
         bankAccountNumber: values.bankAccountNumber ?? "",
         payrollEmployeeId: values.payrollEmployeeId ?? "",
+        ks1DocumentKey: values.ks1DocumentKey ?? "",
+        ks1DocumentUrl: values.ks1DocumentKey
+          ? (documentFileLists.ks1Document[0]?.url ??
+            employee?.ks1DocumentUrl ??
+            "")
+          : "",
+        ir330DocumentKey: values.ir330DocumentKey ?? "",
+        ir330DocumentUrl: values.ir330DocumentKey
+          ? (documentFileLists.ir330Document[0]?.url ??
+            employee?.ir330DocumentUrl ??
+            "")
+          : "",
         areaIds: values.areaIds ?? employee?.areaIds ?? [],
         positionIds: values.positionIds ?? employee?.positionIds ?? [],
         paidHoursPerDay: values.paidHoursPerDay ?? 8,
@@ -1294,17 +1345,23 @@ export function EmployeeModal({
   const renderDocumentUpload = (field: EmployeeDocumentField) => {
     const meta = EMPLOYEE_DOCUMENT_FIELDS[field];
     const fileList = documentFileLists[field];
+    const isRequired =
+      field !== "ks1Document" && field !== "ir330Document";
     return (
       <Form.Item
         name={meta.keyField}
         label={et[meta.labelKey] as string}
         extra={et.documentUploadHint as string}
-        rules={[
-          {
-            required: true,
-            message: `${et.documentUploadRequired as string}${et[meta.labelKey] as string}`,
-          },
-        ]}
+        rules={
+          isRequired
+            ? [
+                {
+                  required: true,
+                  message: `${et.documentUploadRequired as string}${et[meta.labelKey] as string}`,
+                },
+              ]
+            : undefined
+        }
       >
         <div className="flex flex-col gap-3">
           <Upload
@@ -1683,6 +1740,10 @@ export function EmployeeModal({
           >
             <Input />
           </Form.Item>
+          <div className="grid gap-4 md:grid-cols-2">
+            {renderDocumentUpload("ks1Document")}
+            {renderDocumentUpload("ir330Document")}
+          </div>
         </div>
       ),
     },
@@ -2141,6 +2202,22 @@ function DetailPanel({
             icon={<BadgeCheck size={13} />}
             label={et.payrollEmployeeId as string}
             value={employee.payrollEmployeeId ?? ""}
+          />
+          <InfoRow
+            icon={<Paperclip size={13} />}
+            label={et.ks1Document as string}
+            value={documentLink(
+              employee.ks1DocumentUrl,
+              employee.ks1DocumentKey,
+            )}
+          />
+          <InfoRow
+            icon={<Paperclip size={13} />}
+            label={et.ir330Document as string}
+            value={documentLink(
+              employee.ir330DocumentUrl,
+              employee.ir330DocumentKey,
+            )}
           />
         </div>
       ),

@@ -81,6 +81,10 @@ export interface Employee {
   esctRate?: string;
   bankAccountNumber?: string;
   payrollEmployeeId?: string;
+  ks1DocumentKey?: string;
+  ks1DocumentUrl?: string;
+  ir330DocumentKey?: string;
+  ir330DocumentUrl?: string;
   // Assignments
   areaIds?: string[];
   positionIds?: string[];

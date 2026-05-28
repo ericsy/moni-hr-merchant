@@ -201,6 +201,8 @@ export const locales = {
       esctRate: "ESCT 税率 (%)",
       bankAccountNumber: "银行账号",
       payrollEmployeeId: "薪酬系统员工ID",
+      ks1Document: "KS1 文件",
+      ir330Document: "IR330 文件",
       kiwiSaverOptions: {
         enrolled: "已加入",
         nonEnrolled: "未加入",
@@ -696,6 +698,8 @@ export const locales = {
       esctRate: "ESCT Rate (%)",
       bankAccountNumber: "Bank Account Number",
       payrollEmployeeId: "Payroll Employee ID",
+      ks1Document: "KS1 File",
+      ir330Document: "IR330 File",
       kiwiSaverOptions: {
         enrolled: "Enrolled",
         nonEnrolled: "Non-enrolled",

@@ -450,13 +450,15 @@ export interface MerchantEmployeeStatisticsParams {
 
 const EMPTY_PAGE = { items: [] as unknown[] };
 type ApiRecord = Record<string, unknown>;
-type EmployeeUploadKind = "id-front" | "id-back" | "visa" | "passport";
+type EmployeeUploadKind = "id-front" | "id-back" | "visa" | "passport" | "ks1" | "ir330";
 
 const EMPLOYEE_DOCUMENT_UPLOAD_PATHS: Record<EmployeeUploadKind, string> = {
   "id-front": "/api/v1/merchant/uploads/employee-id-document-front",
   "id-back": "/api/v1/merchant/uploads/employee-id-document-back",
   visa: "/api/v1/merchant/uploads/employee-visa-document",
   passport: "/api/v1/merchant/uploads/employee-passport-document",
+  ks1: "/api/v1/merchant/uploads/employee-ks1-document",
+  ir330: "/api/v1/merchant/uploads/employee-ir330-document",
 };
 
 function asRecord(value: unknown): ApiRecord {
@@ -1409,6 +1411,10 @@ export function mapApiEmployee(input: unknown): Employee {
     esctRate: asString(raw.esctRate),
     bankAccountNumber: asString(raw.bankAccountNumber),
     payrollEmployeeId: asString(raw.payrollEmployeeId),
+    ks1DocumentKey: asString(raw.ks1DocumentKey),
+    ks1DocumentUrl: asString(raw.ks1DocumentUrl),
+    ir330DocumentKey: asString(raw.ir330DocumentKey),
+    ir330DocumentUrl: asString(raw.ir330DocumentUrl),
     areaIds: asArray(raw.areaIds).map((id) => asString(id)),
     positionIds: asArray(raw.positionIds).map((id) => asString(id)),
     paidHoursPerDay: raw.paidHoursPerDay === undefined ? undefined : asNumber(raw.paidHoursPerDay),
@@ -1465,6 +1471,8 @@ export function employeeToApiPayload(employee: Employee & { password?: string },
     esctRate: employee.esctRate,
     bankAccountNumber: employee.bankAccountNumber,
     payrollEmployeeId: employee.payrollEmployeeId,
+    ks1DocumentKey: employee.ks1DocumentKey,
+    ir330DocumentKey: employee.ir330DocumentKey,
     areaIds: employee.areaIds,
     positionIds: employee.positionIds,
     paidHoursPerDay: employee.paidHoursPerDay,
