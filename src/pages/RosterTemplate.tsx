@@ -53,9 +53,9 @@ import { EmployeeModal } from "./Employees";
 
 const { Option } = Select;
 
-const TEMPLATE_AREA_COLUMN_WIDTH = 120;
-const TEMPLATE_DAY_COLUMN_WIDTH = 160;
-const TEMPLATE_ACTION_COLUMN_WIDTH = 44;
+const TEMPLATE_AREA_COLUMN_WIDTH = 180;
+const TEMPLATE_DAY_COLUMN_WIDTH = 180;
+const TEMPLATE_ACTION_COLUMN_WIDTH = 60;
 const SCROLL_CLICK_DELAY_MS = 260;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -433,6 +433,7 @@ export default function RosterTemplatePage({
   // Duration selector
   const [customDaysOpen, setCustomDaysOpen] = useState(false);
   const [customDaysInput, setCustomDaysInput] = useState<number>(14);
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
@@ -600,14 +601,17 @@ export default function RosterTemplatePage({
   const updateHorizontalScrollState = () => {
     const scroller = gridScrollRef.current;
     if (!scroller) {
+      setHasHorizontalOverflow(false);
       setCanScrollLeft(false);
       setCanScrollRight(false);
       return;
     }
 
     const maxScrollLeft = scroller.scrollWidth - scroller.clientWidth;
-    setCanScrollLeft(scroller.scrollLeft > 1);
-    setCanScrollRight(scroller.scrollLeft < maxScrollLeft - 1);
+    const hasOverflow = maxScrollLeft > 1;
+    setHasHorizontalOverflow(hasOverflow);
+    setCanScrollLeft(hasOverflow && scroller.scrollLeft > 1);
+    setCanScrollRight(hasOverflow && scroller.scrollLeft < maxScrollLeft - 1);
   };
 
   const getHorizontalScrollStep = (mode: "cell" | "page") => {
@@ -1546,98 +1550,101 @@ export default function RosterTemplatePage({
             </div>
           </div>
 
-          <div
-            className="sticky left-0 right-0 top-0 z-30 pointer-events-none"
-            style={{
-              height: gridOverlayHeight,
-              marginBottom: -gridOverlayHeight,
-            }}
-          >
-            <Tooltip
-              title={
-                locale === "zh"
-                  ? "单击左移一格，双击左移一屏"
-                  : "Click to move one cell, double-click to move one page"
-              }
+          {hasHorizontalOverflow && (
+            <div
+              className="sticky left-0 right-0 top-0 z-30 pointer-events-none"
+              style={{
+                height: gridOverlayHeight,
+                marginBottom: -gridOverlayHeight,
+              }}
             >
-              <button
-                type="button"
-                aria-label={
+              <Tooltip
+                title={
                   locale === "zh"
-                    ? "向左滚动排班模版"
-                    : "Scroll roster template left"
+                    ? "单击左移一格，双击左移一屏"
+                    : "Click to move one cell, double-click to move one page"
                 }
-                disabled={!canScrollLeft}
-                onClick={(event) =>
-                  handleHorizontalScrollButtonClick(event, -1)
-                }
-                onDoubleClick={() =>
-                  handleHorizontalScrollButtonDoubleClick(-1)
-                }
-                className="absolute flex items-center justify-center rounded-md pointer-events-auto transition-all"
-                style={{
-                  left: TEMPLATE_AREA_COLUMN_WIDTH + 16,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  width: 34,
-                  height: 84,
-                  background: "var(--card)",
-                  border: "1px solid var(--primary)",
-                  color: "var(--primary)",
-                  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.14)",
-                  opacity: canScrollLeft ? 0.95 : 0.35,
-                  cursor: canScrollLeft ? "pointer" : "not-allowed",
-                }}
               >
-                <ChevronLeft size={18} />
-              </button>
-            </Tooltip>
+                <button
+                  type="button"
+                  aria-label={
+                    locale === "zh"
+                      ? "向左滚动排班模版"
+                      : "Scroll roster template left"
+                  }
+                  disabled={!canScrollLeft}
+                  onClick={(event) =>
+                    handleHorizontalScrollButtonClick(event, -1)
+                  }
+                  onDoubleClick={() =>
+                    handleHorizontalScrollButtonDoubleClick(-1)
+                  }
+                  className="absolute flex items-center justify-center rounded-md pointer-events-auto transition-all"
+                  style={{
+                    left: TEMPLATE_AREA_COLUMN_WIDTH + 16,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 34,
+                    height: 84,
+                    background: "var(--card)",
+                    border: "1px solid var(--primary)",
+                    color: "var(--primary)",
+                    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.14)",
+                    opacity: canScrollLeft ? 0.95 : 0.35,
+                    cursor: canScrollLeft ? "pointer" : "not-allowed",
+                  }}
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              </Tooltip>
 
-            <Tooltip
-              title={
-                locale === "zh"
-                  ? "单击右移一格，双击右移一屏"
-                  : "Click to move one cell, double-click to move one page"
-              }
-            >
-              <button
-                type="button"
-                aria-label={
+              <Tooltip
+                title={
                   locale === "zh"
-                    ? "向右滚动排班模版"
-                    : "Scroll roster template right"
+                    ? "单击右移一格，双击右移一屏"
+                    : "Click to move one cell, double-click to move one page"
                 }
-                disabled={!canScrollRight}
-                onClick={(event) =>
-                  handleHorizontalScrollButtonClick(event, 1)
-                }
-                onDoubleClick={() =>
-                  handleHorizontalScrollButtonDoubleClick(1)
-                }
-                className="absolute flex items-center justify-center rounded-md pointer-events-auto transition-all"
-                style={{
-                  right: 16,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  width: 34,
-                  height: 84,
-                  background: "var(--card)",
-                  border: "1px solid var(--primary)",
-                  color: "var(--primary)",
-                  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.14)",
-                  opacity: canScrollRight ? 0.95 : 0.35,
-                  cursor: canScrollRight ? "pointer" : "not-allowed",
-                }}
               >
-                <ChevronRight size={18} />
-              </button>
-            </Tooltip>
-          </div>
+                <button
+                  type="button"
+                  aria-label={
+                    locale === "zh"
+                      ? "向右滚动排班模版"
+                      : "Scroll roster template right"
+                  }
+                  disabled={!canScrollRight}
+                  onClick={(event) =>
+                    handleHorizontalScrollButtonClick(event, 1)
+                  }
+                  onDoubleClick={() =>
+                    handleHorizontalScrollButtonDoubleClick(1)
+                  }
+                  className="absolute flex items-center justify-center rounded-md pointer-events-auto transition-all"
+                  style={{
+                    right: 16,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 34,
+                    height: 84,
+                    background: "var(--card)",
+                    border: "1px solid var(--primary)",
+                    color: "var(--primary)",
+                    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.14)",
+                    opacity: canScrollRight ? 0.95 : 0.35,
+                    cursor: canScrollRight ? "pointer" : "not-allowed",
+                  }}
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </Tooltip>
+            </div>
+          )}
 
           {/* Grid */}
           <div
             ref={gridContentRef}
             style={{
+              width: "100%",
               minWidth: Math.max(
                 700,
                 totalDaysList.length * TEMPLATE_DAY_COLUMN_WIDTH +
@@ -1684,9 +1691,10 @@ export default function RosterTemplatePage({
                 return (
                   <div
                     key={day}
-                    className="flex-shrink-0 flex items-center justify-center"
+                    className="flex items-center justify-center"
                     style={{
-                      width: TEMPLATE_DAY_COLUMN_WIDTH,
+                      flex: `1 1 ${TEMPLATE_DAY_COLUMN_WIDTH}px`,
+                      minWidth: TEMPLATE_DAY_COLUMN_WIDTH,
                       minHeight: 44,
                       borderRight: "1px solid var(--border)",
                       background: isStoreClosed
@@ -1711,7 +1719,12 @@ export default function RosterTemplatePage({
               {/* +/- columns */}
               <div
                 className="flex items-center px-2"
-                style={{ minWidth: TEMPLATE_ACTION_COLUMN_WIDTH, minHeight: 44 }}
+                style={{
+                  flex: `0 0 ${TEMPLATE_ACTION_COLUMN_WIDTH}px`,
+                  width: TEMPLATE_ACTION_COLUMN_WIDTH,
+                  minWidth: TEMPLATE_ACTION_COLUMN_WIDTH,
+                  minHeight: 44,
+                }}
               >
                 <Tooltip
                   title={locale === "zh" ? "删除/增减列" : "Manage columns"}
@@ -1813,9 +1826,10 @@ export default function RosterTemplatePage({
                   return (
                     <div
                       key={day}
-                      className="flex-shrink-0 p-1.5"
+                      className="p-1.5"
                       style={{
-                        width: TEMPLATE_DAY_COLUMN_WIDTH,
+                        flex: `1 1 ${TEMPLATE_DAY_COLUMN_WIDTH}px`,
+                        minWidth: TEMPLATE_DAY_COLUMN_WIDTH,
                         borderRight: "1px solid var(--border)",
                         minHeight: 88,
                         background: isStoreClosed
@@ -1892,7 +1906,14 @@ export default function RosterTemplatePage({
                 })}
 
                 {/* spacer */}
-                <div style={{ minWidth: TEMPLATE_ACTION_COLUMN_WIDTH }} />
+                <div
+                  aria-hidden="true"
+                  style={{
+                    flex: `0 0 ${TEMPLATE_ACTION_COLUMN_WIDTH}px`,
+                    width: TEMPLATE_ACTION_COLUMN_WIDTH,
+                    minWidth: TEMPLATE_ACTION_COLUMN_WIDTH,
+                  }}
+                />
               </div>
             ))}
 

@@ -61,8 +61,8 @@ dayjs.extend(isoWeek);
 
 const { Option } = Select;
 
-const LEFT_COL_W = 160;
-const DATE_COL_MIN_W = 160;
+const LEFT_COL_W = 180;
+const DATE_COL_MIN_W = 180;
 const TOTAL_GRID_MIN_W = LEFT_COL_W + DATE_COL_MIN_W * 7;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
