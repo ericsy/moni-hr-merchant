@@ -16,8 +16,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { findFeatureNodeByPageKey, getFeatureDisplayName } from "../config/routes";
 import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
+import { usePermissions } from "../context/PermissionsContext";
 import { useStore } from "../context/StoreContext";
 import {
   merchantApi,
@@ -74,8 +76,9 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 export default function EmployeeStatsPage() {
-  const { locale } = useLocale();
+  const { locale, t } = useLocale();
   const { stores } = useData();
+  const { permissions } = usePermissions();
   const { selectedStoreId } = useStore();
   const [filters, setFilters] = useState<EmployeeStatsFilters>({
     dateRange: defaultDateRange(),
@@ -90,9 +93,14 @@ export default function EmployeeStatsPage() {
   const [error, setError] = useState("");
 
   const labels = useMemo(() => {
+    const fallbackTitle =
+      t.nav.employeeStats ?? (locale === "zh" ? "员工统计" : "Employee Stats");
+    const featureNode = findFeatureNodeByPageKey(permissions, "employeeStats");
+    const title = getFeatureDisplayName(featureNode, locale, fallbackTitle);
+
     if (locale === "zh") {
       return {
-        title: "员工统计",
+        title,
         subtitle: "计划/实际工时、申请与异常",
         filters: "筛选",
         dateRange: "时间范围",
@@ -121,7 +129,7 @@ export default function EmployeeStatsPage() {
     }
 
     return {
-      title: "Employee Stats",
+      title,
       subtitle: "Planned/actual hours, requests, and anomalies",
       filters: "Filters",
       dateRange: "Date Range",
@@ -147,7 +155,7 @@ export default function EmployeeStatsPage() {
       exportFailed: "Failed to export employee statistics",
       retry: "Retry",
     };
-  }, [locale]);
+  }, [locale, permissions, t]);
 
   const activeStoreIds = filters.storeIds.length > 0 ? filters.storeIds : selectedStoreId ? [selectedStoreId] : [];
   const activeStoreId = activeStoreIds[0] || selectedStoreId;

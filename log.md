@@ -29,3 +29,5 @@
 - 更新 `Rosters.tsx`：排班管理中 **替班班次（`isSubstitution`）锁定不可编辑**：隐藏编辑/删除按钮、隐藏添加员工按钮、禁止移除员工与拖拽修改。
 
 - 更新 `Rosters.tsx`：应用排班模版时，同一模版格子内的多名员工合并为 **一条班次**（`employeeIds` 多人），不再按员工拆成多个班次卡片。
+
+- 更新 `routes.tsx`、`Layout.tsx`、`EmployeeStats.tsx`：员工统计菜单与页面标题改为优先使用权限接口返回的 `nameZh`/`nameEn`；移除对员工统计等页面强制使用本地 `t.nav` 文案的特殊逻辑；Layout 顶部标题也统一从权限树解析。

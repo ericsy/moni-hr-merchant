@@ -551,6 +551,35 @@ export function getFeaturePageKeyHint(node: MerchantFeatureTreeNode): KnownPageK
   return getRouteTemplateForFeature(node)?.pageKey;
 }
 
+export function findFeatureNodeByPageKey(
+  nodes: MerchantFeatureTreeNode[],
+  pageKey: PageKey,
+): MerchantFeatureTreeNode | undefined {
+  for (const node of nodes) {
+    if (node.status !== 1) continue;
+
+    const routeConfig = resolveRouteConfigFromFeature(node);
+    if (routeConfig?.pageKey === pageKey) return node;
+
+    if (node.children?.length) {
+      const matched = findFeatureNodeByPageKey(node.children, pageKey);
+      if (matched) return matched;
+    }
+  }
+
+  return undefined;
+}
+
+export function getFeatureDisplayName(
+  node: MerchantFeatureTreeNode | undefined,
+  locale: "zh" | "en",
+  fallback = "",
+) {
+  if (!node) return fallback;
+  if (locale === "zh") return node.nameZh || node.nameEn || fallback;
+  return node.nameEn || node.nameZh || fallback;
+}
+
 export function getPagePath(pageKey?: PageKey | null, routes?: MerchantRouteConfig[]) {
   if (!pageKey) return undefined;
   if (pageKey === "home") return "/";

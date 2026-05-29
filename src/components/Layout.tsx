@@ -39,6 +39,8 @@ import { toast } from "sonner";
 import {
   getFeaturePageKeyHint,
   getPagePath,
+  findFeatureNodeByPageKey,
+  getFeatureDisplayName,
   resolveRouteConfigFromFeature,
   type PageKey,
 } from "../config/routes";
@@ -221,12 +223,7 @@ export default function AppLayout({
             const fallbackLabel =
               t.nav[routeConfig.pageKey as keyof typeof t.nav] ??
               routeConfig.pageKey;
-            const label =
-              routeConfig.pageKey === "attendanceRequests" ||
-              routeConfig.pageKey === "clockPunches" ||
-              routeConfig.pageKey === "employeeStats"
-                ? fallbackLabel
-                : getNodeLabel(node, fallbackLabel);
+            const label = getNodeLabel(node, fallbackLabel);
 
             return [
               {
@@ -264,6 +261,14 @@ export default function AppLayout({
 
       return { items: firstStoreItems, defaultOpenKeys: [] };
     }, [permissions, locale, t, requiresFirstStore]);
+
+  const currentPageLabel = useMemo(() => {
+    const fallback =
+      t.nav[currentPage as keyof typeof t.nav] ?? currentPage;
+    if (currentPage === "home") return fallback;
+    const featureNode = findFeatureNodeByPageKey(permissions, currentPage);
+    return getFeatureDisplayName(featureNode, locale, fallback);
+  }, [currentPage, locale, permissions, t]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -525,7 +530,7 @@ export default function AppLayout({
                 className="font-semibold text-lg"
                 style={{ color: "var(--foreground)", whiteSpace: "nowrap" }}
               >
-                {t.nav[currentPage as keyof typeof t.nav] ?? currentPage}
+                {currentPageLabel}
               </div>
             </div>
             <div style={{ display: "flex", justifyContent: "center", flex: 1 }}>
