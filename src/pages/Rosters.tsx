@@ -1621,25 +1621,50 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           validEmployeeIds.push(empId);
         }
 
-        validEmployeeIds.forEach((empId, empIdx) => {
-          workingShifts.push({
-            id: `tmpl_${applySeed}_${index}_${empIdx}`,
-            shiftId: candidate.shiftId,
-            employeeId: empId,
-            employeeIds: [empId],
-            areaId: candidate.areaId,
-            storeId: candidate.storeId,
-            shiftType: candidate.shiftType,
-            date: candidate.date,
-            startTime: candidate.startTime,
-            endTime: candidate.endTime,
-            breakMinutes: candidate.breakMinutes,
-            shiftName: candidate.shiftName,
-            color: candidate.color,
-            note: candidate.note,
-            status: "draft",
-            __temp: true,
-          });
+        if (validEmployeeIds.length === 0) {
+          if (employeeIds.length > 0) skipped += 1;
+          return;
+        }
+
+        if (validEmployeeIds.length < employeeIds.length) {
+          skipped += employeeIds.length - validEmployeeIds.length;
+        }
+
+        const multiEmployeeCandidate: TemplateCandidateShift = {
+          ...candidate,
+          employeeId: validEmployeeIds[0] || "",
+          employeeIds: validEmployeeIds,
+        };
+
+        const hasRemainingConflict = workingShifts.some((shift) =>
+          shiftConflictsWithTemplateCandidate(
+            shift,
+            multiEmployeeCandidate,
+            false,
+          ),
+        );
+        if (hasRemainingConflict) {
+          skipped += 1;
+          return;
+        }
+
+        workingShifts.push({
+          id: `tmpl_${applySeed}_${index}`,
+          shiftId: candidate.shiftId,
+          employeeId: validEmployeeIds[0] || "",
+          employeeIds: validEmployeeIds,
+          areaId: candidate.areaId,
+          storeId: candidate.storeId,
+          shiftType: candidate.shiftType,
+          date: candidate.date,
+          startTime: candidate.startTime,
+          endTime: candidate.endTime,
+          breakMinutes: candidate.breakMinutes,
+          shiftName: candidate.shiftName,
+          color: candidate.color,
+          note: candidate.note,
+          status: "draft",
+          __temp: true,
         });
       }
     });
