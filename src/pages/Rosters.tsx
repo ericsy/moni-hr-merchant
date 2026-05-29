@@ -61,6 +61,10 @@ dayjs.extend(isoWeek);
 
 const { Option } = Select;
 
+const LEFT_COL_W = 160;
+const DATE_COL_MIN_W = 160;
+const TOTAL_GRID_MIN_W = LEFT_COL_W + DATE_COL_MIN_W * 7;
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 const formatTime12 = (t: string) => {
@@ -640,9 +644,10 @@ function DateColHeader({
   return (
     <div
       data-cmp="DateColHeader"
-      className="flex-shrink-0 flex flex-col items-center justify-center relative transition-all"
+      className="flex flex-col items-center justify-center relative transition-all"
       style={{
-        width: 160,
+        flex: `1 1 ${DATE_COL_MIN_W}px`,
+        minWidth: DATE_COL_MIN_W,
         minHeight: 44,
         borderRight: "1px solid var(--border)",
         background: isDragOver
@@ -838,9 +843,10 @@ function AreaDateCell({
   return (
     <div
       data-cmp="AreaDateCell"
-      className="flex-shrink-0 p-1.5"
+      className="p-1.5"
       style={{
-        width: 160,
+        flex: `1 1 ${DATE_COL_MIN_W}px`,
+        minWidth: DATE_COL_MIN_W,
         minHeight: 88,
         borderRight: "1px solid var(--border)",
         background: isDragOver
@@ -2193,11 +2199,6 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     draftCount,
   );
 
-  // ── Column width constants ──────────────────────────────────────────────────
-  const LEFT_COL_W = 120;
-  const DATE_COL_W = 160;
-  const TOTAL_GRID_W = LEFT_COL_W + DATE_COL_W * 7;
-
   return (
     <div
       data-cmp="Rosters"
@@ -2646,7 +2647,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
         {/* ── Right: Grid ───────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-auto relative">
-          <div style={{ minWidth: TOTAL_GRID_W }}>
+          <div style={{ minWidth: TOTAL_GRID_MIN_W, width: "100%" }}>
             {/* ── Sticky header row ───────────────────────────────────────── */}
             <div
               className="flex sticky top-0 z-20"
