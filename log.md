@@ -33,3 +33,5 @@
 - 更新 `routes.tsx`、`Layout.tsx`、`EmployeeStats.tsx`：员工统计菜单与页面标题改为优先使用权限接口返回的 `nameZh`/`nameEn`；移除对员工统计等页面强制使用本地 `t.nav` 文案的特殊逻辑；Layout 顶部标题也统一从权限树解析。
 
 - 更新 `Rosters.tsx`、`DataContext.tsx`：保存排班草稿时提交当前周 `overlayDates`，修复删除已发布班次后保存草稿、再次进入仍显示被删班次的问题。
+
+- 更新 `Rosters.tsx`：发布按钮显示逻辑——当前门店存在可编辑草稿时显示；有未保存改动（dirty）时禁用并 Tooltip「请先保存后再发布」；保存/发布成功后同步基线视为已保存；切换门店或数据加载中重置基线。

@@ -954,11 +954,14 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     employeeDateLeaves,
     saveScheduleDraft,
     publishSchedule,
+    loading: dataLoading,
     stores,
     areas,
     rosterTemplates: rawRosterTemplates,
   } = useData();
   const { selectedStoreId } = useStore();
+  const scheduleBaselineRef = useRef("");
+  const [isScheduleDirty, setIsScheduleDirty] = useState(false);
 
   // ── Week navigation ─────────────────────────────────────────────────────────
   const [weekOffset, setWeekOffset] = useState(0);
@@ -1312,6 +1315,82 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       }, 0)
       .toFixed(1);
 
+  const buildScheduleSnapshot = useCallback(
+    (shifts: ScheduleShift[]) => {
+      const scoped = shifts
+        .filter(
+          (shift) =>
+            !shift.isGlobalPreset &&
+            shift.date &&
+            isScheduleDateEditable(shift.date) &&
+            (!selectedStoreId || shift.storeId === selectedStoreId),
+        )
+        .map((shift) => ({
+          id: shift.id,
+          shiftId: shift.shiftId || "",
+          areaId: shift.areaId,
+          date: shift.date,
+          storeId: shift.storeId,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          breakMinutes: shift.breakMinutes ?? 0,
+          shiftName: shift.shiftName || "",
+          color: shift.color || "",
+          note: shift.note || "",
+          status: shift.status,
+          employeeIds: [...getShiftEmployeeIds(shift)].sort(),
+        }))
+        .sort((a, b) =>
+          `${a.date}|${a.areaId}|${a.id}`.localeCompare(
+            `${b.date}|${b.areaId}|${b.id}`,
+          ),
+        );
+      return JSON.stringify(scoped);
+    },
+    [selectedStoreId],
+  );
+
+  const syncScheduleBaseline = useCallback(() => {
+    scheduleBaselineRef.current = buildScheduleSnapshot(scheduleShifts);
+    setIsScheduleDirty(false);
+  }, [buildScheduleSnapshot, scheduleShifts]);
+
+  useEffect(() => {
+    scheduleBaselineRef.current = "";
+    setIsScheduleDirty(false);
+  }, [selectedStoreId]);
+
+  useEffect(() => {
+    if (!selectedStoreId || dataLoading) return;
+
+    const snapshot = buildScheduleSnapshot(scheduleShifts);
+    if (!scheduleBaselineRef.current) {
+      scheduleBaselineRef.current = snapshot;
+      setIsScheduleDirty(false);
+      return;
+    }
+
+    setIsScheduleDirty(snapshot !== scheduleBaselineRef.current);
+  }, [
+    buildScheduleSnapshot,
+    dataLoading,
+    scheduleShifts,
+    selectedStoreId,
+  ]);
+
+  /** Any editable draft for the current store (controls Publish visibility). */
+  const publishableDraftCount = useMemo(
+    () =>
+      scheduleShifts.filter(
+        (shift) =>
+          !shift.isGlobalPreset &&
+          isScheduleDateEditable(shift.date) &&
+          shift.status === "draft" &&
+          (!selectedStoreId || shift.storeId === selectedStoreId),
+      ).length,
+    [scheduleShifts, selectedStoreId],
+  );
+
   const draftCount = scheduleShifts.filter((s) => {
     const d = dayjs(s.date);
     return (
@@ -1321,6 +1400,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       d <= weekStart.add(6, "day")
     );
   }).length;
+
+  const publishDirtyTooltip = isZh
+    ? "请先保存后再发布"
+    : "Save your changes before publishing";
 
   const resolveTemplateCellPreset = (
     cell: RosterTemplate["cells"][number],
@@ -2093,6 +2176,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   // ── Publish ─────────────────────────────────────────────────────────────────
   const handlePublish = async () => {
+    if (isScheduleDirty) {
+      toast.warning(publishDirtyTooltip);
+      return;
+    }
+
     const ids = scheduleShifts
       .filter((s) => {
         const d = dayjs(s.date);
@@ -2172,6 +2260,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         });
       }
       console.log("[Rosters] published", ids.length, "shifts");
+      syncScheduleBaseline();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Publish failed");
     }
@@ -2192,6 +2281,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           .filter((dateStr) => isScheduleDateEditable(dateStr)),
       );
       onSave();
+      syncScheduleBaseline();
       toast.success(isZh ? "排班已保存" : "Roster saved");
     } catch (error) {
       toast.error(
@@ -2299,22 +2389,28 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
         {/* Right */}
         <div className="flex items-center gap-2">
-          {draftCount > 0 && (
-            <Button
-              onClick={handlePublish}
-              disabled={isReadonlyWeek}
-              style={{
-                background: "var(--chart-2)",
-                color: "var(--primary-foreground)",
-                border: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-              }}
-              icon={<Send size={12} style={{ display: "inline" }} />}
+          {publishableDraftCount > 0 && (
+            <Tooltip
+              title={isScheduleDirty ? publishDirtyTooltip : undefined}
             >
-              {isZh ? "发布" : "Publish"}
-            </Button>
+              <span className="inline-flex">
+                <Button
+                  onClick={handlePublish}
+                  disabled={isReadonlyWeek || isScheduleDirty}
+                  style={{
+                    background: "var(--chart-2)",
+                    color: "var(--primary-foreground)",
+                    border: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                  icon={<Send size={12} style={{ display: "inline" }} />}
+                >
+                  {isZh ? "发布" : "Publish"}
+                </Button>
+              </span>
+            </Tooltip>
           )}
           <Button
             type="primary"
