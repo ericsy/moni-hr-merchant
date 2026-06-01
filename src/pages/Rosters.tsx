@@ -1079,31 +1079,6 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     shiftForm.startTime,
   ]);
 
-  useEffect(() => {
-    if (shiftForm.employeeIds.length === 0) return;
-    if (conflictEmployeeIdSet.size === 0) return;
-    const conflicted = shiftForm.employeeIds.filter((id) =>
-      conflictEmployeeIdSet.has(id),
-    );
-    if (conflicted.length === 0) return;
-
-    setShiftForm((prev) => {
-      const nextIds = prev.employeeIds.filter(
-        (id) => !conflictEmployeeIdSet.has(id),
-      );
-      return {
-        ...prev,
-        employeeIds: nextIds,
-        employeeId: nextIds[0] || "",
-      };
-    });
-    toast.warning(
-      locale === "zh"
-        ? `已移除 ${conflicted.length} 名时间冲突员工`
-        : `Removed ${conflicted.length} conflicting employee(s)`,
-    );
-  }, [conflictEmployeeIdSet, locale, shiftForm.employeeIds]);
-
   // Areas: use shared base area data from context
   const displayAreas: Area[] = areas
     .filter(
@@ -1841,6 +1816,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   // ── Modal handlers ──────────────────────────────────────────────────────────
 
+  const closeShiftModal = () => {
+    setModalOpen(false);
+    setEditingShift(null);
+  };
+
   const openAddShift = (areaId: string, date: string, empId = "") => {
     if (!isScheduleDateEditable(date)) {
       toast.warning(readonlyRosterMessage);
@@ -2027,7 +2007,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       );
       console.log("[Rosters] added shifts:", newShifts);
     }
-    setModalOpen(false);
+    closeShiftModal();
   };
 
   const handleDeleteShift = (id: string) => {
@@ -2908,7 +2888,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               : "Add Shift"
         }
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        onCancel={closeShiftModal}
         onOk={handleSaveShift}
         maskClosable={false}
         okText={isZh ? "保存" : "Save"}
