@@ -31,3 +31,5 @@
 - 更新 `Rosters.tsx`：应用排班模版时，同一模版格子内的多名员工合并为 **一条班次**（`employeeIds` 多人），不再按员工拆成多个班次卡片。
 
 - 更新 `routes.tsx`、`Layout.tsx`、`EmployeeStats.tsx`：员工统计菜单与页面标题改为优先使用权限接口返回的 `nameZh`/`nameEn`；移除对员工统计等页面强制使用本地 `t.nav` 文案的特殊逻辑；Layout 顶部标题也统一从权限树解析。
+
+- 更新 `Rosters.tsx`、`DataContext.tsx`：保存排班草稿时提交当前周 `overlayDates`，修复删除已发布班次后保存草稿、再次进入仍显示被删班次的问题。

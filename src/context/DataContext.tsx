@@ -269,7 +269,11 @@ interface DataContextType {
   setEmployeeDateLeaves: React.Dispatch<React.SetStateAction<EmployeeDateLeave[]>>;
   saveGlobalShift: (shift: ScheduleShift, existingShiftId?: string) => Promise<ScheduleShift>;
   deleteGlobalShift: (shiftId: string) => Promise<void>;
-  saveScheduleDraft: (nextShifts?: ScheduleShift[], targetStoreId?: string) => Promise<void>;
+  saveScheduleDraft: (
+    nextShifts?: ScheduleShift[],
+    targetStoreId?: string,
+    overlayDates?: string[],
+  ) => Promise<void>;
   publishSchedule: (targetStoreId?: string) => Promise<MerchantSchedulePublishResult>;
   areas: Area[];
   setAreas: React.Dispatch<React.SetStateAction<Area[]>>;
@@ -415,6 +419,7 @@ const getOperationMessage = (error: unknown, fallback: string) =>
 
 const buildEmptyScheduleDraft = () => ({
   areas: [] as { id: number; orderSort: number }[],
+  overlayDates: [] as string[],
   cells: [] as {
     areaId: number;
     shiftId: number;
@@ -801,8 +806,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setScheduleShifts((prev) => prev.filter((shift) => shift.shiftId !== normalizedId && shift.id !== shiftId));
   }, []);
 
-  const buildScheduleDraftPayload = useCallback(async (storeId: string, nextShifts: ScheduleShift[]) => {
+  const buildScheduleDraftPayload = useCallback(async (
+    storeId: string,
+    nextShifts: ScheduleShift[],
+    overlayDates?: string[],
+  ) => {
     const payload = buildEmptyScheduleDraft();
+    if (overlayDates?.length) {
+      payload.overlayDates = Array.from(new Set(overlayDates));
+    }
     const relevantAreas = areas
       .filter((area) => (area.areaType || "store") === "general" || area.storeId === storeId)
       .filter((area) => isBackendId(area.id))
@@ -837,7 +849,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return payload;
   }, [areas]);
 
-  const saveScheduleDraft = useCallback(async (nextShifts = scheduleShifts, targetStoreId?: string) => {
+  const saveScheduleDraft = useCallback(async (
+    nextShifts = scheduleShifts,
+    targetStoreId?: string,
+    overlayDates?: string[],
+  ) => {
     const editableNextShifts = nextShifts.filter((shift) => shift.isGlobalPreset || isScheduleDateEditable(shift.date));
     const contextIds = targetStoreId && targetStoreId !== "all"
       ? [targetStoreId]
@@ -848,7 +864,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
 
     await Promise.all(contextIds.map(async (storeId) => {
-      const payload = await buildScheduleDraftPayload(storeId, editableNextShifts);
+      const payload = await buildScheduleDraftPayload(storeId, editableNextShifts, overlayDates);
       await merchantApi.saveScheduleDraft(storeId, payload);
     }));
 

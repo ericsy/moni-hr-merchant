@@ -2116,7 +2116,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     }
 
     try {
-      await saveScheduleDraft(scheduleShifts, selectedStoreId);
+      await saveScheduleDraft(
+        scheduleShifts,
+        selectedStoreId,
+        weekDates
+          .map((d) => d.format("YYYY-MM-DD"))
+          .filter((dateStr) => isScheduleDateEditable(dateStr)),
+      );
       const publishResult = await publishSchedule(selectedStoreId);
       toast.success(
         locale === "zh"
@@ -2178,7 +2184,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     }
 
     try {
-      await saveScheduleDraft(scheduleShifts, selectedStoreId);
+      await saveScheduleDraft(
+        scheduleShifts,
+        selectedStoreId,
+        weekDates
+          .map((d) => d.format("YYYY-MM-DD"))
+          .filter((dateStr) => isScheduleDateEditable(dateStr)),
+      );
       onSave();
       toast.success(isZh ? "排班已保存" : "Roster saved");
     } catch (error) {
