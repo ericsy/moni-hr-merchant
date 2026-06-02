@@ -538,8 +538,18 @@ function ShiftEntry({
                 ? (
                     <div style={{ fontSize: 12, lineHeight: 1.35 }}>
                       {emp.approvedLeaveHint ? (
-                        <div style={{ fontWeight: 700, color: "#065f46" }}>
-                          {emp.approvedLeaveHint}
+                        <div>
+                          <span
+                            className="inline-flex items-center rounded px-1.5 py-0.5"
+                            style={{
+                              fontWeight: 800,
+                              color: "#DCFCE7",
+                              background: "rgba(34, 197, 94, 0.28)",
+                              border: "1px solid rgba(134, 239, 172, 0.45)",
+                            }}
+                          >
+                            {emp.approvedLeaveHint}
+                          </span>
                         </div>
                       ) : null}
                       {emp.availabilityWarning ? (
