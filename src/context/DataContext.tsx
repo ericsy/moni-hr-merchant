@@ -465,6 +465,8 @@ const DataContext = createContext<DataContextType>({
   setScheduleShifts: () => {},
   employeeDateLeaves: [],
   setEmployeeDateLeaves: () => {},
+  employeeShiftLeaves: [],
+  setEmployeeShiftLeaves: () => {},
   saveGlobalShift: async (shift) => shift,
   deleteGlobalShift: async () => {},
   saveScheduleDraft: async () => {},
