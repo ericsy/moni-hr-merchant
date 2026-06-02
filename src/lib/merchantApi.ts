@@ -267,6 +267,21 @@ export interface EmployeeDateLeave {
   requestId?: number | string | null;
 }
 
+export interface EmployeeShiftLeave {
+  storeId?: number | string | null;
+  merchantAdminId?: number | string | null;
+  displayName?: string | null;
+  scheduleDate?: string | null;
+  shiftStartTime?: string | null;
+  shiftEndTime?: string | null;
+  leaveScope?: string | null;
+  leaveEffect?: string | null;
+  partialStartTime?: string | null;
+  partialEndTime?: string | null;
+  requestId?: number | string | null;
+  leaveItemId?: number | string | null;
+}
+
 export interface MerchantAttendanceRequest {
   id?: number | string | null;
   storeId?: number | string | null;
@@ -1891,7 +1906,11 @@ export const merchantApi = {
       method: "DELETE",
     }),
   getSchedule: async (storeId: string) => {
-    const data = await apiRequest<{ cells?: unknown[]; employeeDateLeaves?: unknown[] }>(
+    const data = await apiRequest<{
+      cells?: unknown[];
+      employeeDateLeaves?: unknown[];
+      employeeShiftLeaves?: unknown[];
+    }>(
       getMerchantEndpoint("schedule"),
       { storeId },
     );
@@ -1913,7 +1932,26 @@ export const merchantApi = {
         requestId: (raw.requestId ?? raw.request_id) as number | string | null | undefined,
       }) as EmployeeDateLeave & { storeId: string };
     });
-    return { cells, employeeDateLeaves };
+    const employeeShiftLeaves = asArray(data?.employeeShiftLeaves).map((row) => {
+      const raw = asRecord(row);
+      const scheduleDate = normalizeApiLocalDate(raw.scheduleDate ?? raw.schedule_date);
+      return compactDeep({
+        storeId,
+        merchantAdminId:
+          (raw.merchantAdminId ?? raw.merchant_admin_id) as number | string | null | undefined,
+        displayName: asString(raw.displayName ?? raw.display_name),
+        scheduleDate,
+        shiftStartTime: asString(raw.shiftStartTime ?? raw.shift_start_time),
+        shiftEndTime: asString(raw.shiftEndTime ?? raw.shift_end_time),
+        leaveScope: asString(raw.leaveScope ?? raw.leave_scope),
+        leaveEffect: asString(raw.leaveEffect ?? raw.leave_effect),
+        partialStartTime: asString(raw.partialStartTime ?? raw.partial_start_time),
+        partialEndTime: asString(raw.partialEndTime ?? raw.partial_end_time),
+        requestId: (raw.requestId ?? raw.request_id) as number | string | null | undefined,
+        leaveItemId: (raw.leaveItemId ?? raw.leave_item_id) as number | string | null | undefined,
+      }) as EmployeeShiftLeave & { storeId: string };
+    });
+    return { cells, employeeDateLeaves, employeeShiftLeaves };
   },
   saveScheduleDraft: (storeId: string, payload: unknown) =>
     apiRequest<null>(appendEndpointPath(getMerchantEndpoint("schedule"), "draft"), {

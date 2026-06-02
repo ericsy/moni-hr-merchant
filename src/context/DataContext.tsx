@@ -4,6 +4,7 @@ import {
   isBackendId,
   merchantApi,
   type EmployeeDateLeave,
+  type EmployeeShiftLeave,
   type MerchantPrincipal,
   type MerchantSchedulePublishResult,
 } from "../lib/merchantApi";
@@ -267,6 +268,8 @@ interface DataContextType {
   setScheduleShifts: React.Dispatch<React.SetStateAction<ScheduleShift[]>>;
   employeeDateLeaves: EmployeeDateLeave[];
   setEmployeeDateLeaves: React.Dispatch<React.SetStateAction<EmployeeDateLeave[]>>;
+  employeeShiftLeaves: EmployeeShiftLeave[];
+  setEmployeeShiftLeaves: React.Dispatch<React.SetStateAction<EmployeeShiftLeave[]>>;
   saveGlobalShift: (shift: ScheduleShift, existingShiftId?: string) => Promise<ScheduleShift>;
   deleteGlobalShift: (shiftId: string) => Promise<void>;
   saveScheduleDraft: (
@@ -301,6 +304,7 @@ interface PersistedDataSnapshot {
   workAreas: EmployeeDictItem[];
   scheduleShifts: ScheduleShift[];
   employeeDateLeaves: EmployeeDateLeave[];
+  employeeShiftLeaves: EmployeeShiftLeave[];
   areas: Area[];
   rosterTemplates: RosterTemplate[];
 }
@@ -313,6 +317,7 @@ const getDefaultDataSnapshot = (): PersistedDataSnapshot => ({
   workAreas: [],
   scheduleShifts: [],
   employeeDateLeaves: [],
+  employeeShiftLeaves: [],
   areas: [],
   rosterTemplates: [],
 });
@@ -490,6 +495,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [employeeDateLeaves, setEmployeeDateLeaves] = useState<EmployeeDateLeave[]>(
     initialData.employeeDateLeaves,
   );
+  const [employeeShiftLeaves, setEmployeeShiftLeaves] = useState<EmployeeShiftLeave[]>(
+    initialData.employeeShiftLeaves,
+  );
   const [areas, setAreas] = useState<Area[]>(initialData.areas);
   const [rosterTemplates, setRosterTemplates] = useState<RosterTemplate[]>(initialData.rosterTemplates);
   const [loading, setLoading] = useState(false);
@@ -634,6 +642,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (scheduleResult.ok) {
           setEmployeeDateLeaves(
             scheduleResult.value.flatMap((r) => r.employeeDateLeaves ?? []),
+          );
+          setEmployeeShiftLeaves(
+            scheduleResult.value.flatMap((r) => r.employeeShiftLeaves ?? []),
           );
         }
       }
@@ -977,6 +988,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       workAreas, setWorkAreas,
       scheduleShifts, setScheduleShifts,
       employeeDateLeaves, setEmployeeDateLeaves,
+      employeeShiftLeaves, setEmployeeShiftLeaves,
       saveGlobalShift, deleteGlobalShift,
       saveScheduleDraft, publishSchedule,
       areas, setAreas,

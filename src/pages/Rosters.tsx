@@ -342,6 +342,8 @@ interface ShiftEntryProps {
     color: string;
     avatarUrl?: string;
     availabilityWarning?: string | null;
+    /** Approved date-range leave hint for the shift date (for display only) */
+    approvedLeaveHint?: string | null;
   }[];
   onEdit?: () => void;
   onDelete?: () => void;
@@ -529,14 +531,37 @@ function ShiftEntry({
       {/* Employees (dynamic) */}
       {assignedEmployees.length > 0 && (
         <div className="mt-1 flex w-full flex-wrap items-center gap-0.5 min-w-0">
-          {assignedEmployees.map((emp) => (
-            <Tooltip key={emp.id} title={emp.availabilityWarning || undefined}>
+          {assignedEmployees.map((emp) => {
+            const onApprovedLeave = !!emp.approvedLeaveHint;
+            const tooltipTitle =
+              emp.approvedLeaveHint || emp.availabilityWarning
+                ? (
+                    <div style={{ fontSize: 12, lineHeight: 1.35 }}>
+                      {emp.approvedLeaveHint ? (
+                        <div style={{ fontWeight: 700, color: "#065f46" }}>
+                          {emp.approvedLeaveHint}
+                        </div>
+                      ) : null}
+                      {emp.availabilityWarning ? (
+                        <div style={{ marginTop: emp.approvedLeaveHint ? 6 : 0 }}>
+                          {emp.availabilityWarning}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                : undefined;
+            return (
+              <Tooltip key={emp.id} title={tooltipTitle}>
               <div
                 className="flex max-w-full min-w-0 items-center gap-0.5 rounded-md px-1 py-0.5"
                 style={{
-                  background: "var(--card)",
+                  background: onApprovedLeave
+                    ? "rgba(34, 197, 94, 0.12)"
+                    : "var(--card)",
                   border: emp.availabilityWarning
                     ? "1px solid var(--destructive)"
+                    : onApprovedLeave
+                      ? "1px solid rgba(34, 197, 94, 0.35)"
                     : "1px solid transparent",
                 }}
               >
@@ -556,7 +581,9 @@ function ShiftEntry({
                   style={{
                     color: emp.availabilityWarning
                       ? "var(--destructive)"
-                      : "var(--foreground)",
+                      : onApprovedLeave
+                        ? "#065f46"
+                        : "var(--foreground)",
                     maxWidth: 72,
                     fontSize: 10,
                     fontWeight: emp.availabilityWarning ? 700 : 400,
@@ -564,6 +591,21 @@ function ShiftEntry({
                 >
                   {emp.name}
                 </span>
+                {onApprovedLeave && (
+                  <span
+                    className="rounded px-1 flex-shrink-0"
+                    style={{
+                      fontSize: 8,
+                      background: "rgba(34, 197, 94, 0.18)",
+                      color: "#065f46",
+                      border: "1px solid rgba(34, 197, 94, 0.35)",
+                      lineHeight: 1.2,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {locale === "zh" ? "假" : "Leave"}
+                  </span>
+                )}
                 {emp.availabilityWarning && (
                   <AlertTriangle
                     size={9}
@@ -581,7 +623,8 @@ function ShiftEntry({
                 )}
               </div>
             </Tooltip>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -784,6 +827,10 @@ interface AreaDateCellProps {
     empId: string,
     shift: ScheduleShift,
   ) => string | null;
+  getApprovedLeaveHint?: (
+    empId: string,
+    shift: Pick<ScheduleShift, "date" | "startTime" | "endTime">,
+  ) => string | null;
   isToday?: boolean;
   isClosedDay?: boolean;
   isPublicHoliday?: boolean;
@@ -803,6 +850,7 @@ function AreaDateCell({
   onDropEmployeeToShift = () => {},
   onDropTemplate = () => {},
   getAvailabilityWarning = () => null,
+  getApprovedLeaveHint = () => null,
   isToday = false,
   isClosedDay = false,
   isPublicHoliday = false,
@@ -896,6 +944,7 @@ function AreaDateCell({
           color: empMap[empId]?.color || "var(--primary)",
           avatarUrl: empMap[empId]?.avatarUrl || "",
           availabilityWarning: getAvailabilityWarning(empId, sh),
+          approvedLeaveHint: getApprovedLeaveHint(empId, sh),
         }));
         return (
           <ShiftEntry
@@ -952,6 +1001,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     scheduleShifts,
     setScheduleShifts,
     employeeDateLeaves,
+    employeeShiftLeaves,
     saveScheduleDraft,
     publishSchedule,
     loading: dataLoading,
@@ -980,6 +1030,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       (l) => !l.storeId || String(l.storeId) === String(selectedStoreId),
     );
   }, [employeeDateLeaves, selectedStoreId]);
+
+  const shiftLeavesForStore = useMemo(() => {
+    if (!selectedStoreId) return employeeShiftLeaves;
+    return employeeShiftLeaves.filter(
+      (l) => !l.storeId || String(l.storeId) === String(selectedStoreId),
+    );
+  }, [employeeShiftLeaves, selectedStoreId]);
   const isReadonlyWeek = weekDates.every((date) =>
     !isScheduleDateEditable(date),
   );
@@ -1156,6 +1213,112 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   ) => {
     const dateLeaveWarning = findDateLeaveWarning(empId, shift.date);
     if (dateLeaveWarning) return dateLeaveWarning;
+    const employee = activeEmployees.find((item) => item.id === empId);
+    if (!employee) return null;
+    return getDatedShiftAvailabilityWarning(employee, shift, locale);
+  };
+
+  /**
+   * 多人格子：只标示“已批准请假”（按班次/部分班次优先，其次按日期区间），不把整格染色、也不把它当作 destructive warning。
+   */
+  const findApprovedLeaveHint = (
+    empId: string,
+    shift: Pick<ScheduleShift, "date" | "startTime" | "endTime">,
+  ): string | null => {
+    const dateStr = shift.date;
+    const shiftStart = (shift.startTime || "").trim();
+    const shiftEnd = (shift.endTime || "").trim();
+
+    const toMinutes = (hhmm: string): number | null => {
+      if (!hhmm) return null;
+      const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+      if (!m) return null;
+      const h = Number(m[1]);
+      const mm = Number(m[2]);
+      if (!Number.isFinite(h) || !Number.isFinite(mm) || h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+      return h * 60 + mm;
+    };
+    const normalizeRange = (start: string, end: string): { s: number; e: number } | null => {
+      const s0 = toMinutes(start);
+      const e0 = toMinutes(end);
+      if (s0 == null || e0 == null) return null;
+      const e = e0 <= s0 ? e0 + 24 * 60 : e0;
+      return { s: s0, e };
+    };
+    const overlaps = (a: { s: number; e: number }, b: { s: number; e: number }) =>
+      Math.max(a.s, b.s) < Math.min(a.e, b.e);
+
+    const shiftRange = normalizeRange(shiftStart, shiftEnd);
+
+    if (shiftRange) {
+      const hitShift = shiftLeavesForStore.find((leave) => {
+        if (String(leave.merchantAdminId) !== String(empId)) return false;
+        const d = (leave.scheduleDate ?? "").slice(0, 10);
+        if (!d) return false;
+        if (dateStr !== d) return false;
+
+        const st = (leave.shiftStartTime ?? "").trim();
+        const et = (leave.shiftEndTime ?? "").trim();
+        const ps = (leave.partialStartTime ?? "").trim();
+        const pe = (leave.partialEndTime ?? "").trim();
+        const effect = (leave.leaveEffect ?? "").trim();
+
+        let leaveRange: { s: number; e: number } | null = null;
+        if (effect === "late_in") {
+          leaveRange = normalizeRange(st, pe);
+        } else if (effect === "early_out") {
+          leaveRange = normalizeRange(ps, et);
+        } else if (effect === "full") {
+          leaveRange = normalizeRange(st, et);
+        } else {
+          leaveRange = normalizeRange(st, et);
+        }
+        if (!leaveRange) return false;
+        return overlaps(shiftRange, leaveRange);
+      });
+
+      if (hitShift) {
+        const st = (hitShift.shiftStartTime ?? "").trim();
+        const et = (hitShift.shiftEndTime ?? "").trim();
+        const ps = (hitShift.partialStartTime ?? "").trim();
+        const pe = (hitShift.partialEndTime ?? "").trim();
+        const effect = (hitShift.leaveEffect ?? "").trim();
+        if (effect === "late_in") {
+          const span = `${st || "??:??"} ~ ${pe || "??:??"}`;
+          return isZh ? `已批准请假（晚到 ${span}）` : `Approved leave (late in ${span})`;
+        }
+        if (effect === "early_out") {
+          const span = `${ps || "??:??"} ~ ${et || "??:??"}`;
+          return isZh ? `已批准请假（早退 ${span}）` : `Approved leave (early out ${span})`;
+        }
+        if (effect === "full") {
+          const span = `${st || "??:??"} ~ ${et || "??:??"}`;
+          return isZh ? `已批准请假（整班次 ${span}）` : `Approved leave (full shift ${span})`;
+        }
+        return isZh ? "已批准请假（按班次）" : "Approved leave (shift)";
+      }
+    }
+
+    const hit = dateLeavesForStore.find((leave) => {
+      if (leave.status !== "approved") return false;
+      if (String(leave.merchantAdminId) !== String(empId)) return false;
+      const from = (leave.leaveDateFrom ?? "").slice(0, 10);
+      const to = (leave.leaveDateTo ?? "").slice(0, 10);
+      if (!from || !to) return false;
+      return dateStr >= from && dateStr <= to;
+    });
+    if (!hit) return null;
+    const range = `${(hit.leaveDateFrom ?? "").slice(0, 10)} ~ ${(hit.leaveDateTo ?? "").slice(0, 10)}`;
+    return isZh ? `已批准请假（${range}）` : `Approved leave (${range})`;
+  };
+
+  /**
+   * 给格子内的员工 chip 使用：仅检查排班模式/工作时段可用性，不把“按日期请假”当作 destructive warning。
+   */
+  const findPatternAvailabilityWarning = (
+    empId: string,
+    shift: Pick<ScheduleShift, "date" | "startTime" | "endTime">,
+  ) => {
     const employee = activeEmployees.find((item) => item.id === empId);
     if (!employee) return null;
     return getDatedShiftAvailabilityWarning(employee, shift, locale);
@@ -2861,7 +3024,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                         onDropEmployee={handleDropEmployee}
                         onDropEmployeeToShift={handleDropEmployeeToShift}
                         onDropTemplate={handleDropTemplateToCurrentWeek}
-                        getAvailabilityWarning={findAvailabilityWarning}
+                        getAvailabilityWarning={findPatternAvailabilityWarning}
+                        getApprovedLeaveHint={findApprovedLeaveHint}
                         isToday={isToday}
                         isClosedDay={isClosedDay}
                         isPublicHoliday={isPublicHoliday}
