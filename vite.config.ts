@@ -62,7 +62,7 @@ export default defineConfig(({ mode }) => {
   const proxyTarget = env.VITE_API_PROXY_TARGET?.trim();
 
   return {
-    base: `${APP_BASE_PATH}/`,
+    base: `./`,
     plugins: [
       react(),
       tailwindcss(),
