@@ -1,0 +1,113 @@
+// Jenkins Job：merchant-web-dev
+// 构建 + 可选部署到 Nginx 静态目录（与 dev-api 同机时常用）
+
+pipeline {
+    agent any
+
+    parameters {
+        string(
+            name: 'GIT_BRANCH',
+            defaultValue: 'develop',
+            description: 'GitHub 分支名'
+        )
+        booleanParam(
+            name: 'DEPLOY_TO_NGINX',
+            defaultValue: true,
+            description: '构建成功后是否 rsync 到 Nginx 静态目录'
+        )
+        string(
+            name: 'NGINX_STATIC_DIR',
+            defaultValue: '/var/www/moni-merchant-dev',
+            description: 'Nginx root 指向的目录（宿主机路径，需提前 mkdir 并配置 server）'
+        )
+        string(
+            name: 'NGINX_RELOAD_CMD',
+            defaultValue: 'docker exec nginx nginx -s reload || true',
+            description: '部署后重载 Nginx；不需要可填 echo skip'
+        )
+    }
+
+    environment {
+        DEPLOY_ENV = 'dev'
+        MERCHANT_DIR = 'moni-hr-merchant'
+        VITE_API_BASE_URL = 'http://dev-api.monihr.com'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "*/${params.GIT_BRANCH}"]],
+                    extensions: scm.extensions,
+                    userRemoteConfigs: scm.userRemoteConfigs
+                ])
+            }
+        }
+
+        stage('Setup Node') {
+            steps {
+                dir(MERCHANT_DIR) {
+                    sh '''
+                        node -v
+                        corepack enable || true
+                        corepack prepare pnpm@8.15.7 --activate || npm i -g pnpm@8
+                        pnpm -v
+                    '''
+                }
+            }
+        }
+
+        stage('Install & Build') {
+            steps {
+                dir(MERCHANT_DIR) {
+                    sh '''
+                        pnpm install --frozen-lockfile
+                        VITE_API_BASE_URL="${VITE_API_BASE_URL}" pnpm run build:dev
+                    '''
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                dir(MERCHANT_DIR) {
+                    archiveArtifacts artifacts: 'dist/**', fingerprint: true, onlyIfSuccessful: true
+                }
+            }
+        }
+
+        stage('Deploy to Nginx') {
+            when {
+                expression { return params.DEPLOY_TO_NGINX }
+            }
+            steps {
+                dir(MERCHANT_DIR) {
+                    sh '''
+                        set -e
+                        test -d dist || { echo "dist 不存在"; exit 1; }
+                        mkdir -p "${NGINX_STATIC_DIR}"
+                        rsync -avz --delete dist/ "${NGINX_STATIC_DIR}/"
+                        echo "已部署到 ${NGINX_STATIC_DIR}"
+                        eval "${NGINX_RELOAD_CMD}"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "dev 完成：分支=${params.GIT_BRANCH}，部署=${params.DEPLOY_TO_NGINX}，目录=${params.NGINX_STATIC_DIR}"
+        }
+        failure {
+            echo "dev 构建/部署失败"
+        }
+    }
+}

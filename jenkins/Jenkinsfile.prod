@@ -1,0 +1,85 @@
+// Jenkins Job：merchant-web-prod
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'GitHub 分支名')
+        booleanParam(name: 'DEPLOY_TO_NGINX', defaultValue: true, description: '是否部署到 Nginx')
+        string(name: 'NGINX_STATIC_DIR', defaultValue: '/var/www/moni-merchant-prod', description: '静态资源目录')
+        string(name: 'NGINX_RELOAD_CMD', defaultValue: 'docker exec nginx nginx -s reload || true', description: '重载 Nginx 命令')
+    }
+
+    environment {
+        DEPLOY_ENV = 'prod'
+        MERCHANT_DIR = 'moni-hr-merchant'
+        VITE_API_BASE_URL = 'https://api.monihr.com'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "*/${params.GIT_BRANCH}"]],
+                    extensions: scm.extensions,
+                    userRemoteConfigs: scm.userRemoteConfigs
+                ])
+            }
+        }
+
+        stage('Setup Node') {
+            steps {
+                dir(MERCHANT_DIR) {
+                    sh '''
+                        node -v
+                        corepack enable || true
+                        corepack prepare pnpm@8.15.7 --activate || npm i -g pnpm@8
+                        pnpm -v
+                    '''
+                }
+            }
+        }
+
+        stage('Install & Build') {
+            steps {
+                dir(MERCHANT_DIR) {
+                    sh '''
+                        pnpm install --frozen-lockfile
+                        VITE_API_BASE_URL="${VITE_API_BASE_URL}" pnpm run build:prod
+                    '''
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                dir(MERCHANT_DIR) {
+                    archiveArtifacts artifacts: 'dist/**', fingerprint: true, onlyIfSuccessful: true
+                }
+            }
+        }
+
+        stage('Deploy to Nginx') {
+            when {
+                expression { return params.DEPLOY_TO_NGINX }
+            }
+            steps {
+                dir(MERCHANT_DIR) {
+                    sh '''
+                        set -e
+                        mkdir -p "${NGINX_STATIC_DIR}"
+                        rsync -avz --delete dist/ "${NGINX_STATIC_DIR}/"
+                        eval "${NGINX_RELOAD_CMD}"
+                    '''
+                }
+            }
+        }
+    }
+}

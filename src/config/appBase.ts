@@ -1,2 +1,2 @@
-export const APP_BASE_PATH = "/merchant";
+export const APP_BASE_PATH = "/";
 
