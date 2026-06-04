@@ -19,14 +19,16 @@ import {
   Clock,
   Edit2,
   GripVertical,
+  LayoutGrid,
   Minus,
   Plus,
   Save,
   Search,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 import {
   ColorSwatchPicker,
@@ -39,6 +41,7 @@ import {
   type Employee,
   type RosterTemplate,
   type RosterTemplateCell,
+  type Store,
 } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
@@ -48,7 +51,17 @@ import {
   getEmployeeInitials,
 } from "../lib/employeeAvatar";
 import { calcShiftHours, indexedShiftsOverlap } from "../lib/shift";
+import {
+  filterCellsForEmployeeOnDay,
+  filterUnassignedCellsOnDay,
+  readStoredGridViewMode,
+  ROSTER_UNASSIGNED_ROW_ID,
+  type RosterGridViewMode,
+  storeGridViewMode,
+} from "../lib/rosterGridIndex";
 import { isStoreClosedOnDayIndex } from "../lib/storeHours";
+
+const TEMPLATE_GRID_VIEW_STORAGE_KEY = "moni-roster-template-grid-view";
 import { EmployeeModal } from "./Employees";
 
 const { Option } = Select;
@@ -203,6 +216,8 @@ interface ShiftCellProps {
   onDrop?: (empId: string) => void;
   onRemoveEmployee?: (empId: string) => void;
   onAddEmployeeClick?: () => void;
+  viewMode?: RosterGridViewMode;
+  areaName?: string;
 }
 
 function ShiftCell({
@@ -213,11 +228,15 @@ function ShiftCell({
   onDrop = () => {},
   onRemoveEmployee = () => {},
   onAddEmployeeClick = () => {},
+  viewMode = "area",
+  areaName = "",
 }: ShiftCellProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const { locale } = useLocale();
 
   if (!cell) return null;
 
+  const isEmployeeView = viewMode === "employee";
   const sc = getShiftColor(cell.color);
   const hrs = calcHours(cell.startTime, cell.endTime);
 
@@ -290,7 +309,18 @@ function ShiftCell({
         </div>
       </div>
 
+      {isEmployeeView && areaName ? (
+        <div
+          className="mt-0.5 truncate"
+          style={{ fontSize: 9, color: "var(--muted-foreground)", fontWeight: 600 }}
+          title={areaName}
+        >
+          {areaName}
+        </div>
+      ) : null}
+
       {/* Add employee button (above employee list) */}
+      {!isEmployeeView && (
       <button
         type="button"
         onClick={(event) => {
@@ -316,9 +346,10 @@ function ShiftCell({
           {employees.length > 0 ? `+ 添加员工` : `选择员工`}
         </span>
       </button>
+      )}
 
       {/* Employees (dynamic) */}
-      {employees.length > 0 && (
+      {!isEmployeeView && employees.length > 0 && (
         <div className="mt-1 flex w-full flex-wrap items-center gap-0.5 min-w-0">
           {employees.map((emp) => (
             <Tooltip key={emp.id} title={emp.availabilityWarning || undefined}>
@@ -380,6 +411,150 @@ function ShiftCell({
   );
 }
 
+interface TemplateEmployeeDayCellProps {
+  dayIndex: number;
+  employeeId?: string;
+  rowKind?: "employee" | "unassigned";
+  cells?: RosterShiftCell[];
+  areaNameMap?: Record<string, string>;
+  activeEmployees?: Employee[];
+  empNameMap?: Record<string, string>;
+  empColorMap?: Record<string, string>;
+  empAvatarMap?: Record<string, string>;
+  defaultAreaId?: string;
+  activeTemplateStore?: Store;
+  locale?: string;
+  onAddCell?: (
+    areaId: string,
+    dayIndex: number,
+    employeeIds: string[],
+  ) => void;
+  onEditCell?: (cell: RosterShiftCell) => void;
+  onDeleteCell?: (cellId: string) => void;
+  onDropEmployee?: (cellId: string, empId: string) => void;
+  onRemoveEmployee?: (cellId: string, empId: string) => void;
+  getTemplateShiftAvailabilityWarning?: typeof getTemplateShiftAvailabilityWarning;
+}
+
+function TemplateEmployeeDayCell({
+  dayIndex,
+  employeeId = "",
+  rowKind = "employee",
+  cells = [],
+  areaNameMap = {},
+  activeEmployees = [],
+  empNameMap = {},
+  empColorMap = {},
+  empAvatarMap = {},
+  defaultAreaId = "",
+  activeTemplateStore,
+  locale = "zh",
+  onAddCell = () => {},
+  onEditCell = () => {},
+  onDeleteCell = () => {},
+  onDropEmployee = () => {},
+  onRemoveEmployee = () => {},
+}: TemplateEmployeeDayCellProps) {
+  const isStoreClosed = isStoreClosedOnDayIndex(activeTemplateStore, dayIndex);
+
+  return (
+    <div
+      data-cmp="TemplateEmployeeDayCell"
+      className="p-1.5"
+      style={{
+        flex: `1 1 ${TEMPLATE_DAY_COLUMN_WIDTH}px`,
+        minWidth: TEMPLATE_DAY_COLUMN_WIDTH,
+        borderRight: "1px solid var(--border)",
+        minHeight: 88,
+        background: isStoreClosed
+          ? "var(--workday-weekend-header)"
+          : "transparent",
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        const empId = e.dataTransfer.getData("employeeId");
+        if (!empId || !defaultAreaId) return;
+        if (cells.length > 0) {
+          onDropEmployee(cells[0].id, empId);
+          return;
+        }
+        onAddCell(
+          defaultAreaId,
+          dayIndex,
+          rowKind === "unassigned" ? [empId] : [empId],
+        );
+      }}
+    >
+      {cells.map((cell) => {
+        const cellEmployees = cell.employeeIds
+          .map((eid) => {
+            const emp = activeEmployees.find((employee) => employee.id === eid);
+            if (!emp) return null;
+            return {
+              id: eid,
+              name: empNameMap[eid],
+              color: empColorMap[eid] || "var(--primary)",
+              avatarUrl: empAvatarMap[eid] || "",
+              availabilityWarning: getTemplateShiftAvailabilityWarning(
+                emp,
+                {
+                  dayIndex: cell.dayIndex,
+                  startTime: cell.startTime,
+                  endTime: cell.endTime,
+                },
+                locale as "zh" | "en",
+              ),
+            };
+          })
+          .filter(Boolean) as {
+          id: string;
+          name: string;
+          color: string;
+          avatarUrl: string;
+          availabilityWarning: string | null;
+        }[];
+        return (
+          <ShiftCell
+            key={cell.id}
+            cell={cell}
+            employees={cellEmployees}
+            onEdit={() => onEditCell(cell)}
+            onDelete={() => onDeleteCell(cell.id)}
+            onDrop={(empId) => onDropEmployee(cell.id, empId)}
+            onRemoveEmployee={(empId) => onRemoveEmployee(cell.id, empId)}
+            onAddEmployeeClick={() => onEditCell(cell)}
+            viewMode="employee"
+            areaName={areaNameMap[cell.areaId] || cell.areaId}
+          />
+        );
+      })}
+
+      {defaultAreaId && (
+        <button
+          onClick={() =>
+            onAddCell(
+              defaultAreaId,
+              dayIndex,
+              rowKind === "unassigned" ? [] : employeeId ? [employeeId] : [],
+            )
+          }
+          className="w-full rounded-lg flex items-center justify-center transition-all hover:opacity-80"
+          style={{
+            height: 22,
+            border: "1.5px dashed var(--border)",
+            color: "var(--muted-foreground)",
+            background: "transparent",
+            fontSize: 10,
+          }}
+        >
+          <Plus size={10} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 interface RosterTemplatePageProps {
@@ -410,6 +585,9 @@ export default function RosterTemplatePage({
     allTemplates[0]?.id || "",
   );
   const [searchText, setSearchText] = useState("");
+  const [gridViewMode, setGridViewMode] = useState<RosterGridViewMode>(() =>
+    readStoredGridViewMode(TEMPLATE_GRID_VIEW_STORAGE_KEY),
+  );
   const [dragEmpId, setDragEmpId] = useState<string | null>(null);
   const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
 
@@ -478,6 +656,28 @@ export default function RosterTemplatePage({
   const templateAreas = (activeTemplate?.areaIds || [])
     .map((areaId) => templateAreaMap[areaId])
     .filter(Boolean) as Area[];
+
+  const defaultTemplateAreaId = templateAreas[0]?.id || "";
+
+  const templateAreaNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    templateAreas.forEach((area) => {
+      map[area.id] = area.name;
+    });
+    return map;
+  }, [templateAreas]);
+
+  useEffect(() => {
+    storeGridViewMode(TEMPLATE_GRID_VIEW_STORAGE_KEY, gridViewMode);
+  }, [gridViewMode]);
+
+  const hasUnassignedCellsInTemplate = useMemo(
+    () =>
+      activeTemplateVisibleCells.some(
+        (cell) => !(cell.employeeIds || []).length,
+      ),
+    [activeTemplateVisibleCells],
+  );
 
   const selectableAreas = areas
     .filter((area) => {
@@ -917,7 +1117,17 @@ export default function RosterTemplatePage({
 
   // ── Cell CRUD ─────────────────────────────────────────────────────────────
 
-  const openAddCell = (areaId: string, dayIndex: number) => {
+  const openAddCell = (
+    areaId: string,
+    dayIndex: number,
+    presetEmployeeIds: string[] = [],
+  ) => {
+    if (!areaId) {
+      toast.error(
+        locale === "zh" ? "请先添加区域" : "Please add an area first",
+      );
+      return;
+    }
     setEditingCell(null);
     setEditingAreaId(areaId);
     setEditingDayIndex(dayIndex);
@@ -928,7 +1138,7 @@ export default function RosterTemplatePage({
       endTime: "17:00",
       label: "",
       color: DEFAULT_COLOR_KEY,
-      employeeIds: [],
+      employeeIds: [...presetEmployeeIds],
     });
     setCellModalOpen(true);
   };
@@ -1547,6 +1757,48 @@ export default function RosterTemplatePage({
                     : "Multiple employees per shift"}
                 </span>
               </div>
+              <div
+                className="flex items-center rounded-lg p-0.5"
+                style={{
+                  background: "var(--muted)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setGridViewMode("area")}
+                  className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all"
+                  style={{
+                    background:
+                      gridViewMode === "area" ? "var(--card)" : "transparent",
+                    color:
+                      gridViewMode === "area"
+                        ? "var(--primary)"
+                        : "var(--muted-foreground)",
+                  }}
+                >
+                  <LayoutGrid size={12} />
+                  {locale === "zh" ? "区域" : "Area"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGridViewMode("employee")}
+                  className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all"
+                  style={{
+                    background:
+                      gridViewMode === "employee"
+                        ? "var(--card)"
+                        : "transparent",
+                    color:
+                      gridViewMode === "employee"
+                        ? "var(--primary)"
+                        : "var(--muted-foreground)",
+                  }}
+                >
+                  <Users size={12} />
+                  {locale === "zh" ? "员工" : "Employee"}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1676,7 +1928,13 @@ export default function RosterTemplatePage({
                   className="text-xs font-semibold"
                   style={{ color: "var(--muted-foreground)" }}
                 >
-                  {locale === "zh" ? "区域" : "Area"}
+                  {gridViewMode === "area"
+                    ? locale === "zh"
+                      ? "区域"
+                      : "Area"
+                    : locale === "zh"
+                      ? "员工"
+                      : "Employee"}
                 </span>
               </div>
 
@@ -1765,8 +2023,9 @@ export default function RosterTemplatePage({
               </div>
             </div>
 
-            {/* Area rows */}
-            {templateAreas.map((area) => (
+            {/* Grid body: area or employee rows */}
+            {gridViewMode === "area" ? (
+            templateAreas.map((area) => (
               <div
                 key={area.id}
                 className="flex"
@@ -1883,6 +2142,7 @@ export default function RosterTemplatePage({
                               handleRemoveEmployee(cell.id, empId)
                             }
                             onAddEmployeeClick={() => openEditCell(cell)}
+                            viewMode="area"
                           />
                         );
                       })}
@@ -1915,9 +2175,183 @@ export default function RosterTemplatePage({
                   }}
                 />
               </div>
-            ))}
+            ))
+            ) : templateAreas.length === 0 ? (
+              <div
+                className="flex items-center justify-center px-4 py-8 text-sm"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {locale === "zh"
+                  ? "请先添加区域"
+                  : "Add areas to this template first"}
+              </div>
+            ) : filteredEmployees.length === 0 &&
+              !hasUnassignedCellsInTemplate ? (
+              <div
+                className="flex items-center justify-center px-4 py-8 text-sm"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {locale === "zh" ? "暂无匹配员工" : "No matching employees"}
+              </div>
+            ) : (
+              <>
+                {filteredEmployees.map((emp) => (
+                  <div
+                    key={emp.id}
+                    className="flex"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <div
+                      className="sticky left-0 flex-shrink-0 flex items-start px-3 py-3"
+                      style={{
+                        width: TEMPLATE_AREA_COLUMN_WIDTH,
+                        borderRight: "1px solid var(--border)",
+                        minHeight: 88,
+                        background: "var(--muted)",
+                        zIndex: 10,
+                      }}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0 w-full">
+                        <Avatar
+                          size={24}
+                          src={empAvatarMap[emp.id] || undefined}
+                          style={{
+                            background:
+                              empColorMap[emp.id] || "var(--primary)",
+                            flexShrink: 0,
+                            fontSize: 10,
+                          }}
+                        >
+                          {getEmployeeInitials(emp.firstName, emp.lastName)}
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className="text-xs font-semibold truncate"
+                            style={{ color: "var(--foreground)" }}
+                          >
+                            {emp.firstName} {emp.lastName}
+                          </div>
+                          <div
+                            className="truncate"
+                            style={{
+                              fontSize: 9,
+                              color: "var(--muted-foreground)",
+                            }}
+                          >
+                            {emp.role}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-            {/* Add Area row */}
+                    {totalDaysList.map((day) => {
+                      const dayIndex = day - 1;
+                      const cellsInSlot = filterCellsForEmployeeOnDay(
+                        activeTemplateVisibleCells,
+                        emp.id,
+                        dayIndex,
+                      );
+
+                      return (
+                        <TemplateEmployeeDayCell
+                          key={day}
+                          dayIndex={dayIndex}
+                          employeeId={emp.id}
+                          rowKind="employee"
+                          cells={cellsInSlot}
+                          areaNameMap={templateAreaNameMap}
+                          activeEmployees={activeEmployees}
+                          empNameMap={empNameMap}
+                          empColorMap={empColorMap}
+                          empAvatarMap={empAvatarMap}
+                          defaultAreaId={defaultTemplateAreaId}
+                          activeTemplateStore={activeTemplateStore}
+                          locale={locale}
+                          onAddCell={openAddCell}
+                          onEditCell={openEditCell}
+                          onDeleteCell={handleDeleteCell}
+                          onDropEmployee={handleDropEmployee}
+                          onRemoveEmployee={handleRemoveEmployee}
+                        />
+                      );
+                    })}
+
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        flex: `0 0 ${TEMPLATE_ACTION_COLUMN_WIDTH}px`,
+                        width: TEMPLATE_ACTION_COLUMN_WIDTH,
+                        minWidth: TEMPLATE_ACTION_COLUMN_WIDTH,
+                      }}
+                    />
+                  </div>
+                ))}
+                {hasUnassignedCellsInTemplate && (
+                  <div
+                    key={ROSTER_UNASSIGNED_ROW_ID}
+                    className="flex"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <div
+                      className="sticky left-0 flex-shrink-0 flex items-center px-3 py-3"
+                      style={{
+                        width: TEMPLATE_AREA_COLUMN_WIDTH,
+                        borderRight: "1px solid var(--border)",
+                        minHeight: 88,
+                        background: "var(--muted)",
+                        zIndex: 10,
+                      }}
+                    >
+                      <span
+                        className="text-sm font-medium italic"
+                        style={{ color: "var(--muted-foreground)" }}
+                      >
+                        {locale === "zh" ? "未分配" : "Unassigned"}
+                      </span>
+                    </div>
+                    {totalDaysList.map((day) => {
+                      const dayIndex = day - 1;
+                      const cellsInSlot = filterUnassignedCellsOnDay(
+                        activeTemplateVisibleCells,
+                        dayIndex,
+                      );
+
+                      return (
+                        <TemplateEmployeeDayCell
+                          key={day}
+                          dayIndex={dayIndex}
+                          rowKind="unassigned"
+                          cells={cellsInSlot}
+                          areaNameMap={templateAreaNameMap}
+                          activeEmployees={activeEmployees}
+                          empNameMap={empNameMap}
+                          empColorMap={empColorMap}
+                          empAvatarMap={empAvatarMap}
+                          defaultAreaId={defaultTemplateAreaId}
+                          activeTemplateStore={activeTemplateStore}
+                          locale={locale}
+                          onAddCell={openAddCell}
+                          onEditCell={openEditCell}
+                          onDeleteCell={handleDeleteCell}
+                          onDropEmployee={handleDropEmployee}
+                          onRemoveEmployee={handleRemoveEmployee}
+                        />
+                      );
+                    })}
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        flex: `0 0 ${TEMPLATE_ACTION_COLUMN_WIDTH}px`,
+                        width: TEMPLATE_ACTION_COLUMN_WIDTH,
+                        minWidth: TEMPLATE_ACTION_COLUMN_WIDTH,
+                      }}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            {gridViewMode === "area" && (
             <div
               className="flex items-center px-4 py-3"
               style={{
@@ -1940,6 +2374,7 @@ export default function RosterTemplatePage({
                 {locale === "zh" ? "添加区域" : "Add Area"}
               </button>
             </div>
+            )}
           </div>
         </div>
       </div>

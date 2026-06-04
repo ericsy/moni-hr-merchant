@@ -22,6 +22,7 @@ import {
   Edit2,
   GripVertical,
   Info,
+  LayoutGrid,
   LayoutTemplate,
   Plus,
   Save,
@@ -54,7 +55,18 @@ import {
 } from "../lib/employeeAvatar";
 import { calcShiftHours, datedShiftsOverlap } from "../lib/shift";
 import { isScheduleDateEditable } from "../lib/scheduleLock";
+import {
+  filterShiftsForEmployeeOnDate,
+  filterUnassignedShiftsOnDate,
+  getShiftEmployeeIds,
+  readStoredGridViewMode,
+  ROSTER_UNASSIGNED_ROW_ID,
+  type RosterGridViewMode,
+  storeGridViewMode,
+} from "../lib/rosterGridIndex";
 import { isStoreClosedOnWeekday } from "../lib/storeHours";
+
+const ROSTER_GRID_VIEW_STORAGE_KEY = "moni-roster-grid-view";
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
@@ -77,15 +89,6 @@ const formatTime12 = (t: string) => {
 
 const calcHours = (start: string, end: string, brk = 0) =>
   calcShiftHours(start, end, brk);
-
-const getShiftEmployeeIds = (
-  shift: Pick<ScheduleShift, "employeeId" | "employeeIds">,
-) =>
-  shift.employeeIds?.length
-    ? shift.employeeIds
-    : shift.employeeId
-      ? [shift.employeeId]
-      : [];
 
 const getColorStyle = (color: string) => getSoftColorStyle(color);
 
@@ -356,6 +359,8 @@ interface ShiftEntryProps {
   /** Opens the shift editor so employees can be selected without dragging */
   onAddEmployeeClick?: () => void;
   readonly?: boolean;
+  viewMode?: RosterGridViewMode;
+  areaName?: string;
 }
 
 function ShiftEntry({
@@ -368,12 +373,15 @@ function ShiftEntry({
   onDropTemplate = () => {},
   onAddEmployeeClick = () => {},
   readonly = false,
+  viewMode = "area",
+  areaName = "",
 }: ShiftEntryProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale, t } = useLocale();
   if (!shift) return null;
   const isSubstitutionLocked = !!shift.isSubstitution;
   const isLocked = readonly || isSubstitutionLocked;
+  const isEmployeeView = viewMode === "employee";
   const cs = getColorStyle(shift.color);
   const hrs = calcHours(shift.startTime, shift.endTime, shift.breakMinutes);
 
@@ -493,8 +501,18 @@ function ShiftEntry({
         </div>
       ) : null}
 
+      {isEmployeeView && areaName ? (
+        <div
+          className="mt-0.5 truncate"
+          style={{ fontSize: 9, color: "var(--muted-foreground)", fontWeight: 600 }}
+          title={areaName}
+        >
+          {areaName}
+        </div>
+      ) : null}
+
       {/* Add employee button (above employee list) */}
-      {!isLocked && (
+      {!isEmployeeView && !isLocked && (
         <button
           type="button"
           onClick={(event) => {
@@ -529,7 +547,7 @@ function ShiftEntry({
       )}
 
       {/* Employees (dynamic) */}
-      {assignedEmployees.length > 0 && (
+      {!isEmployeeView && assignedEmployees.length > 0 && (
         <div className="mt-1 flex w-full flex-wrap items-center gap-0.5 min-w-0">
           {assignedEmployees.map((emp) => {
             const onApprovedLeave = !!emp.approvedLeaveHint;
@@ -970,6 +988,7 @@ function AreaDateCell({
             onDropTemplate={onDropTemplate}
             onAddEmployeeClick={() => onEditShift(sh)}
             readonly={readonly}
+            viewMode="area"
           />
         );
       })}
@@ -978,6 +997,203 @@ function AreaDateCell({
       {!readonly && (
         <button
           onClick={() => onAddShift(areaId, date?.format("YYYY-MM-DD") || "")}
+          className="w-full rounded-lg flex items-center justify-center gap-0.5 transition-all hover:opacity-80"
+          style={{
+            height: 22,
+            border: "1.5px dashed var(--border)",
+            color: "var(--muted-foreground)",
+            background: "transparent",
+            fontSize: 10,
+          }}
+        >
+          <Plus size={10} />
+          <span style={{ fontSize: 10 }}>
+            {locale === "zh" ? "加班次" : "Add shift"}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── EmployeeDateCell (employee × date) ────────────────────────────────────────
+
+interface EmployeeDateCellProps {
+  date?: dayjs.Dayjs;
+  employeeId?: string;
+  rowKind?: "employee" | "unassigned";
+  shifts?: ScheduleShift[];
+  areaNameMap?: Record<string, string>;
+  employees?: {
+    id: string;
+    name: string;
+    color: string;
+    avatarUrl?: string;
+    availabilityWarning?: string | null;
+  }[];
+  defaultAreaId?: string;
+  onAddShift?: (employeeId: string, date: string, defaultAreaId: string) => void;
+  onEditShift?: (shift: ScheduleShift) => void;
+  onDeleteShift?: (id: string) => void;
+  onRemoveEmployeeFromShift?: (shiftId: string, empId: string) => void;
+  onDropEmployee?: (
+    empId: string,
+    date: string,
+    defaultAreaId: string,
+  ) => void;
+  onDropEmployeeToShift?: (empId: string, shift: ScheduleShift) => void;
+  onDropTemplate?: (templateId: string) => void;
+  getAvailabilityWarning?: (
+    empId: string,
+    shift: ScheduleShift,
+  ) => string | null;
+  getApprovedLeaveHint?: (
+    empId: string,
+    shift: Pick<ScheduleShift, "date" | "startTime" | "endTime">,
+  ) => string | null;
+  isToday?: boolean;
+  isClosedDay?: boolean;
+  isPublicHoliday?: boolean;
+  readonly?: boolean;
+}
+
+function EmployeeDateCell({
+  date,
+  employeeId = "",
+  rowKind = "employee",
+  shifts = [],
+  areaNameMap = {},
+  employees = [],
+  defaultAreaId = "",
+  onAddShift = () => {},
+  onEditShift = () => {},
+  onDeleteShift = () => {},
+  onRemoveEmployeeFromShift = () => {},
+  onDropEmployee = () => {},
+  onDropEmployeeToShift = () => {},
+  onDropTemplate = () => {},
+  getAvailabilityWarning = () => null,
+  getApprovedLeaveHint = () => null,
+  isToday = false,
+  isClosedDay = false,
+  isPublicHoliday = false,
+  readonly = false,
+}: EmployeeDateCellProps) {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const { locale } = useLocale();
+  const dateStr = date?.format("YYYY-MM-DD") || "";
+
+  const empMap: Record<
+    string,
+    {
+      name: string;
+      color: string;
+      avatarUrl?: string;
+      availabilityWarning?: string | null;
+    }
+  > = {};
+  employees.forEach((e) => {
+    empMap[e.id] = { name: e.name, color: e.color, avatarUrl: e.avatarUrl };
+  });
+
+  const handleCellDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const templateId = e.dataTransfer.getData("templateId");
+    const empId = e.dataTransfer.getData("employeeId");
+    if (templateId) {
+      onDropTemplate(templateId);
+    } else if (readonly) {
+      return;
+    } else if (empId && defaultAreaId) {
+      onDropEmployee(empId, dateStr, defaultAreaId);
+    }
+  };
+
+  return (
+    <div
+      data-cmp="EmployeeDateCell"
+      className="p-1.5"
+      style={{
+        flex: `1 1 ${DATE_COL_MIN_W}px`,
+        minWidth: DATE_COL_MIN_W,
+        minHeight: 88,
+        borderRight: "1px solid var(--border)",
+        background: isDragOver
+          ? "var(--secondary)"
+          : isToday
+            ? "var(--workday-active-bg)"
+            : isPublicHoliday
+              ? "rgba(250, 204, 21, 0.12)"
+              : isClosedDay
+                ? "var(--workday-weekend-header)"
+                : "transparent",
+        transition: "background 0.12s",
+        outline: isDragOver ? `2px dashed var(--primary)` : undefined,
+        outlineOffset: -2,
+        opacity: readonly ? 0.82 : 1,
+      }}
+      onDragOver={(e) => {
+        if (readonly && !hasTemplateDragData(e.dataTransfer)) return;
+        e.preventDefault();
+        setIsDragOver(true);
+      }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={handleCellDrop}
+    >
+      {isDragOver && shifts.length === 0 && (
+        <div
+          className="flex items-center justify-center rounded-lg mb-1"
+          style={{
+            height: 40,
+            border: "1.5px dashed var(--primary)",
+            background: "var(--secondary)",
+          }}
+        >
+          <span style={{ color: "var(--primary)", fontSize: 9 }}>
+            {locale === "zh" ? "放置到此处" : "Drop here"}
+          </span>
+        </div>
+      )}
+
+      {shifts.map((sh) => {
+        const assignedEmps = getShiftEmployeeIds(sh).map((empId) => ({
+          id: empId,
+          name: empMap[empId]?.name || empId,
+          color: empMap[empId]?.color || "var(--primary)",
+          avatarUrl: empMap[empId]?.avatarUrl || "",
+          availabilityWarning: getAvailabilityWarning(empId, sh),
+          approvedLeaveHint: getApprovedLeaveHint(empId, sh),
+        }));
+        return (
+          <ShiftEntry
+            key={sh.id}
+            shift={sh}
+            assignedEmployees={assignedEmps}
+            onEdit={() => onEditShift(sh)}
+            onDelete={() => onDeleteShift(sh.id)}
+            onRemoveEmployee={(empId) =>
+              onRemoveEmployeeFromShift(sh.id, empId)
+            }
+            onDropEmployee={(empId) => onDropEmployeeToShift(empId, sh)}
+            onDropTemplate={onDropTemplate}
+            onAddEmployeeClick={() => onEditShift(sh)}
+            readonly={readonly}
+            viewMode="employee"
+            areaName={areaNameMap[sh.areaId] || sh.areaId}
+          />
+        );
+      })}
+
+      {!readonly && defaultAreaId && (
+        <button
+          onClick={() =>
+            onAddShift(
+              rowKind === "unassigned" ? "" : employeeId,
+              dateStr,
+              defaultAreaId,
+            )
+          }
           className="w-full rounded-lg flex items-center justify-center gap-0.5 transition-all hover:opacity-80"
           style={{
             height: 22,
@@ -1074,6 +1290,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     "templates",
   );
   const [templateSearch, setTemplateSearch] = useState("");
+  const [gridViewMode, setGridViewMode] = useState<RosterGridViewMode>(() =>
+    readStoredGridViewMode(ROSTER_GRID_VIEW_STORAGE_KEY),
+  );
   const [employeeSearch, setEmployeeSearch] = useState("");
 
   // Convert shared RosterTemplate[] → display RosterTemplateCard[] (derived, not stored in state)
@@ -1155,6 +1374,35 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         area.storeId === selectedStoreId,
     )
     .sort((a, b) => a.order - b.order);
+
+  const defaultScheduleAreaId = displayAreas[0]?.id || "";
+
+  const areaNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    areas.forEach((area) => {
+      map[area.id] = area.name;
+    });
+    return map;
+  }, [areas]);
+
+  useEffect(() => {
+    storeGridViewMode(ROSTER_GRID_VIEW_STORAGE_KEY, gridViewMode);
+  }, [gridViewMode]);
+
+  const hasUnassignedShiftsInWeek = useMemo(
+    () =>
+      weekDates.some((d) => {
+        const dateStr = d.format("YYYY-MM-DD");
+        return (
+          filterUnassignedShiftsOnDate(
+            scheduleShifts,
+            dateStr,
+            selectedStoreId,
+          ).length > 0
+        );
+      }),
+    [weekDates, scheduleShifts, selectedStoreId],
+  );
 
   const filteredTemplates = rosterTemplates.filter(
     (t) =>
@@ -1999,6 +2247,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       toast.warning(readonlyRosterMessage);
       return;
     }
+    if (!areaId) {
+      toast.error(
+        isZh ? "请先添加区域" : "Please add an area in Area Management first",
+      );
+      return;
+    }
 
     setEditingShift(null);
     setShiftForm({
@@ -2022,6 +2276,22 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         "",
     });
     setModalOpen(true);
+  };
+
+  const openAddShiftForEmployee = (
+    empId: string,
+    date: string,
+    areaId: string,
+  ) => {
+    openAddShift(areaId, date, empId);
+  };
+
+  const handleDropEmployeeByDate = (
+    empId: string,
+    dateStr: string,
+    areaId: string,
+  ) => {
+    handleDropEmployee(empId, areaId, dateStr);
   };
 
   const openEditShift = (shift: ScheduleShift) => {
@@ -2538,6 +2808,55 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                 : `W${weekStart.isoWeek()}`}
             </span>
           </div>
+          {/* Grid view: area vs employee */}
+          <div
+            className="flex items-center rounded-lg p-0.5 ml-1"
+            style={{
+              background: "var(--muted)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setGridViewMode("area")}
+              className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all"
+              style={{
+                background:
+                  gridViewMode === "area" ? "var(--card)" : "transparent",
+                color:
+                  gridViewMode === "area"
+                    ? "var(--primary)"
+                    : "var(--muted-foreground)",
+                boxShadow:
+                  gridViewMode === "area"
+                    ? "0 1px 2px rgba(0,0,0,0.06)"
+                    : "none",
+              }}
+            >
+              <LayoutGrid size={12} />
+              {isZh ? "区域" : "Area"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setGridViewMode("employee")}
+              className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all"
+              style={{
+                background:
+                  gridViewMode === "employee" ? "var(--card)" : "transparent",
+                color:
+                  gridViewMode === "employee"
+                    ? "var(--primary)"
+                    : "var(--muted-foreground)",
+                boxShadow:
+                  gridViewMode === "employee"
+                    ? "0 1px 2px rgba(0,0,0,0.06)"
+                    : "none",
+              }}
+            >
+              <Users size={12} />
+              {isZh ? "员工" : "Employee"}
+            </button>
+          </div>
         </div>
 
         {/* Right */}
@@ -2932,7 +3251,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   className="text-xs font-semibold"
                   style={{ color: "var(--muted-foreground)" }}
                 >
-                  {isZh ? "区域" : "Area"}
+                  {gridViewMode === "area"
+                    ? isZh
+                      ? "区域"
+                      : "Area"
+                    : isZh
+                      ? "员工"
+                      : "Employee"}
                 </span>
               </div>
 
@@ -2962,8 +3287,93 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               })}
             </div>
 
-            {/* ── Area rows (RosterTemplate-aligned layout) ────────────────── */}
-            {displayAreas.length === 0 ? (
+            {/* ── Grid body: area or employee rows ─────────────────────────── */}
+            {gridViewMode === "area" ? (
+              displayAreas.length === 0 ? (
+                <div
+                  className="flex items-center justify-center"
+                  style={{ minHeight: 220, color: "var(--muted-foreground)" }}
+                >
+                  <div className="flex flex-col items-center gap-2 text-sm">
+                    <LayoutTemplate size={28} style={{ opacity: 0.35 }} />
+                    <span>
+                      {isZh
+                        ? "暂无基础区域，请先到区域管理维护"
+                        : "No base areas yet. Add them in Area Management first."}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                displayAreas.map((area) => (
+                  <div
+                    key={area.id}
+                    className="flex"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <div
+                      className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
+                      style={{
+                        width: LEFT_COL_W,
+                        borderRight: "1px solid var(--border)",
+                        minHeight: 88,
+                        background: "var(--muted)",
+                        zIndex: 10,
+                      }}
+                    >
+                      <div className="flex items-center gap-1">
+                        <GripVertical
+                          size={12}
+                          style={{ color: "var(--muted-foreground)" }}
+                        />
+                        <span
+                          className="text-sm font-medium"
+                          style={{ color: "var(--foreground)" }}
+                        >
+                          {area.name}
+                        </span>
+                      </div>
+                    </div>
+
+                    {weekDates.map((d, i) => {
+                      const dateStr = d.format("YYYY-MM-DD");
+                      const isToday = dateStr === todayStr;
+                      const isClosedDay = isStoreClosedDate(d);
+                      const isPublicHoliday =
+                        publicHolidayNameByDate.has(dateStr);
+                      const cellShifts = getShifts(area.id, dateStr);
+                      const isReadonlyDate = !isScheduleDateEditable(d);
+
+                      return (
+                        <AreaDateCell
+                          key={i}
+                          date={d}
+                          areaId={area.id}
+                          shifts={cellShifts}
+                          employees={allEmpList}
+                          onAddShift={openAddShift}
+                          onEditShift={openEditShift}
+                          onDeleteShift={handleDeleteShift}
+                          onRemoveEmployeeFromShift={
+                            handleRemoveEmployeeFromShift
+                          }
+                          onDropEmployee={handleDropEmployee}
+                          onDropEmployeeToShift={handleDropEmployeeToShift}
+                          onDropTemplate={handleDropTemplateToCurrentWeek}
+                          getAvailabilityWarning={
+                            findPatternAvailabilityWarning
+                          }
+                          getApprovedLeaveHint={findApprovedLeaveHint}
+                          isToday={isToday}
+                          isClosedDay={isClosedDay}
+                          isPublicHoliday={isPublicHoliday}
+                          readonly={isReadonlyDate}
+                        />
+                      );
+                    })}
+                  </div>
+                ))
+              )
+            ) : displayAreas.length === 0 ? (
               <div
                 className="flex items-center justify-center"
                 style={{ minHeight: 220, color: "var(--muted-foreground)" }}
@@ -2977,74 +3387,199 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   </span>
                 </div>
               </div>
+            ) : filteredEmployees.length === 0 &&
+              !hasUnassignedShiftsInWeek ? (
+              <div
+                className="flex items-center justify-center"
+                style={{ minHeight: 220, color: "var(--muted-foreground)" }}
+              >
+                <div className="flex flex-col items-center gap-2 text-sm">
+                  <Users size={28} style={{ opacity: 0.35 }} />
+                  <span>
+                    {isZh ? "暂无匹配员工" : "No matching employees"}
+                  </span>
+                </div>
+              </div>
             ) : (
-              displayAreas.map((area) => (
-                <div
-                  key={area.id}
-                  className="flex"
-                  style={{ borderBottom: "1px solid var(--border)" }}
-                >
-                  {/* Area name cell — matches RosterTemplate area label cell */}
-                  <div
-                    className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
-                    style={{
-                      width: LEFT_COL_W,
-                      borderRight: "1px solid var(--border)",
-                      minHeight: 88,
-                      background: "var(--muted)",
-                      zIndex: 10,
-                    }}
-                  >
-                    <div className="flex items-center gap-1">
-                      <GripVertical
-                        size={12}
-                        style={{ color: "var(--muted-foreground)" }}
-                      />
-                      <span
-                        className="text-sm font-medium"
-                        style={{ color: "var(--foreground)" }}
+              <>
+                {filteredEmployees.map((emp) => {
+                  const hrs = parseFloat(weekHoursForEmp(emp.id));
+                  const sidebarLeaveWarn = getSidebarDateLeaveWarning(emp.id);
+                  return (
+                    <div
+                      key={emp.id}
+                      className="flex"
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                    >
+                      <div
+                        className="sticky left-0 flex-shrink-0 flex items-start px-3 py-3"
+                        style={{
+                          width: LEFT_COL_W,
+                          borderRight: "1px solid var(--border)",
+                          minHeight: 88,
+                          background: sidebarLeaveWarn
+                            ? "rgba(254, 226, 226, 0.35)"
+                            : "var(--muted)",
+                          zIndex: 10,
+                        }}
                       >
-                        {area.name}
+                        <div className="flex items-center gap-1.5 min-w-0 w-full">
+                          <Avatar
+                            size={24}
+                            src={getEmployeeAvatarUrl(emp) || undefined}
+                            style={{
+                              background:
+                                emp.employeeColor || "var(--primary)",
+                              flexShrink: 0,
+                              fontSize: 10,
+                            }}
+                          >
+                            {getEmployeeInitials(emp.firstName, emp.lastName)}
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <div
+                              className="text-xs font-semibold truncate"
+                              style={{ color: "var(--foreground)" }}
+                            >
+                              {emp.firstName} {emp.lastName}
+                            </div>
+                            <div
+                              className="truncate"
+                              style={{
+                                fontSize: 9,
+                                color: "var(--muted-foreground)",
+                              }}
+                            >
+                              {emp.role}
+                            </div>
+                            <div
+                              className="text-xs font-semibold mt-0.5"
+                              style={{
+                                fontSize: 9,
+                                color: hrs > 0 ? "var(--primary)" : "var(--muted-foreground)",
+                              }}
+                            >
+                              {hrs > 0 ? `${hrs}h` : "–"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {weekDates.map((d, i) => {
+                        const dateStr = d.format("YYYY-MM-DD");
+                        const isToday = dateStr === todayStr;
+                        const isClosedDay = isStoreClosedDate(d);
+                        const isPublicHoliday =
+                          publicHolidayNameByDate.has(dateStr);
+                        const cellShifts = filterShiftsForEmployeeOnDate(
+                          scheduleShifts,
+                          emp.id,
+                          dateStr,
+                          selectedStoreId,
+                        );
+                        const isReadonlyDate = !isScheduleDateEditable(d);
+
+                        return (
+                          <EmployeeDateCell
+                            key={i}
+                            date={d}
+                            employeeId={emp.id}
+                            rowKind="employee"
+                            shifts={cellShifts}
+                            areaNameMap={areaNameMap}
+                            employees={allEmpList}
+                            defaultAreaId={defaultScheduleAreaId}
+                            onAddShift={openAddShiftForEmployee}
+                            onEditShift={openEditShift}
+                            onDeleteShift={handleDeleteShift}
+                            onRemoveEmployeeFromShift={
+                              handleRemoveEmployeeFromShift
+                            }
+                            onDropEmployee={handleDropEmployeeByDate}
+                            onDropEmployeeToShift={handleDropEmployeeToShift}
+                            onDropTemplate={handleDropTemplateToCurrentWeek}
+                            getAvailabilityWarning={
+                              findPatternAvailabilityWarning
+                            }
+                            getApprovedLeaveHint={findApprovedLeaveHint}
+                            isToday={isToday}
+                            isClosedDay={isClosedDay}
+                            isPublicHoliday={isPublicHoliday}
+                            readonly={isReadonlyDate}
+                          />
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+                {hasUnassignedShiftsInWeek && (
+                  <div
+                    key={ROSTER_UNASSIGNED_ROW_ID}
+                    className="flex"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <div
+                      className="sticky left-0 flex-shrink-0 flex items-center px-3 py-3"
+                      style={{
+                        width: LEFT_COL_W,
+                        borderRight: "1px solid var(--border)",
+                        minHeight: 88,
+                        background: "var(--muted)",
+                        zIndex: 10,
+                      }}
+                    >
+                      <span
+                        className="text-sm font-medium italic"
+                        style={{ color: "var(--muted-foreground)" }}
+                      >
+                        {isZh ? "未分配" : "Unassigned"}
                       </span>
                     </div>
+                    {weekDates.map((d, i) => {
+                      const dateStr = d.format("YYYY-MM-DD");
+                      const isToday = dateStr === todayStr;
+                      const isClosedDay = isStoreClosedDate(d);
+                      const isPublicHoliday =
+                        publicHolidayNameByDate.has(dateStr);
+                      const cellShifts = filterUnassignedShiftsOnDate(
+                        scheduleShifts,
+                        dateStr,
+                        selectedStoreId,
+                      );
+                      const isReadonlyDate = !isScheduleDateEditable(d);
+
+                      return (
+                        <EmployeeDateCell
+                          key={i}
+                          date={d}
+                          rowKind="unassigned"
+                          shifts={cellShifts}
+                          areaNameMap={areaNameMap}
+                          employees={allEmpList}
+                          defaultAreaId={defaultScheduleAreaId}
+                          onAddShift={openAddShiftForEmployee}
+                          onEditShift={openEditShift}
+                          onDeleteShift={handleDeleteShift}
+                          onRemoveEmployeeFromShift={
+                            handleRemoveEmployeeFromShift
+                          }
+                          onDropEmployee={handleDropEmployeeByDate}
+                          onDropEmployeeToShift={handleDropEmployeeToShift}
+                          onDropTemplate={handleDropTemplateToCurrentWeek}
+                          getAvailabilityWarning={
+                            findPatternAvailabilityWarning
+                          }
+                          getApprovedLeaveHint={findApprovedLeaveHint}
+                          isToday={isToday}
+                          isClosedDay={isClosedDay}
+                          isPublicHoliday={isPublicHoliday}
+                          readonly={isReadonlyDate}
+                        />
+                      );
+                    })}
                   </div>
-
-                  {/* Day cells — one per weekday, matching RosterTemplate cell layout */}
-                  {weekDates.map((d, i) => {
-                    const dateStr = d.format("YYYY-MM-DD");
-                    const isToday = dateStr === todayStr;
-                    const isClosedDay = isStoreClosedDate(d);
-                    const isPublicHoliday = publicHolidayNameByDate.has(dateStr);
-                    const cellShifts = getShifts(area.id, dateStr);
-                    const isReadonlyDate = !isScheduleDateEditable(d);
-
-                    return (
-                      <AreaDateCell
-                        key={i}
-                        date={d}
-                        areaId={area.id}
-                        shifts={cellShifts}
-                        employees={allEmpList}
-                        onAddShift={openAddShift}
-                        onEditShift={openEditShift}
-                        onDeleteShift={handleDeleteShift}
-                        onRemoveEmployeeFromShift={
-                          handleRemoveEmployeeFromShift
-                        }
-                        onDropEmployee={handleDropEmployee}
-                        onDropEmployeeToShift={handleDropEmployeeToShift}
-                        onDropTemplate={handleDropTemplateToCurrentWeek}
-                        getAvailabilityWarning={findPatternAvailabilityWarning}
-                        getApprovedLeaveHint={findApprovedLeaveHint}
-                        isToday={isToday}
-                        isClosedDay={isClosedDay}
-                        isPublicHoliday={isPublicHoliday}
-                        readonly={isReadonlyDate}
-                      />
-                    );
-                  })}
-                </div>
-              ))
+                )}
+              </>
             )}
           </div>
         </div>
