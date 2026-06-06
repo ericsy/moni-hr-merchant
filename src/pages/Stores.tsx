@@ -347,9 +347,16 @@ function HolidayCalendar({
 
       <div className="px-2 pb-2">
         {Array.from({ length: Math.ceil(cells.length / 7) }, (_, rowIndex) => (
-          <div key={rowIndex} className="flex">
+          <div key={rowIndex} className="flex items-stretch">
             {cells.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, columnIndex) => {
-              if (day === null) return <div key={`empty-${rowIndex}-${columnIndex}`} className="flex-1 h-8" />;
+              if (day === null) {
+                return (
+                  <div
+                    key={`empty-${rowIndex}-${columnIndex}`}
+                    className="flex-1 min-h-[52px]"
+                  />
+                );
+              }
 
               const dateKey = formatDate(viewYear, viewMonth, day);
               const holiday = selectedDates.find((item) => item.date === dateKey);
@@ -359,12 +366,17 @@ function HolidayCalendar({
                 today.getFullYear() === viewYear &&
                 today.getMonth() === viewMonth &&
                 today.getDate() === day;
+              const labelColor = isSelected
+                ? "var(--primary-foreground)"
+                : isToday
+                  ? "var(--accent-foreground)"
+                  : "var(--primary)";
               const cell = (
                 <button
                   key={dateKey}
                   type="button"
                   onClick={() => handleDayClick(day)}
-                  className="flex-1 flex items-center justify-center h-8 text-xs rounded-md transition-all mx-0.5 my-0.5"
+                  className="flex-1 flex min-h-[52px] flex-col items-center justify-center rounded-md px-0.5 py-1 text-xs transition-all mx-0.5 my-0.5"
                   style={{
                     background: isPending
                       ? "color-mix(in srgb, var(--primary) 30%, transparent)"
@@ -382,7 +394,16 @@ function HolidayCalendar({
                       : "1px solid transparent",
                   }}
                 >
-                  {day}
+                  <span className="leading-none">{day}</span>
+                  {holiday?.name ? (
+                    <span
+                      className="mt-0.5 w-full truncate text-center text-[9px] leading-tight font-medium"
+                      style={{ color: labelColor, maxWidth: "100%" }}
+                      title={holiday.name}
+                    >
+                      {holiday.name}
+                    </span>
+                  ) : null}
                 </button>
               );
 
@@ -502,9 +523,16 @@ function HolidayCalendarReadonly({
       </div>
       <div className="px-2 pb-2">
         {Array.from({ length: Math.ceil(cells.length / 7) }, (_, rowIndex) => (
-          <div key={rowIndex} className="flex">
+          <div key={rowIndex} className="flex items-stretch">
             {cells.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, columnIndex) => {
-              if (day === null) return <div key={`empty-${rowIndex}-${columnIndex}`} className="flex-1 h-8" />;
+              if (day === null) {
+                return (
+                  <div
+                    key={`empty-${rowIndex}-${columnIndex}`}
+                    className="flex-1 min-h-[52px]"
+                  />
+                );
+              }
 
               const dateKey = formatDate(viewYear, viewMonth, day);
               const holiday = selectedDates.find((item) => item.date === dateKey);
@@ -513,10 +541,15 @@ function HolidayCalendarReadonly({
                 today.getFullYear() === viewYear &&
                 today.getMonth() === viewMonth &&
                 today.getDate() === day;
+              const labelColor = isSelected
+                ? "var(--primary-foreground)"
+                : isToday
+                  ? "var(--accent-foreground)"
+                  : "var(--primary)";
               const cell = (
                 <div
                   key={dateKey}
-                  className="flex-1 flex items-center justify-center h-8 text-xs rounded-md mx-0.5 my-0.5"
+                  className="flex-1 flex min-h-[52px] flex-col items-center justify-center rounded-md px-0.5 py-1 text-xs mx-0.5 my-0.5"
                   style={{
                     background: isSelected ? "var(--primary)" : isToday ? "var(--accent)" : "transparent",
                     color: isSelected ? "var(--primary-foreground)" : isToday ? "var(--accent-foreground)" : "var(--foreground)",
@@ -524,7 +557,16 @@ function HolidayCalendarReadonly({
                     border: isToday && !isSelected ? "1px solid var(--primary)" : "1px solid transparent",
                   }}
                 >
-                  {day}
+                  <span className="leading-none">{day}</span>
+                  {holiday?.name ? (
+                    <span
+                      className="mt-0.5 w-full truncate text-center text-[9px] leading-tight font-medium"
+                      style={{ color: labelColor, maxWidth: "100%" }}
+                      title={holiday.name}
+                    >
+                      {holiday.name}
+                    </span>
+                  ) : null}
                 </div>
               );
 
