@@ -269,6 +269,7 @@ function HolidayCalendar({
 
   for (let i = 0; i < firstDayOfMonth; i += 1) cells.push(null);
   for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+  while (cells.length % 7 !== 0) cells.push(null);
 
   const changeMonth = (delta: -1 | 1) => {
     setPendingDate(null);
@@ -336,66 +337,93 @@ function HolidayCalendar({
         </button>
       </div>
 
-      <div className="flex px-2 pt-2">
+      <div className="grid grid-cols-7 gap-1 px-2 pt-2 pb-2">
         {weekLabels.map((day) => (
-          <div key={day} className="flex-1 text-center text-xs font-medium pb-1" style={{ color: "var(--muted-foreground)" }}>
+          <div
+            key={day}
+            className="min-w-0 pb-1 text-center text-xs font-medium"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             {day}
           </div>
         ))}
-      </div>
+        {cells.map((day, index) => {
+          if (day === null) {
+            return (
+              <div
+                key={`empty-${index}`}
+                className="min-h-[52px] min-w-0"
+                aria-hidden
+              />
+            );
+          }
 
-      <div className="px-2 pb-2">
-        {Array.from({ length: Math.ceil(cells.length / 7) }, (_, rowIndex) => (
-          <div key={rowIndex} className="flex">
-            {cells.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, columnIndex) => {
-              if (day === null) return <div key={`empty-${rowIndex}-${columnIndex}`} className="flex-1 h-8" />;
-
-              const dateKey = formatDate(viewYear, viewMonth, day);
-              const holiday = selectedDates.find((item) => item.date === dateKey);
-              const isSelected = !!holiday;
-              const isPending = pendingDate === dateKey;
-              const isToday =
-                today.getFullYear() === viewYear &&
-                today.getMonth() === viewMonth &&
-                today.getDate() === day;
-              const cell = (
-                <button
-                  key={dateKey}
-                  type="button"
-                  onClick={() => handleDayClick(day)}
-                  className="flex-1 flex items-center justify-center h-8 text-xs rounded-md transition-all mx-0.5 my-0.5"
-                  style={{
-                    background: isPending
-                      ? "color-mix(in srgb, var(--primary) 30%, transparent)"
-                      : isSelected
-                      ? "var(--primary)"
-                      : isToday
+          const dateKey = formatDate(viewYear, viewMonth, day);
+          const holiday = selectedDates.find((item) => item.date === dateKey);
+          const isSelected = !!holiday;
+          const isPending = pendingDate === dateKey;
+          const isToday =
+            today.getFullYear() === viewYear &&
+            today.getMonth() === viewMonth &&
+            today.getDate() === day;
+          const labelColor = isSelected
+            ? "var(--primary-foreground)"
+            : isToday
+              ? "var(--accent-foreground)"
+              : "var(--primary)";
+          const dayButton = (
+            <button
+              type="button"
+              onClick={() => handleDayClick(day)}
+              className="flex h-full w-full min-h-[52px] flex-col items-center justify-center rounded-md px-0.5 py-1 text-xs transition-all"
+              style={{
+                background: isPending
+                  ? "color-mix(in srgb, var(--primary) 30%, transparent)"
+                  : isSelected
+                    ? "var(--primary)"
+                    : isToday
                       ? "var(--accent)"
                       : "transparent",
-                    color: isSelected ? "var(--primary-foreground)" : isToday ? "var(--accent-foreground)" : "var(--foreground)",
-                    fontWeight: isSelected || isToday || isPending ? 700 : 400,
-                    border: isPending
-                      ? "2px solid var(--primary)"
-                      : isToday && !isSelected
-                      ? "1px solid var(--primary)"
-                      : "1px solid transparent",
-                  }}
+                color: isSelected
+                  ? "var(--primary-foreground)"
+                  : isToday
+                    ? "var(--accent-foreground)"
+                    : "var(--foreground)",
+                fontWeight: isSelected || isToday || isPending ? 700 : 400,
+                border: isPending
+                  ? "2px solid var(--primary)"
+                  : isToday && !isSelected
+                    ? "1px solid var(--primary)"
+                    : "1px solid transparent",
+              }}
+            >
+              <span className="leading-none">{day}</span>
+              {holiday?.name ? (
+                <span
+                  className="mt-0.5 w-full truncate text-center text-[9px] leading-tight font-medium"
+                  style={{ color: labelColor, maxWidth: "100%" }}
+                  title={holiday.name}
                 >
-                  {day}
-                </button>
-              );
+                  {holiday.name}
+                </span>
+              ) : null}
+            </button>
+          );
 
-              if (holiday?.name) {
-                return (
-                  <Tooltip key={dateKey} title={holiday.name} placement="top">
-                    {cell}
-                  </Tooltip>
-                );
-              }
-              return cell;
-            })}
-          </div>
-        ))}
+          return (
+            <div key={dateKey} className="min-h-[52px] min-w-0">
+              {holiday?.name ? (
+                <Tooltip title={holiday.name} placement="top">
+                  <span className="inline-flex h-full w-full min-h-[52px]">
+                    {dayButton}
+                  </span>
+                </Tooltip>
+              ) : (
+                dayButton
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {pendingDate ? (
@@ -450,6 +478,7 @@ function HolidayCalendarReadonly({
 
   for (let i = 0; i < firstDayOfMonth; i += 1) cells.push(null);
   for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+  while (cells.length % 7 !== 0) cells.push(null);
 
   const changeMonth = (delta: -1 | 1) => {
     const next = new Date(viewYear, viewMonth + delta, 1);
@@ -491,52 +520,87 @@ function HolidayCalendarReadonly({
           <ChevronRight size={16} />
         </button>
       </div>
-      <div className="flex px-2 pt-2">
+      <div className="grid grid-cols-7 gap-1 px-2 pt-2 pb-2">
         {weekLabels.map((day) => (
-          <div key={day} className="flex-1 text-center text-xs font-medium pb-1" style={{ color: "var(--muted-foreground)" }}>
+          <div
+            key={day}
+            className="min-w-0 pb-1 text-center text-xs font-medium"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             {day}
           </div>
         ))}
-      </div>
-      <div className="px-2 pb-2">
-        {Array.from({ length: Math.ceil(cells.length / 7) }, (_, rowIndex) => (
-          <div key={rowIndex} className="flex">
-            {cells.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, columnIndex) => {
-              if (day === null) return <div key={`empty-${rowIndex}-${columnIndex}`} className="flex-1 h-8" />;
+        {cells.map((day, index) => {
+          if (day === null) {
+            return (
+              <div
+                key={`empty-${index}`}
+                className="min-h-[52px] min-w-0"
+                aria-hidden
+              />
+            );
+          }
 
-              const dateKey = formatDate(viewYear, viewMonth, day);
-              const holiday = selectedDates.find((item) => item.date === dateKey);
-              const isSelected = !!holiday;
-              const isToday =
-                today.getFullYear() === viewYear &&
-                today.getMonth() === viewMonth &&
-                today.getDate() === day;
-              const cell = (
-                <div
-                  key={dateKey}
-                  className="flex-1 flex items-center justify-center h-8 text-xs rounded-md mx-0.5 my-0.5"
-                  style={{
-                    background: isSelected ? "var(--primary)" : isToday ? "var(--accent)" : "transparent",
-                    color: isSelected ? "var(--primary-foreground)" : isToday ? "var(--accent-foreground)" : "var(--foreground)",
-                    fontWeight: isSelected || isToday ? 700 : 400,
-                    border: isToday && !isSelected ? "1px solid var(--primary)" : "1px solid transparent",
-                  }}
+          const dateKey = formatDate(viewYear, viewMonth, day);
+          const holiday = selectedDates.find((item) => item.date === dateKey);
+          const isSelected = !!holiday;
+          const isToday =
+            today.getFullYear() === viewYear &&
+            today.getMonth() === viewMonth &&
+            today.getDate() === day;
+          const labelColor = isSelected
+            ? "var(--primary-foreground)"
+            : isToday
+              ? "var(--accent-foreground)"
+              : "var(--primary)";
+          const dayCell = (
+            <div
+              className="flex h-full w-full min-h-[52px] flex-col items-center justify-center rounded-md px-0.5 py-1 text-xs"
+              style={{
+                background: isSelected
+                  ? "var(--primary)"
+                  : isToday
+                    ? "var(--accent)"
+                    : "transparent",
+                color: isSelected
+                  ? "var(--primary-foreground)"
+                  : isToday
+                    ? "var(--accent-foreground)"
+                    : "var(--foreground)",
+                fontWeight: isSelected || isToday ? 700 : 400,
+                border:
+                  isToday && !isSelected
+                    ? "1px solid var(--primary)"
+                    : "1px solid transparent",
+              }}
+            >
+              <span className="leading-none">{day}</span>
+              {holiday?.name ? (
+                <span
+                  className="mt-0.5 w-full truncate text-center text-[9px] leading-tight font-medium"
+                  style={{ color: labelColor, maxWidth: "100%" }}
+                  title={holiday.name}
                 >
-                  {day}
-                </div>
-              );
+                  {holiday.name}
+                </span>
+              ) : null}
+            </div>
+          );
 
-              if (holiday?.name) {
-                return (
-                  <Tooltip key={dateKey} title={holiday.name} placement="top">
-                    {cell}
-                  </Tooltip>
-                );
-              }
-              return cell;
-            })}
-          </div>
-        ))}
+          return (
+            <div key={dateKey} className="min-h-[52px] min-w-0">
+              {holiday?.name ? (
+                <Tooltip title={holiday.name} placement="top">
+                  <span className="inline-flex h-full w-full min-h-[52px]">
+                    {dayCell}
+                  </span>
+                </Tooltip>
+              ) : (
+                dayCell
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
