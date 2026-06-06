@@ -837,7 +837,7 @@ export const locales = {
       // Geofence
       tabBasic: "Basic Info",
       tabGeofence: "Geo-Fence",
-      tabStaff: "store role",
+      tabStaff: "Store Role",
       tabHoliday: "Public Holidays",
       staffManager: "Store Manager",
       staffAssistantManagers: "Assistant Managers",
