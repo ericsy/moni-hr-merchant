@@ -269,6 +269,7 @@ function HolidayCalendar({
 
   for (let i = 0; i < firstDayOfMonth; i += 1) cells.push(null);
   for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+  while (cells.length % 7 !== 0) cells.push(null);
 
   const changeMonth = (delta: -1 | 1) => {
     setPendingDate(null);
@@ -450,6 +451,7 @@ function HolidayCalendarReadonly({
 
   for (let i = 0; i < firstDayOfMonth; i += 1) cells.push(null);
   for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+  while (cells.length % 7 !== 0) cells.push(null);
 
   const changeMonth = (delta: -1 | 1) => {
     const next = new Date(viewYear, viewMonth + delta, 1);
