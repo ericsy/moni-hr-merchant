@@ -382,8 +382,9 @@ function MetricCard({
                 )}
               </div>
               <div
-                className="mt-2 line-clamp-2 text-[11px] leading-tight lg:text-xs"
+                className="mt-2 truncate text-[11px] leading-tight lg:text-xs"
                 style={{ color: "var(--muted-foreground)" }}
+                title={metric.helper}
               >
                 {metric.helper}
               </div>
