@@ -59,9 +59,12 @@ import {
   filterShiftsForEmployeeOnDate,
   filterUnassignedShiftsOnDate,
   getShiftEmployeeIds,
+  makeScheduleShiftSlotKey,
+  mergeUniqueEmployeeIds,
   readStoredGridViewMode,
   ROSTER_UNASSIGNED_ROW_ID,
   type RosterGridViewMode,
+  type ShiftModalMode,
   storeGridViewMode,
 } from "../lib/rosterGridIndex";
 import { isStoreClosedOnWeekday } from "../lib/storeHours";
@@ -1033,8 +1036,8 @@ interface EmployeeDateCellProps {
   }[];
   defaultAreaId?: string;
   onAddShift?: (employeeId: string, date: string, defaultAreaId: string) => void;
-  onEditShift?: (shift: ScheduleShift) => void;
-  onDeleteShift?: (id: string) => void;
+  onEditShift?: (shift: ScheduleShift, rowEmployeeId?: string) => void;
+  onDeleteShift?: (shiftId: string, rowEmployeeId?: string) => void;
   onRemoveEmployeeFromShift?: (shiftId: string, empId: string) => void;
   onDropEmployee?: (
     empId: string,
@@ -1170,14 +1173,23 @@ function EmployeeDateCell({
             key={sh.id}
             shift={sh}
             assignedEmployees={assignedEmps}
-            onEdit={() => onEditShift(sh)}
-            onDelete={() => onDeleteShift(sh.id)}
+            onEdit={() =>
+              onEditShift(sh, rowKind === "employee" ? employeeId : undefined)
+            }
+            onDelete={() =>
+              onDeleteShift(
+                sh.id,
+                rowKind === "employee" ? employeeId : undefined,
+              )
+            }
             onRemoveEmployee={(empId) =>
               onRemoveEmployeeFromShift(sh.id, empId)
             }
             onDropEmployee={(empId) => onDropEmployeeToShift(empId, sh)}
             onDropTemplate={onDropTemplate}
-            onAddEmployeeClick={() => onEditShift(sh)}
+            onAddEmployeeClick={() =>
+              onEditShift(sh, rowKind === "employee" ? employeeId : undefined)
+            }
             readonly={readonly}
             viewMode="employee"
             areaName={areaNameMap[sh.areaId] || sh.areaId}
@@ -1314,6 +1326,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
   // ── Shift modal ─────────────────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false);
+  const [shiftModalMode, setShiftModalMode] = useState<ShiftModalMode>("area");
+  const [lockedEmployeeId, setLockedEmployeeId] = useState("");
   const [editingShift, setEditingShift] = useState<ScheduleShift | null>(null);
   const [shiftForm, setShiftForm] = useState({
     presetKey: "",
@@ -2240,20 +2254,30 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const closeShiftModal = () => {
     setModalOpen(false);
     setEditingShift(null);
+    setShiftModalMode("area");
+    setLockedEmployeeId("");
   };
 
-  const openAddShift = (areaId: string, date: string, empId = "") => {
+  const openAddShift = (
+    areaId: string,
+    date: string,
+    empId = "",
+    options?: { modalMode?: ShiftModalMode },
+  ) => {
     if (!isScheduleDateEditable(date)) {
       toast.warning(readonlyRosterMessage);
       return;
     }
-    if (!areaId) {
+    const modalMode = options?.modalMode || "area";
+    if (modalMode === "area" && !areaId) {
       toast.error(
         isZh ? "请先添加区域" : "Please add an area in Area Management first",
       );
       return;
     }
 
+    setShiftModalMode(modalMode);
+    setLockedEmployeeId(modalMode === "employee" ? empId : "");
     setEditingShift(null);
     setShiftForm({
       presetKey: "",
@@ -2283,7 +2307,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     date: string,
     areaId: string,
   ) => {
-    openAddShift(areaId, date, empId);
+    if (!empId) {
+      openAddShift(areaId, date, "", { modalMode: "area" });
+      return;
+    }
+    openAddShift(areaId || defaultScheduleAreaId, date, empId, {
+      modalMode: "employee",
+    });
   };
 
   const handleDropEmployeeByDate = (
@@ -2294,11 +2324,16 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     handleDropEmployee(empId, areaId, dateStr);
   };
 
-  const openEditShift = (shift: ScheduleShift) => {
+  const openEditShift = (shift: ScheduleShift, rowEmployeeId = "") => {
     if (!isScheduleDateEditable(shift.date)) {
       toast.warning(readonlyRosterMessage);
       return;
     }
+
+    const useEmployeeModal =
+      gridViewMode === "employee" && !!rowEmployeeId;
+    setShiftModalMode(useEmployeeModal ? "employee" : "area");
+    setLockedEmployeeId(useEmployeeModal ? rowEmployeeId : "");
 
     const presetKey = makeShiftPresetKey({
       shiftType: shift.shiftType || "store",
@@ -2338,16 +2373,24 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       toast.warning(readonlyRosterMessage);
       return;
     }
+    if (!shiftForm.areaId) {
+      toast.error(isZh ? "请选择区域" : "Please select an area");
+      return;
+    }
     if (!shiftForm.shiftName.trim()) {
       toast.error(locale === "zh" ? "请选择班次" : "Please choose a shift");
       return;
     }
+
     const empIds =
-      shiftForm.employeeIds.length > 0
-        ? shiftForm.employeeIds
-        : shiftForm.employeeId
-          ? [shiftForm.employeeId]
-          : [];
+      shiftModalMode === "employee" && lockedEmployeeId
+        ? [lockedEmployeeId]
+        : shiftForm.employeeIds.length > 0
+          ? shiftForm.employeeIds
+          : shiftForm.employeeId
+            ? [shiftForm.employeeId]
+            : [];
+
     if (empIds.length === 0) {
       toast.error(
         locale === "zh"
@@ -2356,39 +2399,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       );
       return;
     }
+
     const nextShift = {
       date: shiftForm.date,
       startTime: shiftForm.startTime,
       endTime: shiftForm.endTime,
     };
-
-    // Check availability warnings for all selected employees (warning only, not blocking)
-    const availabilityWarnings: string[] = [];
-    for (const empId of empIds) {
-      const availabilityWarning = findAvailabilityWarning(empId, nextShift);
-      if (availabilityWarning) {
-        availabilityWarnings.push(availabilityWarning);
-      }
-
-      const hasConflict = scheduleShifts.some((s) => {
-        if (s.id === editingShift?.id) return false;
-        if (!getShiftEmployeeIds(s).includes(empId)) return false;
-        return datedShiftsOverlap(nextShift, s);
-      });
-
-      if (hasConflict) {
-        toast.error(
-          locale === "zh"
-            ? `${empNameMap[empId]} 在该时间段存在冲突`
-            : `Conflict detected for ${empNameMap[empId]}`,
-        );
-        return;
-      }
-    }
-
-    if (availabilityWarnings.length > 0) {
-      availabilityWarnings.forEach((w) => toast.warning(w));
-    }
 
     const storeIdToUse =
       shiftForm.storeId ||
@@ -2397,13 +2413,63 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       stores[0]?.id ||
       "s1";
 
+    const slotKey = makeScheduleShiftSlotKey({
+      areaId: shiftForm.areaId,
+      date: shiftForm.date,
+      startTime: shiftForm.startTime,
+      endTime: shiftForm.endTime,
+      shiftId: shiftForm.shiftId,
+      shiftName: shiftForm.shiftName,
+    });
+
+    const checkEmployeeConflicts = (
+      employeeIds: string[],
+      ignoreShiftId?: string,
+    ) => {
+      const availabilityWarnings: string[] = [];
+      for (const empId of employeeIds) {
+        const availabilityWarning = findAvailabilityWarning(empId, nextShift);
+        if (availabilityWarning) {
+          availabilityWarnings.push(availabilityWarning);
+        }
+
+        const hasConflict = scheduleShifts.some((s) => {
+          if (ignoreShiftId && s.id === ignoreShiftId) return false;
+          if (!getShiftEmployeeIds(s).includes(empId)) return false;
+          return datedShiftsOverlap(nextShift, s);
+        });
+
+        if (hasConflict) {
+          toast.error(
+            locale === "zh"
+              ? `${empNameMap[empId]} 在该时间段存在冲突`
+              : `Conflict detected for ${empNameMap[empId]}`,
+          );
+          return false;
+        }
+      }
+
+      if (availabilityWarnings.length > 0) {
+        availabilityWarnings.forEach((w) => toast.warning(w));
+      }
+      return true;
+    };
+
     if (editingShift) {
-      // For edit: update existing shift with first selected employee, update employeeIds
+      const employeeIdsToSave =
+        shiftModalMode === "employee"
+          ? getShiftEmployeeIds(editingShift)
+          : empIds;
+
+      if (!checkEmployeeConflicts(employeeIdsToSave, editingShift.id)) {
+        return;
+      }
+
       const data: ScheduleShift = {
         ...editingShift,
         shiftId: shiftForm.shiftId || editingShift.shiftId,
-        employeeId: empIds[0],
-        employeeIds: empIds,
+        employeeId: employeeIdsToSave[0] || "",
+        employeeIds: employeeIdsToSave,
         areaId: shiftForm.areaId,
         storeId: storeIdToUse,
         shiftType: shiftForm.shiftType,
@@ -2416,39 +2482,95 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         note: shiftForm.note,
         status: "draft",
       };
+
       setScheduleShifts((prev) =>
         prev.map((s) => (s.id === editingShift.id ? data : s)),
       );
       toast.success(locale === "zh" ? "班次已更新" : "Shift updated");
-      console.log("[Rosters] updated shift:", data);
     } else {
-      // For add: create one shift record per employee (each with its own id)
-      nextCreatedShiftIdRef.current += 1;
-      const createdShiftBatchId = nextCreatedShiftIdRef.current;
-      const newShifts: ScheduleShift[] = empIds.map((empId, idx) => ({
-        id: `sh-new-${createdShiftBatchId}-${idx}`,
-        shiftId: shiftForm.shiftId || undefined,
-        employeeId: empId,
-        employeeIds: [empId],
-        areaId: shiftForm.areaId,
-        storeId: storeIdToUse,
-        shiftType: shiftForm.shiftType,
-        date: shiftForm.date,
-        startTime: shiftForm.startTime,
-        endTime: shiftForm.endTime,
-        breakMinutes: shiftForm.breakMinutes,
-        shiftName: shiftForm.shiftName,
-        color: shiftForm.color,
-        note: shiftForm.note,
-        status: "draft" as const,
-      }));
-      setScheduleShifts((prev) => [...prev, ...newShifts]);
-      toast.success(
-        locale === "zh"
-          ? `已添加 ${newShifts.length} 个班次`
-          : `Added ${newShifts.length} shift${newShifts.length > 1 ? "s" : ""}`,
+      const existing = scheduleShifts.find(
+        (shift) =>
+          !shift.isGlobalPreset &&
+          makeScheduleShiftSlotKey(shift) === slotKey,
       );
-      console.log("[Rosters] added shifts:", newShifts);
+
+      if (existing) {
+        const mergedEmployeeIds = mergeUniqueEmployeeIds(
+          getShiftEmployeeIds(existing),
+          empIds,
+        );
+        const newlyAddedEmployeeIds = empIds.filter(
+          (empId) => !getShiftEmployeeIds(existing).includes(empId),
+        );
+
+        if (
+          !checkEmployeeConflicts(newlyAddedEmployeeIds, existing.id)
+        ) {
+          return;
+        }
+
+        setScheduleShifts((prev) =>
+          prev.map((shift) =>
+            shift.id === existing.id
+              ? {
+                  ...shift,
+                  shiftId: shiftForm.shiftId || shift.shiftId,
+                  employeeId: mergedEmployeeIds[0] || "",
+                  employeeIds: mergedEmployeeIds,
+                  areaId: shiftForm.areaId,
+                  storeId: storeIdToUse,
+                  shiftType: shiftForm.shiftType,
+                  date: shiftForm.date,
+                  startTime: shiftForm.startTime,
+                  endTime: shiftForm.endTime,
+                  breakMinutes: shiftForm.breakMinutes,
+                  shiftName: shiftForm.shiftName,
+                  color: shiftForm.color,
+                  note: shiftForm.note,
+                  status: "draft" as const,
+                }
+              : shift,
+          ),
+        );
+        toast.success(
+          locale === "zh"
+            ? newlyAddedEmployeeIds.length > 0
+              ? "已合并到现有班次"
+              : "班次已更新"
+            : newlyAddedEmployeeIds.length > 0
+              ? "Merged into existing shift"
+              : "Shift updated",
+        );
+      } else {
+        if (!checkEmployeeConflicts(empIds)) {
+          return;
+        }
+
+        nextCreatedShiftIdRef.current += 1;
+        const newShift: ScheduleShift = {
+          id: `sh-new-${nextCreatedShiftIdRef.current}`,
+          shiftId: shiftForm.shiftId || undefined,
+          employeeId: empIds[0],
+          employeeIds: empIds,
+          areaId: shiftForm.areaId,
+          storeId: storeIdToUse,
+          shiftType: shiftForm.shiftType,
+          date: shiftForm.date,
+          startTime: shiftForm.startTime,
+          endTime: shiftForm.endTime,
+          breakMinutes: shiftForm.breakMinutes,
+          shiftName: shiftForm.shiftName,
+          color: shiftForm.color,
+          note: shiftForm.note,
+          status: "draft",
+        };
+        setScheduleShifts((prev) => [...prev, newShift]);
+        toast.success(
+          locale === "zh"
+            ? `已添加 ${empIds.length} 名员工到班次`
+            : `Added ${empIds.length} employee${empIds.length > 1 ? "s" : ""} to shift`,
+        );
+      }
     }
     closeShiftModal();
   };
@@ -2462,6 +2584,27 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
     setScheduleShifts((prev) => prev.filter((s) => s.id !== id));
     toast.success(locale === "zh" ? "班次已删除" : "Shift deleted");
+  };
+
+  const handleDeleteShiftForEmployeeRow = (
+    shiftId: string,
+    rowEmployeeId?: string,
+  ) => {
+    if (!rowEmployeeId) {
+      handleDeleteShift(shiftId);
+      return;
+    }
+
+    const targetShift = scheduleShifts.find((shift) => shift.id === shiftId);
+    if (!targetShift) return;
+
+    const assignedIds = getShiftEmployeeIds(targetShift);
+    if (assignedIds.length <= 1) {
+      handleDeleteShift(shiftId);
+      return;
+    }
+
+    handleRemoveEmployeeFromShift(shiftId, rowEmployeeId);
   };
 
   const handleRemoveEmployeeFromShift = (shiftId: string, empId: string) => {
@@ -3491,7 +3634,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                             defaultAreaId={defaultScheduleAreaId}
                             onAddShift={openAddShiftForEmployee}
                             onEditShift={openEditShift}
-                            onDeleteShift={handleDeleteShift}
+                            onDeleteShift={handleDeleteShiftForEmployeeRow}
                             onRemoveEmployeeFromShift={
                               handleRemoveEmployeeFromShift
                             }
@@ -3559,7 +3702,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                           defaultAreaId={defaultScheduleAreaId}
                           onAddShift={openAddShiftForEmployee}
                           onEditShift={openEditShift}
-                          onDeleteShift={handleDeleteShift}
+                          onDeleteShift={handleDeleteShiftForEmployeeRow}
                           onRemoveEmployeeFromShift={
                             handleRemoveEmployeeFromShift
                           }
@@ -3662,6 +3805,79 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
             )}
           </div>
 
+          {shiftModalMode === "employee" && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div
+                    className="text-sm mb-1.5"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    {isZh ? "日期" : "Date"}
+                  </div>
+                  <div
+                    className="rounded-md px-3 py-2 text-sm"
+                    style={{
+                      background: "var(--muted)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    {shiftForm.date
+                      ? formatCountryDate(
+                          dayjs(shiftForm.date),
+                          dateFormatCountry,
+                        )
+                      : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div
+                    className="text-sm mb-1.5"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    {isZh ? "员工" : "Employee"}
+                  </div>
+                  <div
+                    className="rounded-md px-3 py-2 text-sm truncate"
+                    style={{
+                      background: "var(--muted)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    {empNameMap[lockedEmployeeId] || lockedEmployeeId || "—"}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div
+                  className="text-sm mb-1.5"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  {isZh ? "区域" : "Area"}
+                </div>
+                <Select
+                  value={shiftForm.areaId || undefined}
+                  onChange={(value) =>
+                    setShiftForm((form) => ({
+                      ...form,
+                      areaId: value,
+                      storeId:
+                        areas.find((area) => area.id === value)?.storeId ||
+                        form.storeId,
+                    }))
+                  }
+                  placeholder={isZh ? "请选择区域" : "Select area"}
+                  style={{ width: "100%" }}
+                  options={displayAreas.map((area) => ({
+                    value: area.id,
+                    label: area.name,
+                  }))}
+                />
+              </div>
+            </>
+          )}
+
           {/* Time */}
           <div className="flex items-center gap-4">
             <div className="flex-1">
@@ -3748,6 +3964,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           </div>
 
           {/* Multi-employee assignment */}
+          {shiftModalMode !== "employee" && (
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-sm" style={{ color: "var(--foreground)" }}>
@@ -3904,6 +4121,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               </span>
             </div>
           </div>
+          )}
         </div>
       </Modal>
 

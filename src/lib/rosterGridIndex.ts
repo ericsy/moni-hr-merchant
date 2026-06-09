@@ -91,3 +91,33 @@ export function storeGridViewMode(
     /* ignore */
   }
 }
+
+export type ShiftModalMode = "area" | "employee";
+
+export function makeScheduleShiftSlotKey(
+  shift: Pick<
+    ScheduleShift,
+    "areaId" | "date" | "startTime" | "endTime" | "shiftId" | "shiftName"
+  >,
+): string {
+  const shiftPart = (shift.shiftId || shift.shiftName || "").trim();
+  return `${shift.areaId}|${shift.date}|${shift.startTime}|${shift.endTime}|${shiftPart}`;
+}
+
+export function makeTemplateCellSlotKey(
+  cell: Pick<
+    RosterTemplateCell,
+    "areaId" | "dayIndex" | "startTime" | "endTime" | "shiftId" | "label"
+  >,
+): string {
+  const shiftPart = (cell.shiftId || cell.label || "").trim();
+  return `${cell.areaId}|${cell.dayIndex}|${cell.startTime}|${cell.endTime}|${shiftPart}`;
+}
+
+export function mergeUniqueEmployeeIds(
+  ...groups: Array<string[] | undefined>
+): string[] {
+  return Array.from(
+    new Set(groups.flatMap((group) => group || []).filter(Boolean)),
+  );
+}

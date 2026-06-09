@@ -54,9 +54,12 @@ import { calcShiftHours, indexedShiftsOverlap } from "../lib/shift";
 import {
   filterCellsForEmployeeOnDay,
   filterUnassignedCellsOnDay,
+  makeTemplateCellSlotKey,
+  mergeUniqueEmployeeIds,
   readStoredGridViewMode,
   ROSTER_UNASSIGNED_ROW_ID,
   type RosterGridViewMode,
+  type ShiftModalMode,
   storeGridViewMode,
 } from "../lib/rosterGridIndex";
 import { isStoreClosedOnDayIndex } from "../lib/storeHours";
@@ -429,8 +432,8 @@ interface TemplateEmployeeDayCellProps {
     dayIndex: number,
     employeeIds: string[],
   ) => void;
-  onEditCell?: (cell: RosterShiftCell) => void;
-  onDeleteCell?: (cellId: string) => void;
+  onEditCell?: (cell: RosterShiftCell, rowEmployeeId?: string) => void;
+  onDeleteCell?: (cellId: string, rowEmployeeId?: string) => void;
   onDropEmployee?: (cellId: string, empId: string) => void;
   onRemoveEmployee?: (cellId: string, empId: string) => void;
   getTemplateShiftAvailabilityWarning?: typeof getTemplateShiftAvailabilityWarning;
@@ -519,11 +522,20 @@ function TemplateEmployeeDayCell({
             key={cell.id}
             cell={cell}
             employees={cellEmployees}
-            onEdit={() => onEditCell(cell)}
-            onDelete={() => onDeleteCell(cell.id)}
+            onEdit={() =>
+              onEditCell(cell, rowKind === "employee" ? employeeId : undefined)
+            }
+            onDelete={() =>
+              onDeleteCell(
+                cell.id,
+                rowKind === "employee" ? employeeId : undefined,
+              )
+            }
             onDrop={(empId) => onDropEmployee(cell.id, empId)}
             onRemoveEmployee={(empId) => onRemoveEmployee(cell.id, empId)}
-            onAddEmployeeClick={() => onEditCell(cell)}
+            onAddEmployeeClick={() =>
+              onEditCell(cell, rowKind === "employee" ? employeeId : undefined)
+            }
             viewMode="employee"
             areaName={areaNameMap[cell.areaId] || cell.areaId}
           />
@@ -595,6 +607,8 @@ export default function RosterTemplatePage({
   const [addAreaOpen, setAddAreaOpen] = useState(false);
   const [selectedAreaId, setSelectedAreaId] = useState("");
   const [cellModalOpen, setCellModalOpen] = useState(false);
+  const [cellModalMode, setCellModalMode] = useState<ShiftModalMode>("area");
+  const [lockedEmployeeId, setLockedEmployeeId] = useState("");
   const [editingCell, setEditingCell] = useState<RosterShiftCell | null>(null);
   const [editingAreaId, setEditingAreaId] = useState<string>("");
   const [editingDayIndex, setEditingDayIndex] = useState<number>(0);
@@ -1121,15 +1135,24 @@ export default function RosterTemplatePage({
     areaId: string,
     dayIndex: number,
     presetEmployeeIds: string[] = [],
+    options?: { modalMode?: ShiftModalMode },
   ) => {
-    if (!areaId) {
+    const modalMode =
+      options?.modalMode ||
+      (presetEmployeeIds.length === 1 ? "employee" : "area");
+    if (modalMode === "area" && !areaId) {
       toast.error(
         locale === "zh" ? "请先添加区域" : "Please add an area first",
       );
       return;
     }
+
+    setCellModalMode(modalMode);
+    setLockedEmployeeId(
+      modalMode === "employee" ? presetEmployeeIds[0] || "" : "",
+    );
     setEditingCell(null);
-    setEditingAreaId(areaId);
+    setEditingAreaId(areaId || defaultTemplateAreaId);
     setEditingDayIndex(dayIndex);
     setCellForm({
       presetKey: "",
@@ -1143,7 +1166,19 @@ export default function RosterTemplatePage({
     setCellModalOpen(true);
   };
 
-  const openEditCell = (cell: RosterShiftCell) => {
+  const closeCellModal = () => {
+    setCellModalOpen(false);
+    setEditingCell(null);
+    setCellModalMode("area");
+    setLockedEmployeeId("");
+  };
+
+  const openEditCell = (cell: RosterShiftCell, rowEmployeeId = "") => {
+    const useEmployeeModal =
+      gridViewMode === "employee" && !!rowEmployeeId;
+    setCellModalMode(useEmployeeModal ? "employee" : "area");
+    setLockedEmployeeId(useEmployeeModal ? rowEmployeeId : "");
+
     const presetKey = makeShiftPresetKey({
       shiftType: "store",
       storeId: activeTemplateStoreId,
@@ -1173,60 +1208,153 @@ export default function RosterTemplatePage({
       toast.error(locale === "zh" ? "请选择班次" : "Please choose a shift");
       return;
     }
+    if (!editingAreaId) {
+      toast.error(locale === "zh" ? "请选择区域" : "Please select an area");
+      return;
+    }
 
-    // Check availability warnings for all selected employees (warning only, not blocking)
-    const availabilityWarnings: string[] = [];
-    for (const empId of cellForm.employeeIds) {
-      const availabilityWarning = findAvailabilityWarning(
-        empId,
-        editingDayIndex,
-        cellForm.startTime,
-        cellForm.endTime,
-      );
-      if (availabilityWarning) {
-        availabilityWarnings.push(availabilityWarning);
-      }
+    const employeeIds =
+      cellModalMode === "employee" && lockedEmployeeId
+        ? [lockedEmployeeId]
+        : cellForm.employeeIds;
 
-      const conflict = findConflict(
-        empId,
-        editingDayIndex,
-        cellForm.startTime,
-        cellForm.endTime,
-        editingCell?.id,
+    if (employeeIds.length === 0) {
+      toast.error(
+        locale === "zh"
+          ? "请至少选择一名员工"
+          : "Please select at least one employee",
       );
-      if (conflict) {
-        const empName = empNameMap[empId] || empId;
-        toast.error(
-          locale === "zh"
-            ? `${empName} 在 ${getDetailedDayLabel(editingDayIndex, locale)} ${conflict.label || conflict.startTime} 已有排班冲突`
-            : `${empName} has a scheduling conflict on ${getDetailedDayLabel(editingDayIndex, locale)} (${conflict.label || conflict.startTime})`,
+      return;
+    }
+
+    const slotKey = makeTemplateCellSlotKey({
+      areaId: editingAreaId,
+      dayIndex: editingDayIndex,
+      startTime: cellForm.startTime,
+      endTime: cellForm.endTime,
+      shiftId: cellForm.shiftId,
+      label: cellForm.label,
+    });
+
+    const checkEmployeeConflicts = (
+      ids: string[],
+      ignoreCellId?: string,
+    ) => {
+      const availabilityWarnings: string[] = [];
+      for (const empId of ids) {
+        const availabilityWarning = findAvailabilityWarning(
+          empId,
+          editingDayIndex,
+          cellForm.startTime,
+          cellForm.endTime,
         );
-        return;
-      }
-    }
+        if (availabilityWarning) {
+          availabilityWarnings.push(availabilityWarning);
+        }
 
-    if (availabilityWarnings.length > 0) {
-      availabilityWarnings.forEach((w) => toast.warning(w));
-    }
+        const conflict = findConflict(
+          empId,
+          editingDayIndex,
+          cellForm.startTime,
+          cellForm.endTime,
+          ignoreCellId,
+        );
+        if (conflict) {
+          const empName = empNameMap[empId] || empId;
+          toast.error(
+            locale === "zh"
+              ? `${empName} 在 ${getDetailedDayLabel(editingDayIndex, locale)} ${conflict.label || conflict.startTime} 已有排班冲突`
+              : `${empName} has a scheduling conflict on ${getDetailedDayLabel(editingDayIndex, locale)} (${conflict.label || conflict.startTime})`,
+          );
+          return false;
+        }
+      }
+
+      if (availabilityWarnings.length > 0) {
+        availabilityWarnings.forEach((w) => toast.warning(w));
+      }
+      return true;
+    };
 
     if (editingCell) {
+      const employeeIdsToSave =
+        cellModalMode === "employee"
+          ? editingCell.employeeIds
+          : employeeIds;
+
+      if (!checkEmployeeConflicts(employeeIdsToSave, editingCell.id)) {
+        return;
+      }
+
       updateTemplate((t) => ({
         ...t,
         cells: t.cells.map((c) =>
           c.id === editingCell.id
             ? {
                 ...c,
+                areaId: editingAreaId,
                 shiftId: cellForm.shiftId || undefined,
                 startTime: cellForm.startTime,
                 endTime: cellForm.endTime,
                 label: cellForm.label,
                 color: cellForm.color,
-                employeeIds: cellForm.employeeIds,
+                employeeIds: employeeIdsToSave,
               }
             : c,
         ),
       }));
     } else {
+      const existing = activeTemplateVisibleCells.find(
+        (cell) => makeTemplateCellSlotKey(cell) === slotKey,
+      );
+
+      if (existing) {
+        const mergedEmployeeIds = mergeUniqueEmployeeIds(
+          existing.employeeIds,
+          employeeIds,
+        );
+        const newlyAddedEmployeeIds = employeeIds.filter(
+          (empId) => !existing.employeeIds.includes(empId),
+        );
+
+        if (!checkEmployeeConflicts(newlyAddedEmployeeIds, existing.id)) {
+          return;
+        }
+
+        updateTemplate((t) => ({
+          ...t,
+          cells: t.cells.map((c) =>
+            c.id === existing.id
+              ? {
+                  ...c,
+                  areaId: editingAreaId,
+                  shiftId: cellForm.shiftId || undefined,
+                  startTime: cellForm.startTime,
+                  endTime: cellForm.endTime,
+                  label: cellForm.label,
+                  color: cellForm.color,
+                  employeeIds: mergedEmployeeIds,
+                }
+              : c,
+          ),
+        }));
+        toast.success(
+          locale === "zh"
+            ? newlyAddedEmployeeIds.length > 0
+              ? "已合并到现有班次"
+              : "班次已更新"
+            : newlyAddedEmployeeIds.length > 0
+              ? "Merged into existing shift"
+              : "Shift updated",
+        );
+        closeCellModal();
+        return;
+      }
+
+      if (!checkEmployeeConflicts(employeeIds)) {
+        return;
+      }
+
       nextCreatedCellIdRef.current += 1;
       const newCell: RosterShiftCell = {
         id: `cell-new-${nextCreatedCellIdRef.current}`,
@@ -1238,11 +1366,12 @@ export default function RosterTemplatePage({
         endTime: cellForm.endTime,
         label: cellForm.label,
         color: cellForm.color,
-        employeeIds: cellForm.employeeIds,
+        employeeIds,
       };
       updateTemplate((t) => ({ ...t, cells: [...t.cells, newCell] }));
     }
-    setCellModalOpen(false);
+
+    closeCellModal();
     toast.success(locale === "zh" ? "班次已保存" : "Shift saved");
   };
 
@@ -1252,6 +1381,26 @@ export default function RosterTemplatePage({
       cells: t.cells.filter((c) => c.id !== cellId),
     }));
     toast.success(locale === "zh" ? "班次已删除" : "Shift deleted");
+  };
+
+  const handleDeleteCellForEmployeeRow = (
+    cellId: string,
+    rowEmployeeId?: string,
+  ) => {
+    if (!rowEmployeeId) {
+      handleDeleteCell(cellId);
+      return;
+    }
+
+    const cell = (activeTemplate?.cells || []).find((item) => item.id === cellId);
+    if (!cell) return;
+
+    if (cell.employeeIds.length <= 1) {
+      handleDeleteCell(cellId);
+      return;
+    }
+
+    handleRemoveEmployee(cellId, rowEmployeeId);
   };
 
   /** Drop an employee onto a cell: availability warns only; overlapping shifts still block. */
@@ -2269,7 +2418,7 @@ export default function RosterTemplatePage({
                           locale={locale}
                           onAddCell={openAddCell}
                           onEditCell={openEditCell}
-                          onDeleteCell={handleDeleteCell}
+                          onDeleteCell={handleDeleteCellForEmployeeRow}
                           onDropEmployee={handleDropEmployee}
                           onRemoveEmployee={handleRemoveEmployee}
                         />
@@ -2332,7 +2481,7 @@ export default function RosterTemplatePage({
                           locale={locale}
                           onAddCell={openAddCell}
                           onEditCell={openEditCell}
-                          onDeleteCell={handleDeleteCell}
+                          onDeleteCell={handleDeleteCellForEmployeeRow}
                           onDropEmployee={handleDropEmployee}
                           onRemoveEmployee={handleRemoveEmployee}
                         />
@@ -2445,7 +2594,7 @@ export default function RosterTemplatePage({
       <Modal
         title={locale === "zh" ? "设置班次" : "Configure Shift"}
         open={cellModalOpen}
-        onCancel={() => setCellModalOpen(false)}
+        onCancel={closeCellModal}
         onOk={handleSaveCell}
         maskClosable={false}
         okText={locale === "zh" ? "保存" : "Save"}
@@ -2505,6 +2654,66 @@ export default function RosterTemplatePage({
               </div>
             )}
           </div>
+
+          {cellModalMode === "employee" && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div
+                    className="text-sm mb-1.5"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    {locale === "zh" ? "星期" : "Day"}
+                  </div>
+                  <div
+                    className="rounded-md px-3 py-2 text-sm"
+                    style={{
+                      background: "var(--muted)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    {getDetailedDayLabel(editingDayIndex, locale)}
+                  </div>
+                </div>
+                <div>
+                  <div
+                    className="text-sm mb-1.5"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    {locale === "zh" ? "员工" : "Employee"}
+                  </div>
+                  <div
+                    className="rounded-md px-3 py-2 text-sm truncate"
+                    style={{
+                      background: "var(--muted)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    {empNameMap[lockedEmployeeId] || lockedEmployeeId || "—"}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div
+                  className="text-sm mb-1.5"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  {locale === "zh" ? "区域" : "Area"}
+                </div>
+                <Select
+                  value={editingAreaId || undefined}
+                  onChange={(value) => setEditingAreaId(value)}
+                  placeholder={locale === "zh" ? "请选择区域" : "Select area"}
+                  style={{ width: "100%" }}
+                  options={templateAreas.map((area) => ({
+                    value: area.id,
+                    label: area.name,
+                  }))}
+                />
+              </div>
+            </>
+          )}
 
           {/* Time */}
           <div className="flex items-center gap-4">
@@ -2578,6 +2787,7 @@ export default function RosterTemplatePage({
           </div>
 
           {/* Multi-employee assignment */}
+          {cellModalMode !== "employee" && (
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-sm" style={{ color: "var(--foreground)" }}>
@@ -2725,6 +2935,7 @@ export default function RosterTemplatePage({
               </span>
             </div>
           </div>
+          )}
         </div>
       </Modal>
     </div>
