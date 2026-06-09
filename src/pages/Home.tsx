@@ -12,9 +12,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
+import TodayAttendancePanel from "../components/TodayAttendancePanel";
 import {
   merchantApi,
   type MerchantDashboardStatistics,
+  type MerchantTodayAttendance,
 } from "../lib/merchantApi";
 
 type StatTone = "blue" | "red" | "amber" | "indigo" | "rose";
@@ -100,8 +102,12 @@ export default function Home() {
   const { selectedStoreId } = useStore();
   const [statistics, setStatistics] =
     useState<MerchantDashboardStatistics>(emptyStats);
+  const [todayAttendance, setTodayAttendance] =
+    useState<MerchantTodayAttendance | null>(null);
   const [loading, setLoading] = useState(false);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [error, setError] = useState("");
+  const [attendanceError, setAttendanceError] = useState("");
   const currentStore = stores.find((store) => store.id === selectedStoreId);
 
   const numberFormatter = useMemo(
@@ -124,27 +130,47 @@ export default function Home() {
   const loadStatistics = useCallback(async () => {
     if (!selectedStoreId) {
       setStatistics(emptyStats);
+      setTodayAttendance(null);
       return;
     }
 
-    try {
-      setLoading(true);
-      setError("");
-      const nextStatistics =
-        await merchantApi.getDashboardStatistics(selectedStoreId);
-      setStatistics(mergeStats(nextStatistics));
-    } catch (loadError) {
-      console.log("[Home] failed to load dashboard statistics:", loadError);
+    setLoading(true);
+    setAttendanceLoading(true);
+    setError("");
+    setAttendanceError("");
+
+    const [statsResult, attendanceResult] = await Promise.allSettled([
+      merchantApi.getDashboardStatistics(selectedStoreId),
+      merchantApi.getTodayAttendance(selectedStoreId),
+    ]);
+
+    if (statsResult.status === "fulfilled") {
+      setStatistics(mergeStats(statsResult.value));
+    } else {
+      console.log("[Home] failed to load dashboard statistics:", statsResult.reason);
       setError(
-        loadError instanceof Error
-          ? loadError.message
+        statsResult.reason instanceof Error
+          ? statsResult.reason.message
           : t.home.dashboardLoadFailed,
       );
       setStatistics(emptyStats);
-    } finally {
-      setLoading(false);
     }
-  }, [selectedStoreId, t.home.dashboardLoadFailed]);
+
+    if (attendanceResult.status === "fulfilled") {
+      setTodayAttendance(attendanceResult.value);
+    } else {
+      console.log("[Home] failed to load today attendance:", attendanceResult.reason);
+      setAttendanceError(
+        attendanceResult.reason instanceof Error
+          ? attendanceResult.reason.message
+          : t.home.todayAttendance.loadFailed,
+      );
+      setTodayAttendance(null);
+    }
+
+    setLoading(false);
+    setAttendanceLoading(false);
+  }, [selectedStoreId, t.home.dashboardLoadFailed, t.home.todayAttendance.loadFailed]);
 
   useEffect(() => {
     loadStatistics();
@@ -277,6 +303,17 @@ export default function Home() {
           />
         ))}
       </div>
+
+      {attendanceError ? (
+        <Alert
+          showIcon
+          type="warning"
+          message={t.home.todayAttendance.loadFailed}
+          description={attendanceError}
+        />
+      ) : null}
+
+      <TodayAttendancePanel data={todayAttendance} loading={attendanceLoading} />
     </div>
   );
 }

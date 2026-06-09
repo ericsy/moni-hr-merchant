@@ -193,6 +193,47 @@ export interface MerchantDashboardStatistics {
   overtimeRiskEmployees?: number | null;
 }
 
+export type MerchantTodayAttendanceStatus =
+  | "not_punched"
+  | "clocked_in"
+  | "completed"
+  | "on_leave";
+
+export interface MerchantTodayAttendanceShift {
+  startTime?: string | null;
+  endTime?: string | null;
+  shiftName?: string | null;
+  areaName?: string | null;
+}
+
+export interface MerchantTodayAttendanceItem {
+  merchantAdminId?: number | string | null;
+  displayName?: string | null;
+  employeeCode?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  attendanceStatus?: MerchantTodayAttendanceStatus | null;
+  shifts?: MerchantTodayAttendanceShift[];
+  clockInAt?: string | null;
+  clockOutAt?: string | null;
+  punchSource?: string | null;
+}
+
+export interface MerchantTodayAttendanceSummary {
+  scheduled?: number | null;
+  punched?: number | null;
+  notPunched?: number | null;
+  onLeave?: number | null;
+}
+
+export interface MerchantTodayAttendance {
+  storeId?: number | string | null;
+  date?: string | null;
+  timeZone?: string | null;
+  summary?: MerchantTodayAttendanceSummary | null;
+  items?: MerchantTodayAttendanceItem[];
+}
+
 export type MerchantAttendanceRequestType = "leave" | "missed_punch";
 export type MerchantAttendanceRequestStatus = "pending" | "approved" | "rejected";
 export type MerchantClockPunchType = "clock_in" | "clock_out";
@@ -543,6 +584,54 @@ function mapApiDashboardStatistics(input: unknown): MerchantDashboardStatistics 
     labourCostToday: asNumber(raw.labourCostToday),
     weeklyHours: asNumber(raw.weeklyHours),
     overtimeRiskEmployees: asNumber(raw.overtimeRiskEmployees),
+  };
+}
+
+function mapApiTodayAttendanceShift(input: unknown): MerchantTodayAttendanceShift {
+  const raw = asRecord(input);
+  return {
+    startTime: asString(raw.startTime),
+    endTime: asString(raw.endTime),
+    shiftName: asString(raw.shiftName),
+    areaName: asString(raw.areaName),
+  };
+}
+
+function mapApiTodayAttendanceItem(input: unknown): MerchantTodayAttendanceItem {
+  const raw = asRecord(input);
+  const status = asString(raw.attendanceStatus) as MerchantTodayAttendanceStatus;
+  return {
+    merchantAdminId: (raw.merchantAdminId ?? raw.merchant_admin_id) as
+      | number
+      | string
+      | null
+      | undefined,
+    displayName: asString(raw.displayName || raw.display_name),
+    employeeCode: asString(raw.employeeCode || raw.employee_code),
+    firstName: asString(raw.firstName || raw.first_name),
+    lastName: asString(raw.lastName || raw.last_name),
+    attendanceStatus: status || null,
+    shifts: asArray(raw.shifts).map(mapApiTodayAttendanceShift),
+    clockInAt: asString(raw.clockInAt || raw.clock_in_at),
+    clockOutAt: asString(raw.clockOutAt || raw.clock_out_at),
+    punchSource: asString(raw.punchSource || raw.punch_source),
+  };
+}
+
+function mapApiTodayAttendance(input: unknown): MerchantTodayAttendance {
+  const raw = asRecord(input);
+  const summaryRaw = asRecord(raw.summary);
+  return {
+    storeId: (raw.storeId ?? raw.store_id) as number | string | null | undefined,
+    date: asString(raw.date),
+    timeZone: asString(raw.timeZone || raw.time_zone),
+    summary: {
+      scheduled: asNumber(summaryRaw.scheduled),
+      punched: asNumber(summaryRaw.punched),
+      notPunched: asNumber(summaryRaw.notPunched ?? summaryRaw.not_punched),
+      onLeave: asNumber(summaryRaw.onLeave ?? summaryRaw.on_leave),
+    },
+    items: asArray(raw.items).map(mapApiTodayAttendanceItem),
   };
 }
 
@@ -1711,6 +1800,13 @@ export const merchantApi = {
       storeId,
     });
     return mapApiDashboardStatistics(data);
+  },
+  getTodayAttendance: async (storeId: string, date?: string) => {
+    const data = await apiRequest<unknown>("/api/v1/merchant/dashboard/today-attendance", {
+      storeId,
+      query: date ? { date } : undefined,
+    });
+    return mapApiTodayAttendance(data);
   },
   updateLastStore: (storeId: string) => {
     const numericStoreId = Number(storeId);
