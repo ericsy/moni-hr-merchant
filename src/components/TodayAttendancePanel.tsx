@@ -1,14 +1,11 @@
-import { Card, Empty, Input, Segmented, Skeleton } from "antd";
-import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Card, Empty, Skeleton } from "antd";
+import { useMemo } from "react";
 import { useLocale } from "../context/LocaleContext";
 import type {
   MerchantTodayAttendance,
   MerchantTodayAttendanceItem,
   MerchantTodayAttendanceStatus,
 } from "../lib/merchantApi";
-
-type FilterKey = "all" | MerchantTodayAttendanceStatus | "punched";
 
 const statusStyles: Record<
   MerchantTodayAttendanceStatus,
@@ -40,6 +37,13 @@ const statusStyles: Record<
   },
 };
 
+const statusOrder: Record<MerchantTodayAttendanceStatus, number> = {
+  not_punched: 0,
+  clocked_in: 1,
+  completed: 2,
+  on_leave: 3,
+};
+
 function getInitials(item: MerchantTodayAttendanceItem) {
   const name = (item.displayName || "").trim();
   if (!name) return "?";
@@ -59,38 +63,20 @@ function formatShiftRange(item: MerchantTodayAttendanceItem) {
   return `${start}-${end}${name}`;
 }
 
-function formatClockTime(iso?: string | null, locale = "zh-CN") {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString(locale === "zh" ? "zh-CN" : "en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
+function formatAttendanceDate(dateStr?: string | null, locale = "zh") {
+  if (!dateStr) return "—";
+  const date = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  return date.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
   });
 }
 
-function matchesFilter(item: MerchantTodayAttendanceItem, filter: FilterKey) {
-  const status = item.attendanceStatus || "not_punched";
-  if (filter === "all") return true;
-  if (filter === "punched") {
-    return status === "clocked_in" || status === "completed";
-  }
-  return status === filter;
-}
-
-function groupItems(items: MerchantTodayAttendanceItem[]) {
-  const groups: Record<MerchantTodayAttendanceStatus, MerchantTodayAttendanceItem[]> = {
-    not_punched: [],
-    clocked_in: [],
-    completed: [],
-    on_leave: [],
-  };
-  for (const item of items) {
-    const status = item.attendanceStatus || "not_punched";
-    groups[status].push(item);
-  }
-  return groups;
+function resolveStatus(item: MerchantTodayAttendanceItem): MerchantTodayAttendanceStatus {
+  return item.attendanceStatus || "not_punched";
 }
 
 interface TodayAttendancePanelProps {
@@ -104,44 +90,9 @@ export default function TodayAttendancePanel({
 }: TodayAttendancePanelProps) {
   const { locale, t } = useLocale();
   const ta = t.home.todayAttendance;
-  const [filter, setFilter] = useState<FilterKey>("all");
-  const [search, setSearch] = useState("");
 
   const summary = data?.summary;
   const allItems = data?.items || [];
-
-  const filteredItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return allItems.filter((item) => {
-      if (!matchesFilter(item, filter)) return false;
-      if (!q) return true;
-      const hay = [
-        item.displayName,
-        item.employeeCode,
-        item.firstName,
-        item.lastName,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }, [allItems, filter, search]);
-
-  const groups = useMemo(() => groupItems(filteredItems), [filteredItems]);
-
-  const segmentOptions = useMemo(
-    () => [
-      { label: `${ta.filterAll} (${summary?.scheduled ?? allItems.length})`, value: "all" },
-      {
-        label: `${ta.filterNotPunched} (${summary?.notPunched ?? 0})`,
-        value: "not_punched",
-      },
-      { label: `${ta.filterPunched} (${summary?.punched ?? 0})`, value: "punched" },
-      { label: `${ta.filterOnLeave} (${summary?.onLeave ?? 0})`, value: "on_leave" },
-    ],
-    [ta, summary, allItems.length],
-  );
 
   const statusLabel = (status: MerchantTodayAttendanceStatus) => {
     switch (status) {
@@ -158,25 +109,18 @@ export default function TodayAttendancePanel({
     }
   };
 
-  const punchHint = (item: MerchantTodayAttendanceItem) => {
-    const status = item.attendanceStatus;
-    if (status === "not_punched") return ta.notPunchedHint;
-    if (status === "on_leave") return ta.onLeaveHint;
-    const inTime = formatClockTime(item.clockInAt, locale);
-    const outTime = formatClockTime(item.clockOutAt, locale);
-    if (status === "completed" && inTime && outTime) {
-      return `${ta.clockedInHint} ${inTime} · ${ta.clockedOutHint} ${outTime}`;
-    }
-    if (inTime) return `${ta.clockedInHint} ${inTime}`;
-    return ta.clockedInHint;
-  };
-
-  const groupOrder: MerchantTodayAttendanceStatus[] = [
-    "not_punched",
-    "clocked_in",
-    "completed",
-    "on_leave",
-  ];
+  const sortedItems = useMemo(
+    () =>
+      [...allItems].sort((a, b) => {
+        const statusDiff =
+          statusOrder[resolveStatus(a)] - statusOrder[resolveStatus(b)];
+        if (statusDiff !== 0) return statusDiff;
+        return (a.displayName || "").localeCompare(b.displayName || "", undefined, {
+          sensitivity: "base",
+        });
+      }),
+    [allItems],
+  );
 
   return (
     <Card
@@ -189,8 +133,7 @@ export default function TodayAttendancePanel({
             {ta.title}
           </div>
           <div className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
-            {data?.date || "—"}
-            {data?.timeZone ? ` · ${data.timeZone}` : ""}
+            {formatAttendanceDate(data?.date, locale)}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -201,58 +144,25 @@ export default function TodayAttendancePanel({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <Segmented
-          value={filter}
-          onChange={(value) => setFilter(value as FilterKey)}
-          options={segmentOptions}
-        />
-        <Input
-          allowClear
-          prefix={<Search size={14} style={{ color: "var(--muted-foreground)" }} />}
-          placeholder={ta.searchPlaceholder}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ width: 220, maxWidth: "100%" }}
-        />
-      </div>
-
       {loading ? (
         <Skeleton active paragraph={{ rows: 6 }} />
-      ) : allItems.length === 0 ? (
+      ) : sortedItems.length === 0 ? (
         <Empty description={ta.empty} />
-      ) : filteredItems.length === 0 ? (
-        <Empty description={ta.noMatch} />
       ) : (
-        <div className="flex flex-col gap-5">
-          {groupOrder.map((status) => {
-            const items = groups[status];
-            if (items.length === 0) return null;
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-[360px] overflow-y-auto pr-1">
+          {sortedItems.map((item) => {
+            const status = resolveStatus(item);
             const style = statusStyles[status];
+            const shiftText = formatShiftRange(item);
+            const statusText = statusLabel(status);
             return (
-              <div key={status}>
-                <div
-                  className="mb-3 flex items-center gap-2 text-sm font-medium"
-                  style={{ color: style.text }}
-                >
-                  <span
-                    className="inline-block h-2 w-2 rounded-full"
-                    style={{ background: style.dot }}
-                  />
-                  {statusLabel(status)} ({items.length})
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-[320px] overflow-y-auto pr-1">
-                  {items.map((item) => (
-                    <EmployeeAttendanceCard
-                      key={String(item.merchantAdminId)}
-                      item={item}
-                      style={style}
-                      shiftText={formatShiftRange(item)}
-                      punchText={punchHint(item)}
-                    />
-                  ))}
-                </div>
-              </div>
+              <EmployeeAttendanceCard
+                key={String(item.merchantAdminId)}
+                item={item}
+                style={style}
+                shiftText={shiftText}
+                statusText={statusText}
+              />
             );
           })}
         </div>
@@ -308,22 +218,22 @@ function EmployeeAttendanceCard({
   item,
   style,
   shiftText,
-  punchText,
+  statusText,
 }: {
   item: MerchantTodayAttendanceItem;
   style: { bg: string; border: string; dot: string; text: string };
   shiftText: string;
-  punchText: string;
+  statusText: string;
 }) {
   return (
     <div
-      className="rounded-lg p-2.5 min-h-[96px] flex flex-col"
+      className="rounded-lg p-2.5 min-h-[88px] flex flex-col"
       style={{
         background: style.bg,
         border: `1px solid ${style.border}44`,
         boxShadow: `inset 3px 0 0 ${style.border}`,
       }}
-      title={`${item.displayName || ""}\n${shiftText}\n${punchText}`}
+      title={[item.displayName, shiftText, statusText].filter(Boolean).join("\n")}
     >
       <div className="flex items-start gap-2">
         <div
@@ -354,8 +264,8 @@ function EmployeeAttendanceCard({
           {shiftText}
         </div>
       ) : null}
-      <div className="mt-auto pt-1 text-[10px] leading-tight truncate" style={{ color: style.text }}>
-        {punchText}
+      <div className="mt-auto pt-1 text-[10px] font-medium leading-tight truncate" style={{ color: style.text }}>
+        {statusText}
       </div>
     </div>
   );
