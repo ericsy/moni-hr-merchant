@@ -293,7 +293,7 @@ export default function Home() {
         />
       )}
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {metrics.map((metric) => (
           <MetricCard
             key={metric.key}
@@ -339,15 +339,15 @@ function MetricCard({
       }}
       styles={{ body: { padding: 0 } }}
     >
-      <div className="relative min-h-[168px] p-6">
+      <div className="relative min-h-[112px] p-4 lg:min-h-[104px]">
         <div
-          className="absolute left-0 top-4 h-[calc(100%-32px)] w-1 rounded-r-full"
+          className="absolute left-0 top-3 h-[calc(100%-24px)] w-1 rounded-r-full"
           style={{ background: tone.accent }}
         />
-        <div className="relative flex h-full flex-col justify-between gap-6">
-          <div className="flex items-center gap-3">
+        <div className="relative flex h-full flex-col justify-between gap-3">
+          <div className="flex items-center gap-2">
             <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
               style={{
                 color: tone.text,
                 background: tone.iconBg,
@@ -356,7 +356,7 @@ function MetricCard({
               {metric.icon}
             </div>
             <div
-              className="min-w-0 text-sm font-medium"
+              className="min-w-0 text-xs font-medium leading-snug lg:text-sm"
               style={{ color: "var(--muted-foreground)" }}
             >
               {metric.title}
@@ -364,39 +364,25 @@ function MetricCard({
           </div>
 
           {loading ? (
-            <Skeleton active paragraph={false} title={{ width: 120 }} />
+            <Skeleton active paragraph={false} title={{ width: 80 }} />
           ) : (
             <div>
               <div
-                className="flex items-baseline gap-1 text-4xl font-semibold leading-none"
+                className="flex items-baseline gap-1 text-2xl font-semibold leading-none lg:text-3xl"
                 style={{ color: "var(--foreground)" }}
               >
-                <span>{value}</span>
+                <span className="truncate">{value}</span>
                 {metric.suffix && (
                   <span
-                    className="text-xl font-semibold"
+                    className="text-base font-semibold lg:text-lg"
                     style={{ color: tone.text }}
                   >
                     {metric.suffix}
                   </span>
                 )}
               </div>
-              <div className="mt-4 flex items-center gap-2">
-                <div
-                  className="h-1.5 flex-1 rounded-full"
-                  style={{ background: tone.soft }}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${getProgressWidth(metric)}%`,
-                      background: tone.accent,
-                    }}
-                  />
-                </div>
-              </div>
               <div
-                className="mt-3 text-xs"
+                className="mt-2 line-clamp-2 text-[11px] leading-tight lg:text-xs"
                 style={{ color: "var(--muted-foreground)" }}
               >
                 {metric.helper}
@@ -407,19 +393,4 @@ function MetricCard({
       </div>
     </Card>
   );
-}
-
-function getProgressWidth(metric: DashboardMetric) {
-  const maxByMetric: Partial<Record<keyof MerchantDashboardStatistics, number>> =
-    {
-      staffWorkingToday: 30,
-      absentEmployees: 10,
-      labourCostToday: 2000,
-      weeklyHours: 400,
-      overtimeRiskEmployees: 10,
-  };
-  const max = maxByMetric[metric.key] || 100;
-  if (max <= 0) return 0;
-  if (metric.value <= 0) return 0;
-  return Math.min(100, Math.max(8, (metric.value / max) * 100));
 }
