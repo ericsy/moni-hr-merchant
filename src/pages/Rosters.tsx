@@ -561,17 +561,39 @@ function ShiftEntry({
         </button>
       )}
 
-      {/* Employees (dynamic) */}
-      {!isEmployeeView && assignedEmployees.length > 0 && (
+      {/* Employees — personal view shows compact chip with status icons; area view shows full chip */}
+      {assignedEmployees.length > 0 && (
         <div className="mt-1 flex w-full flex-wrap items-center gap-0.5 min-w-0">
           {assignedEmployees.map((emp) => {
             const onApprovedLeave = !!emp.approvedLeaveHint;
+            const onSubstitution = isEmployeeView && !!shift.isSubstitution;
             const tooltipTitle =
-              emp.approvedLeaveHint || emp.availabilityWarning
+              emp.approvedLeaveHint ||
+              emp.availabilityWarning ||
+              onSubstitution
                 ? (
                     <div style={{ fontSize: 12, lineHeight: 1.35 }}>
-                      {emp.approvedLeaveHint ? (
+                      {onSubstitution ? (
                         <div>
+                          <span
+                            className="inline-flex items-center rounded px-1.5 py-0.5"
+                            style={{
+                              fontWeight: 800,
+                              color: "#F3E8FF",
+                              background: "rgba(124, 58, 237, 0.28)",
+                              border: "1px solid rgba(196, 181, 253, 0.45)",
+                            }}
+                          >
+                            {shift.originalDisplayName
+                              ? `${t.schedule.substitutionReplacedFor}: ${shift.originalDisplayName}`
+                              : locale === "zh"
+                                ? "替班"
+                                : "Substitution"}
+                          </span>
+                        </div>
+                      ) : null}
+                      {emp.approvedLeaveHint ? (
+                        <div style={{ marginTop: onSubstitution ? 6 : 0 }}>
                           <span
                             className="inline-flex items-center rounded px-1.5 py-0.5"
                             style={{
@@ -586,7 +608,12 @@ function ShiftEntry({
                         </div>
                       ) : null}
                       {emp.availabilityWarning ? (
-                        <div style={{ marginTop: emp.approvedLeaveHint ? 6 : 0 }}>
+                        <div
+                          style={{
+                            marginTop:
+                              onSubstitution || emp.approvedLeaveHint ? 6 : 0,
+                          }}
+                        >
                           {emp.availabilityWarning}
                         </div>
                       ) : null}
@@ -600,11 +627,15 @@ function ShiftEntry({
                 style={{
                   background: onApprovedLeave
                     ? "rgba(34, 197, 94, 0.12)"
+                    : onSubstitution
+                      ? "rgba(243, 232, 255, 0.55)"
                     : "var(--card)",
                   border: emp.availabilityWarning
                     ? "1px solid var(--destructive)"
                     : onApprovedLeave
                       ? "1px solid rgba(34, 197, 94, 0.35)"
+                      : onSubstitution
+                        ? "1px solid #c4b5fd"
                     : "1px solid transparent",
                 }}
               >
@@ -619,21 +650,38 @@ function ShiftEntry({
                 >
                   {getEmployeeInitials(emp.name)}
                 </Avatar>
-                <span
-                  className="min-w-0 flex-1 truncate text-xs"
-                  style={{
-                    color: emp.availabilityWarning
-                      ? "var(--destructive)"
-                      : onApprovedLeave
-                        ? "#065f46"
-                        : "var(--foreground)",
-                    maxWidth: 72,
-                    fontSize: 10,
-                    fontWeight: emp.availabilityWarning ? 700 : 400,
-                  }}
-                >
-                  {emp.name}
-                </span>
+                {!isEmployeeView ? (
+                  <span
+                    className="min-w-0 flex-1 truncate text-xs"
+                    style={{
+                      color: emp.availabilityWarning
+                        ? "var(--destructive)"
+                        : onApprovedLeave
+                          ? "#065f46"
+                          : "var(--foreground)",
+                      maxWidth: 72,
+                      fontSize: 10,
+                      fontWeight: emp.availabilityWarning ? 700 : 400,
+                    }}
+                  >
+                    {emp.name}
+                  </span>
+                ) : null}
+                {onSubstitution ? (
+                  <span
+                    className="rounded px-1 flex-shrink-0"
+                    style={{
+                      fontSize: 8,
+                      background: "#f3e8ff",
+                      color: "#7c3aed",
+                      border: "1px solid #c4b5fd",
+                      lineHeight: 1.2,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {locale === "zh" ? "替" : "Sub"}
+                  </span>
+                ) : null}
                 {onApprovedLeave && (
                   <span
                     className="rounded px-1 flex-shrink-0"
@@ -655,7 +703,7 @@ function ShiftEntry({
                     style={{ color: "var(--destructive)", flexShrink: 0 }}
                   />
                 )}
-                {!isLocked && (
+                {!isLocked && !isEmployeeView && (
                   <button
                     onClick={() => onRemoveEmployee(emp.id)}
                     className="rounded-full hover:opacity-70"

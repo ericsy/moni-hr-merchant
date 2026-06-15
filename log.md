@@ -77,3 +77,5 @@
 - 修复 `Rosters.tsx` 排班管理个人视图拖拽模版：拖入任意日期格/表头时，以该日期所在周的**周一**为模版锚点，模版 dayIndex 0→周一、1→周二……，不再把模版第 1 天偏移到拖放列。
 
 - 更新 `Layout.tsx`：移除商家端右上角用户菜单中的「个人资料」入口。
+
+- 更新 `Rosters.tsx` 排班管理个人视图：班次格内显示当前员工 chip，与区域视图一致展示请假（「假」）、替班（「替」）、工作时段不匹配（警告三角）标识及 Tooltip；复用 `findApprovedLeaveHint` 与 `findPatternAvailabilityWarning` 逻辑。
