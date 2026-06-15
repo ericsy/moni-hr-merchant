@@ -1,4 +1,8 @@
-import type { RosterTemplateCell, ScheduleShift } from "../context/DataContext";
+import type {
+  RosterTemplate,
+  RosterTemplateCell,
+  ScheduleShift,
+} from "../context/DataContext";
 
 export type RosterGridViewMode = "area" | "employee";
 
@@ -120,4 +124,16 @@ export function mergeUniqueEmployeeIds(
   return Array.from(
     new Set(groups.flatMap((group) => group || []).filter(Boolean)),
   );
+}
+
+/** 模版成员：显式 employeeIds ∪ 各格子中的员工（兼容旧数据） */
+export function getTemplateMemberEmployeeIds(
+  template: Pick<RosterTemplate, "employeeIds" | "cells"> | null | undefined,
+): string[] {
+  const ids = new Set<string>();
+  (template?.employeeIds || []).forEach((id) => ids.add(id));
+  (template?.cells || []).forEach((cell) => {
+    (cell.employeeIds || []).forEach((id) => ids.add(id));
+  });
+  return Array.from(ids);
 }

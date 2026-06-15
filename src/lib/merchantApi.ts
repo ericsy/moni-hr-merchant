@@ -1734,18 +1734,23 @@ function mapTemplateCell(input: unknown): RosterTemplateCell {
 export function mapApiRosterTemplate(input: unknown): RosterTemplate {
   const raw = asRecord(input);
   const areas = asArray(raw.areas).map(asRecord);
+  const cells = asArray(raw.cells).map(mapTemplateCell);
+  const employeeIds = Array.from(
+    new Set(cells.flatMap((cell) => cell.employeeIds || [])),
+  );
   return {
     id: asString(raw.id),
     name: asString(raw.name),
     storeId: raw.storeId === null || raw.storeId === undefined ? "" : asString(raw.storeId),
     totalDays: asNumber(raw.totalDays, 7),
     status: raw.status === 0 ? "disabled" : "enabled",
+    employeeIds,
     areaIds: areas
       .slice()
       .sort((a, b) => asNumber(a.orderSort) - asNumber(b.orderSort))
       .map((area) => asString(area.id))
       .filter(Boolean),
-    cells: asArray(raw.cells).map(mapTemplateCell),
+    cells,
   };
 }
 

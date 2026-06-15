@@ -9,6 +9,7 @@ import {
   type MerchantSchedulePublishResult,
 } from "../lib/merchantApi";
 import { isScheduleDateEditable } from "../lib/scheduleLock";
+import { mergeUniqueEmployeeIds } from "../lib/rosterGridIndex";
 import { useAuth } from "./AuthContext";
 import { usePermissions } from "./PermissionsContext";
 
@@ -236,6 +237,8 @@ export interface RosterTemplate {
   storeId: string;
   totalDays: number;
   status?: "enabled" | "disabled";
+  /** 员工视图：已加入模版但未必有班次的成员 */
+  employeeIds?: string[];
   cells: RosterTemplateCell[];
   shifts?: RosterTemplateShift[];
   areaIds: string[];
@@ -962,10 +965,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const saved = isBackendId(template.id)
       ? await merchantApi.updateScheduleTemplate(template.id, payload)
       : await merchantApi.createScheduleTemplate(storeId, payload);
+    const preservedEmployeeIds = mergeUniqueEmployeeIds(
+      template.employeeIds,
+      ...(saved.cells || []).map((cell) => cell.employeeIds),
+    );
+    const savedWithMembers = { ...saved, employeeIds: preservedEmployeeIds };
     setRosterTemplates((prev) => isBackendId(template.id)
-      ? prev.map((item) => item.id === template.id ? saved : item)
-      : [...prev.filter((item) => item.id !== template.id), saved]);
-    return saved;
+      ? prev.map((item) => item.id === template.id ? savedWithMembers : item)
+      : [...prev.filter((item) => item.id !== template.id), savedWithMembers]);
+    return savedWithMembers;
   }, [buildTemplatePayload]);
 
   const deleteRosterTemplate = useCallback(async (id: string) => {
