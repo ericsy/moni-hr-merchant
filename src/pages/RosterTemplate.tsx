@@ -1460,15 +1460,7 @@ export default function RosterTemplatePage({
             mergedEmployeeIds,
           ),
         );
-        toast.success(
-          locale === "zh"
-            ? newlyAddedEmployeeIds.length > 0
-              ? "已合并到现有班次"
-              : "班次已更新"
-            : newlyAddedEmployeeIds.length > 0
-              ? "Merged into existing shift"
-              : "Shift updated",
-        );
+        toast.success(locale === "zh" ? "班次已保存" : "Shift saved");
         closeCellModal();
         return;
       }

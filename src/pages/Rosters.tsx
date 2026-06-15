@@ -2690,10 +2690,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         toast.success(
           locale === "zh"
             ? newlyAddedEmployeeIds.length > 0
-              ? "已合并到现有班次"
+              ? `已添加 ${newlyAddedEmployeeIds.length} 名员工到班次`
               : "班次已更新"
             : newlyAddedEmployeeIds.length > 0
-              ? "Merged into existing shift"
+              ? `Added ${newlyAddedEmployeeIds.length} employee${newlyAddedEmployeeIds.length > 1 ? "s" : ""} to shift`
               : "Shift updated",
         );
       } else {

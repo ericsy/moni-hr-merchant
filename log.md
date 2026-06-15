@@ -69,3 +69,5 @@
 - 更新 `App.tsx`：全局 Sonner toast 自动消失时间由默认 4 秒改为 **2 秒**（`duration={2000}`）。
 
 - 更新 `Rosters.tsx` 排班管理员工视图：与排班模版一致，左侧仅显示未加入排班表的员工，右侧网格仅显示已在排班表中的员工；拖拽加入排班表**不创建班次**，按加入顺序追加到最后一行；底部常驻拖入行；员工行 hover 可移出排班表；`rosterGridIndex.ts` 新增 `getWeekScheduleMemberEmployeeIds`。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：个人视图下新增班次与现有班次合并时，不再提示「已合并到现有班次」，改为与普通保存一致（模版：「班次已保存」；排班管理：「已添加 N 名员工到班次」/「班次已更新」）。
