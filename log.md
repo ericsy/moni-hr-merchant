@@ -65,3 +65,5 @@
 - 修复 `RosterTemplate.tsx` 员工视图拖拽失效：浏览器 `dragover` 阶段无法读取自定义 `employeeId` 类型，改为用 `dragEmpId` 状态判断；统一 `EmployeeCard` 设置拖放数据并移除嵌套 `draggable`；补全各日期格的 `onAddEmployeeToTemplate` 回调。
 
 - 更新 `RosterTemplate.tsx` 员工视图行顺序：拖拽加入模版的员工按加入顺序**追加到表格最后一行**（不再按姓名 A-Z 排序）；`employeeIds` 维护成员顺序，`gridEmployees` 按该顺序渲染。
+
+- 更新 `App.tsx`：全局 Sonner toast 自动消失时间由默认 4 秒改为 **2 秒**（`duration={2000}`）。

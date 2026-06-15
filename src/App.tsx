@@ -194,6 +194,7 @@ const App = () => (
                 position="top-center"
                 className="app-toast-center"
                 richColors
+                duration={2000}
               />
             </StoreProvider>
           </DataProvider>
