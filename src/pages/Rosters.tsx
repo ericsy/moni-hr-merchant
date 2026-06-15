@@ -2985,15 +2985,18 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     prepareTemplateApply(templateId, weekStart.format("YYYY-MM-DD"), null);
   };
 
-  // ── Drop template onto date column header (applies to all areas) ────────────
+  // ── Drop template onto a date column/cell: anchor to that week's Monday ─────
   const handleDropTemplateToDate = (templateId: string, dateStr: string) => {
+    const weekAnchor = dayjs(dateStr).startOf("isoWeek").format("YYYY-MM-DD");
     console.log(
       "[Rosters] drop template",
       templateId,
-      "onto date column",
+      "onto date",
       dateStr,
+      "anchor",
+      weekAnchor,
     );
-    prepareTemplateApply(templateId, dateStr, null);
+    prepareTemplateApply(templateId, weekAnchor, null);
   };
 
   // ── Publish ─────────────────────────────────────────────────────────────────
