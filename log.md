@@ -79,3 +79,5 @@
 - 更新 `Layout.tsx`：移除商家端右上角用户菜单中的「个人资料」入口。
 
 - 更新 `Rosters.tsx` 排班管理个人视图：班次格内显示当前员工 chip，与区域视图一致展示请假（「假」）、替班（「替」）、工作时段不匹配（警告三角）标识及 Tooltip；复用 `findApprovedLeaveHint` 与 `findPatternAvailabilityWarning` 逻辑。
+
+- 修复 `Rosters.tsx` 排班管理个人视图 chip：合并班次仅显示当前行员工自己的头像与姓名，不再展示同班次其他员工；替班/请假/工作时段不匹配仍通过 chip 标识。

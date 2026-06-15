@@ -374,6 +374,8 @@ interface ShiftEntryProps {
   readonly?: boolean;
   viewMode?: RosterGridViewMode;
   areaName?: string;
+  /** Personal view: only render chip for this row employee */
+  rowEmployeeId?: string;
 }
 
 function ShiftEntry({
@@ -388,6 +390,7 @@ function ShiftEntry({
   readonly = false,
   viewMode = "area",
   areaName = "",
+  rowEmployeeId = "",
 }: ShiftEntryProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale, t } = useLocale();
@@ -395,6 +398,10 @@ function ShiftEntry({
   const isSubstitutionLocked = !!shift.isSubstitution;
   const isLocked = readonly || isSubstitutionLocked;
   const isEmployeeView = viewMode === "employee";
+  const displayEmployees =
+    isEmployeeView && rowEmployeeId
+      ? assignedEmployees.filter((emp) => emp.id === rowEmployeeId)
+      : assignedEmployees;
   const cs = getColorStyle(shift.color);
   const hrs = calcHours(shift.startTime, shift.endTime, shift.breakMinutes);
 
@@ -561,10 +568,10 @@ function ShiftEntry({
         </button>
       )}
 
-      {/* Employees — personal view shows compact chip with status icons; area view shows full chip */}
-      {assignedEmployees.length > 0 && (
+      {/* Employees — personal view: current row employee only; area view: all assigned */}
+      {displayEmployees.length > 0 && (
         <div className="mt-1 flex w-full flex-wrap items-center gap-0.5 min-w-0">
-          {assignedEmployees.map((emp) => {
+          {displayEmployees.map((emp) => {
             const onApprovedLeave = !!emp.approvedLeaveHint;
             const onSubstitution = isEmployeeView && !!shift.isSubstitution;
             const tooltipTitle =
@@ -650,23 +657,21 @@ function ShiftEntry({
                 >
                   {getEmployeeInitials(emp.name)}
                 </Avatar>
-                {!isEmployeeView ? (
-                  <span
-                    className="min-w-0 flex-1 truncate text-xs"
-                    style={{
-                      color: emp.availabilityWarning
-                        ? "var(--destructive)"
-                        : onApprovedLeave
-                          ? "#065f46"
-                          : "var(--foreground)",
-                      maxWidth: 72,
-                      fontSize: 10,
-                      fontWeight: emp.availabilityWarning ? 700 : 400,
-                    }}
-                  >
-                    {emp.name}
-                  </span>
-                ) : null}
+                <span
+                  className="min-w-0 flex-1 truncate text-xs"
+                  style={{
+                    color: emp.availabilityWarning
+                      ? "var(--destructive)"
+                      : onApprovedLeave
+                        ? "#065f46"
+                        : "var(--foreground)",
+                    maxWidth: 72,
+                    fontSize: 10,
+                    fontWeight: emp.availabilityWarning ? 700 : 400,
+                  }}
+                >
+                  {emp.name}
+                </span>
                 {onSubstitution ? (
                   <span
                     className="rounded px-1 flex-shrink-0"
@@ -1277,6 +1282,9 @@ function EmployeeDateCell({
             readonly={readonly}
             viewMode="employee"
             areaName={areaNameMap[sh.areaId] || sh.areaId}
+            rowEmployeeId={
+              rowKind === "employee" ? employeeId : undefined
+            }
           />
         );
       })}
