@@ -347,6 +347,122 @@ const readSidebarEmployeeId = (
   fallbackId ||
   "";
 
+type ShiftEmployeeChip = {
+  id: string;
+  name: string;
+  color: string;
+  avatarUrl?: string;
+  availabilityWarning?: string | null;
+  approvedLeaveHint?: string | null;
+};
+
+function EmployeeViewStatusBadges({
+  emp,
+  shift,
+  locale,
+  substitutionLabel,
+}: {
+  emp?: ShiftEmployeeChip;
+  shift: ScheduleShift;
+  locale: "zh" | "en";
+  substitutionLabel: string;
+}) {
+  if (!emp) return null;
+  const onApprovedLeave = !!emp.approvedLeaveHint;
+  const onSubstitution = !!shift.isSubstitution;
+  const hasAvailabilityWarning = !!emp.availabilityWarning;
+  if (!onApprovedLeave && !onSubstitution && !hasAvailabilityWarning) return null;
+
+  const tooltipTitle = (
+    <div style={{ fontSize: 12, lineHeight: 1.35 }}>
+      {onSubstitution ? (
+        <div>
+          <span
+            className="inline-flex items-center rounded px-1.5 py-0.5"
+            style={{
+              fontWeight: 800,
+              color: "#F3E8FF",
+              background: "rgba(124, 58, 237, 0.28)",
+              border: "1px solid rgba(196, 181, 253, 0.45)",
+            }}
+          >
+            {shift.originalDisplayName
+              ? `${substitutionLabel}: ${shift.originalDisplayName}`
+              : locale === "zh"
+                ? "替班"
+                : "Substitution"}
+          </span>
+        </div>
+      ) : null}
+      {emp.approvedLeaveHint ? (
+        <div style={{ marginTop: onSubstitution ? 6 : 0 }}>
+          <span
+            className="inline-flex items-center rounded px-1.5 py-0.5"
+            style={{
+              fontWeight: 800,
+              color: "#DCFCE7",
+              background: "rgba(34, 197, 94, 0.28)",
+              border: "1px solid rgba(134, 239, 172, 0.45)",
+            }}
+          >
+            {emp.approvedLeaveHint}
+          </span>
+        </div>
+      ) : null}
+      {emp.availabilityWarning ? (
+        <div
+          style={{
+            marginTop: onSubstitution || emp.approvedLeaveHint ? 6 : 0,
+          }}
+        >
+          {emp.availabilityWarning}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <Tooltip title={tooltipTitle}>
+      <span className="inline-flex items-center gap-0.5 flex-shrink-0">
+        {onSubstitution ? (
+          <span
+            className="rounded px-1 font-bold"
+            style={{
+              fontSize: 8,
+              background: "#f3e8ff",
+              color: "#7c3aed",
+              border: "1px solid #c4b5fd",
+              lineHeight: 1.2,
+            }}
+          >
+            {locale === "zh" ? "替" : "Sub"}
+          </span>
+        ) : null}
+        {onApprovedLeave ? (
+          <span
+            className="rounded px-1 font-bold"
+            style={{
+              fontSize: 8,
+              background: "rgba(34, 197, 94, 0.18)",
+              color: "#065f46",
+              border: "1px solid rgba(34, 197, 94, 0.35)",
+              lineHeight: 1.2,
+            }}
+          >
+            {locale === "zh" ? "假" : "Leave"}
+          </span>
+        ) : null}
+        {hasAvailabilityWarning ? (
+          <AlertTriangle
+            size={9}
+            style={{ color: "var(--destructive)", flexShrink: 0 }}
+          />
+        ) : null}
+      </span>
+    </Tooltip>
+  );
+}
+
 // ─── ShiftEntry (inside a cell) ───────────────────────────────────────────────
 
 interface ShiftEntryProps {
@@ -402,6 +518,7 @@ function ShiftEntry({
     isEmployeeView && rowEmployeeId
       ? assignedEmployees.filter((emp) => emp.id === rowEmployeeId)
       : assignedEmployees;
+  const rowEmp = isEmployeeView ? displayEmployees[0] : undefined;
   const cs = getColorStyle(shift.color);
   const hrs = calcHours(shift.startTime, shift.endTime, shift.breakMinutes);
 
@@ -439,22 +556,32 @@ function ShiftEntry({
         if (empId) onDropEmployee(empId);
       }}
     >
-      {/* Time + hours badge (moved up) */}
+      {/* Time + status badges + hours */}
       <div className="flex items-center gap-1 flex-wrap mb-0.5">
         <Clock size={8} style={{ color: cs.text }} />
         <span style={{ fontSize: 9, color: cs.text }}>
           {formatTime12(shift.startTime)} – {formatTime12(shift.endTime)}
         </span>
-        <span
-          className="rounded-full px-1 ml-auto font-semibold"
-          style={{
-            fontSize: 8,
-            background: cs.border,
-            color: "var(--primary-foreground)",
-          }}
-        >
-          {hrs}h
-        </span>
+        <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">
+          {isEmployeeView ? (
+            <EmployeeViewStatusBadges
+              emp={rowEmp}
+              shift={shift}
+              locale={locale}
+              substitutionLabel={t.schedule.substitutionReplacedFor}
+            />
+          ) : null}
+          <span
+            className="rounded-full px-1 font-semibold"
+            style={{
+              fontSize: 8,
+              background: cs.border,
+              color: "var(--primary-foreground)",
+            }}
+          >
+            {hrs}h
+          </span>
+        </div>
       </div>
 
       {/* Shift name + action buttons (moved down) */}
@@ -468,7 +595,7 @@ function ShiftEntry({
             >
               {shift.shiftName || formatTime12(shift.startTime)}
             </span>
-            {shift.isSubstitution ? (
+            {shift.isSubstitution && !isEmployeeView ? (
               <span
                 className="rounded px-1 font-bold flex-shrink-0"
                 style={{
@@ -568,39 +695,17 @@ function ShiftEntry({
         </button>
       )}
 
-      {/* Employees — personal view: current row employee only; area view: all assigned */}
-      {displayEmployees.length > 0 && (
+      {/* Employees — area view only */}
+      {!isEmployeeView && displayEmployees.length > 0 && (
         <div className="mt-1 flex w-full flex-wrap items-center gap-0.5 min-w-0">
           {displayEmployees.map((emp) => {
             const onApprovedLeave = !!emp.approvedLeaveHint;
-            const onSubstitution = isEmployeeView && !!shift.isSubstitution;
             const tooltipTitle =
-              emp.approvedLeaveHint ||
-              emp.availabilityWarning ||
-              onSubstitution
+              emp.approvedLeaveHint || emp.availabilityWarning
                 ? (
                     <div style={{ fontSize: 12, lineHeight: 1.35 }}>
-                      {onSubstitution ? (
-                        <div>
-                          <span
-                            className="inline-flex items-center rounded px-1.5 py-0.5"
-                            style={{
-                              fontWeight: 800,
-                              color: "#F3E8FF",
-                              background: "rgba(124, 58, 237, 0.28)",
-                              border: "1px solid rgba(196, 181, 253, 0.45)",
-                            }}
-                          >
-                            {shift.originalDisplayName
-                              ? `${t.schedule.substitutionReplacedFor}: ${shift.originalDisplayName}`
-                              : locale === "zh"
-                                ? "替班"
-                                : "Substitution"}
-                          </span>
-                        </div>
-                      ) : null}
                       {emp.approvedLeaveHint ? (
-                        <div style={{ marginTop: onSubstitution ? 6 : 0 }}>
+                        <div>
                           <span
                             className="inline-flex items-center rounded px-1.5 py-0.5"
                             style={{
@@ -615,12 +720,7 @@ function ShiftEntry({
                         </div>
                       ) : null}
                       {emp.availabilityWarning ? (
-                        <div
-                          style={{
-                            marginTop:
-                              onSubstitution || emp.approvedLeaveHint ? 6 : 0,
-                          }}
-                        >
+                        <div style={{ marginTop: emp.approvedLeaveHint ? 6 : 0 }}>
                           {emp.availabilityWarning}
                         </div>
                       ) : null}
@@ -634,15 +734,11 @@ function ShiftEntry({
                 style={{
                   background: onApprovedLeave
                     ? "rgba(34, 197, 94, 0.12)"
-                    : onSubstitution
-                      ? "rgba(243, 232, 255, 0.55)"
                     : "var(--card)",
                   border: emp.availabilityWarning
                     ? "1px solid var(--destructive)"
                     : onApprovedLeave
                       ? "1px solid rgba(34, 197, 94, 0.35)"
-                      : onSubstitution
-                        ? "1px solid #c4b5fd"
                     : "1px solid transparent",
                 }}
               >
@@ -672,21 +768,6 @@ function ShiftEntry({
                 >
                   {emp.name}
                 </span>
-                {onSubstitution ? (
-                  <span
-                    className="rounded px-1 flex-shrink-0"
-                    style={{
-                      fontSize: 8,
-                      background: "#f3e8ff",
-                      color: "#7c3aed",
-                      border: "1px solid #c4b5fd",
-                      lineHeight: 1.2,
-                      fontWeight: 800,
-                    }}
-                  >
-                    {locale === "zh" ? "替" : "Sub"}
-                  </span>
-                ) : null}
                 {onApprovedLeave && (
                   <span
                     className="rounded px-1 flex-shrink-0"
@@ -708,7 +789,7 @@ function ShiftEntry({
                     style={{ color: "var(--destructive)", flexShrink: 0 }}
                   />
                 )}
-                {!isLocked && !isEmployeeView && (
+                {!isLocked && (
                   <button
                     onClick={() => onRemoveEmployee(emp.id)}
                     className="rounded-full hover:opacity-70"

@@ -81,3 +81,5 @@
 - 更新 `Rosters.tsx` 排班管理个人视图：班次格内显示当前员工 chip，与区域视图一致展示请假（「假」）、替班（「替」）、工作时段不匹配（警告三角）标识及 Tooltip；复用 `findApprovedLeaveHint` 与 `findPatternAvailabilityWarning` 逻辑。
 
 - 修复 `Rosters.tsx` 排班管理个人视图 chip：合并班次仅显示当前行员工自己的头像与姓名，不再展示同班次其他员工；替班/请假/工作时段不匹配仍通过 chip 标识。
+
+- 更新 `Rosters.tsx` 排班管理个人视图：移除班次格内员工 chip；替班/请假/工作时段不匹配标识移至工作时长（Xh）badge 前，悬停 Tooltip 展示详情。
