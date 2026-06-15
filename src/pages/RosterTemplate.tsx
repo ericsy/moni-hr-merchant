@@ -791,6 +791,28 @@ export default function RosterTemplatePage({
         .includes(searchText.toLowerCase()),
   );
 
+  const templateAssignedEmployeeIds = useMemo(() => {
+    const ids = new Set<string>();
+    activeTemplateVisibleCells.forEach((cell) => {
+      (cell.employeeIds || []).forEach((employeeId) => ids.add(employeeId));
+    });
+    return ids;
+  }, [activeTemplateVisibleCells]);
+
+  const sidebarEmployees = useMemo(() => {
+    if (gridViewMode !== "employee") return filteredEmployees;
+    return filteredEmployees.filter(
+      (employee) => !templateAssignedEmployeeIds.has(employee.id),
+    );
+  }, [filteredEmployees, gridViewMode, templateAssignedEmployeeIds]);
+
+  const gridEmployees = useMemo(() => {
+    if (gridViewMode !== "employee") return filteredEmployees;
+    return filteredEmployees.filter((employee) =>
+      templateAssignedEmployeeIds.has(employee.id),
+    );
+  }, [filteredEmployees, gridViewMode, templateAssignedEmployeeIds]);
+
   // Hours per employee per day — iterate employeeIds array
   const empHoursMap: Record<string, number[]> = {};
   activeEmployees.forEach((e) => {
@@ -1756,13 +1778,19 @@ export default function RosterTemplatePage({
                 className="text-xs"
                 style={{ color: "var(--muted-foreground)" }}
               >
-                {locale === "zh" ? "显示所有职位" : "Show All Positions"}
+                {gridViewMode === "employee"
+                  ? locale === "zh"
+                    ? "拖拽到日期格添加排班"
+                    : "Drag to a day cell to schedule"
+                  : locale === "zh"
+                    ? "显示所有职位"
+                    : "Show All Positions"}
               </span>
               <span
                 className="text-xs font-medium"
                 style={{ color: "var(--primary)" }}
               >
-                {filteredEmployees.length} {locale === "zh" ? "人" : "staff"}
+                {sidebarEmployees.length} {locale === "zh" ? "人" : "staff"}
               </span>
             </div>
           </div>
@@ -1782,7 +1810,7 @@ export default function RosterTemplatePage({
 
           {/* Employee list */}
           <div className="flex-1 overflow-y-auto px-3 py-2">
-            {filteredEmployees.map((emp) => (
+            {sidebarEmployees.map((emp) => (
               <div
                 key={emp.id}
                 draggable
@@ -2334,17 +2362,76 @@ export default function RosterTemplatePage({
                   ? "请先添加区域"
                   : "Add areas to this template first"}
               </div>
-            ) : filteredEmployees.length === 0 &&
-              !hasUnassignedCellsInTemplate ? (
+            ) : gridEmployees.length === 0 &&
+              !hasUnassignedCellsInTemplate &&
+              sidebarEmployees.length === 0 ? (
               <div
                 className="flex items-center justify-center px-4 py-8 text-sm"
                 style={{ color: "var(--muted-foreground)" }}
               >
                 {locale === "zh" ? "暂无匹配员工" : "No matching employees"}
               </div>
+            ) : gridEmployees.length === 0 &&
+              !hasUnassignedCellsInTemplate ? (
+              <div
+                className="flex"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
+                <div
+                  className="sticky left-0 flex-shrink-0 flex items-center px-3 py-3"
+                  style={{
+                    width: TEMPLATE_AREA_COLUMN_WIDTH,
+                    borderRight: "1px solid var(--border)",
+                    minHeight: 88,
+                    background: "var(--muted)",
+                    zIndex: 10,
+                  }}
+                >
+                  <span
+                    className="text-xs italic"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    {locale === "zh"
+                      ? "从左侧拖入员工"
+                      : "Drag employees from the left"}
+                  </span>
+                </div>
+                {totalDaysList.map((day) => {
+                  const dayIndex = day - 1;
+                  return (
+                    <TemplateEmployeeDayCell
+                      key={day}
+                      dayIndex={dayIndex}
+                      rowKind="unassigned"
+                      cells={[]}
+                      areaNameMap={templateAreaNameMap}
+                      activeEmployees={activeEmployees}
+                      empNameMap={empNameMap}
+                      empColorMap={empColorMap}
+                      empAvatarMap={empAvatarMap}
+                      defaultAreaId={defaultTemplateAreaId}
+                      activeTemplateStore={activeTemplateStore}
+                      locale={locale}
+                      onAddCell={openAddCell}
+                      onEditCell={openEditCell}
+                      onDeleteCell={handleDeleteCellForEmployeeRow}
+                      onDropEmployee={handleDropEmployee}
+                      onRemoveEmployee={handleRemoveEmployee}
+                    />
+                  );
+                })}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    flex: `0 0 ${TEMPLATE_ACTION_COLUMN_WIDTH}px`,
+                    width: TEMPLATE_ACTION_COLUMN_WIDTH,
+                    minWidth: TEMPLATE_ACTION_COLUMN_WIDTH,
+                  }}
+                />
+              </div>
             ) : (
               <>
-                {filteredEmployees.map((emp) => (
+                {gridEmployees.map((emp) => (
                   <div
                     key={emp.id}
                     className="flex"
