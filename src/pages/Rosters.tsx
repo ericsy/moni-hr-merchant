@@ -2611,6 +2611,107 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     };
 
     if (editingShift) {
+      if (shiftModalMode === "employee" && lockedEmployeeId) {
+        const empId = lockedEmployeeId;
+
+        if (!checkEmployeeConflicts([empId], editingShift.id)) {
+          return;
+        }
+
+        const oldSlotKey = makeScheduleShiftSlotKey(editingShift);
+        const isSameSlot = slotKey === oldSlotKey;
+        const remainingIds = getShiftEmployeeIds(editingShift).filter(
+          (id) => id !== empId,
+        );
+        const newShiftFields = {
+          shiftId: shiftForm.shiftId || editingShift.shiftId,
+          areaId: shiftForm.areaId,
+          storeId: storeIdToUse,
+          shiftType: shiftForm.shiftType,
+          date: shiftForm.date,
+          startTime: shiftForm.startTime,
+          endTime: shiftForm.endTime,
+          breakMinutes: shiftForm.breakMinutes,
+          shiftName: shiftForm.shiftName,
+          color: shiftForm.color,
+          note: shiftForm.note,
+          status: "draft" as const,
+        };
+
+        if (isSameSlot && getShiftEmployeeIds(editingShift).length > 1) {
+          closeShiftModal();
+          toast.success(locale === "zh" ? "班次已更新" : "Shift updated");
+          return;
+        }
+
+        setScheduleShifts((prev) => {
+          let shifts: ScheduleShift[];
+
+          if (isSameSlot) {
+            shifts = prev.map((s) =>
+              s.id === editingShift.id
+                ? {
+                    ...s,
+                    ...newShiftFields,
+                    employeeId: empId,
+                    employeeIds: [empId],
+                  }
+                : s,
+            );
+          } else {
+            shifts = prev
+              .map((s) => {
+                if (s.id !== editingShift.id) return s;
+                if (remainingIds.length === 0) return null;
+                return {
+                  ...s,
+                  employeeId: remainingIds[0] || "",
+                  employeeIds: remainingIds,
+                };
+              })
+              .filter((s): s is ScheduleShift => s !== null);
+
+            const existingAtNew = shifts.find(
+              (s) =>
+                !s.isGlobalPreset &&
+                s.id !== editingShift.id &&
+                makeScheduleShiftSlotKey(s) === slotKey,
+            );
+
+            if (existingAtNew) {
+              const mergedIds = mergeUniqueEmployeeIds(
+                getShiftEmployeeIds(existingAtNew),
+                [empId],
+              );
+              shifts = shifts.map((s) =>
+                s.id === existingAtNew.id
+                  ? {
+                      ...s,
+                      employeeId: mergedIds[0] || "",
+                      employeeIds: mergedIds,
+                    }
+                  : s,
+              );
+            } else {
+              nextCreatedShiftIdRef.current += 1;
+              shifts.push({
+                ...editingShift,
+                id: `sh-new-${nextCreatedShiftIdRef.current}`,
+                ...newShiftFields,
+                employeeId: empId,
+                employeeIds: [empId],
+              });
+            }
+          }
+
+          return shifts;
+        });
+
+        closeShiftModal();
+        toast.success(locale === "zh" ? "班次已更新" : "Shift updated");
+        return;
+      }
+
       const employeeIdsToSave =
         shiftModalMode === "employee"
           ? getShiftEmployeeIds(editingShift)

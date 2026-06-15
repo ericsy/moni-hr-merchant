@@ -1389,6 +1389,92 @@ export default function RosterTemplatePage({
     };
 
     if (editingCell) {
+      if (cellModalMode === "employee" && lockedEmployeeId) {
+        const empId = lockedEmployeeId;
+
+        if (!checkEmployeeConflicts([empId], editingCell.id)) {
+          return;
+        }
+
+        const newSlotKey = makeTemplateCellSlotKey({
+          areaId: editingAreaId,
+          dayIndex: editingDayIndex,
+          startTime: cellForm.startTime,
+          endTime: cellForm.endTime,
+          shiftId: cellForm.shiftId,
+          label: cellForm.label,
+        });
+        const isSameSlot =
+          newSlotKey === makeTemplateCellSlotKey(editingCell);
+        const remainingIds = editingCell.employeeIds.filter((id) => id !== empId);
+        const newCellFields = {
+          areaId: editingAreaId,
+          shiftId: cellForm.shiftId || undefined,
+          startTime: cellForm.startTime,
+          endTime: cellForm.endTime,
+          label: cellForm.label,
+          color: cellForm.color,
+        };
+
+        if (isSameSlot && editingCell.employeeIds.length > 1) {
+          closeCellModal();
+          toast.success(locale === "zh" ? "班次已保存" : "Shift saved");
+          return;
+        }
+
+        updateTemplate((t) => {
+          let cells: RosterShiftCell[];
+
+          if (isSameSlot) {
+            cells = t.cells.map((c) =>
+              c.id === editingCell.id
+                ? { ...c, ...newCellFields, employeeIds: [empId] }
+                : c,
+            );
+          } else {
+            cells = t.cells
+              .map((c) => {
+                if (c.id !== editingCell.id) return c;
+                if (remainingIds.length === 0) return null;
+                return { ...c, employeeIds: remainingIds };
+              })
+              .filter((c): c is RosterShiftCell => c !== null);
+
+            const existingAtNew = cells.find(
+              (c) =>
+                c.id !== editingCell.id &&
+                makeTemplateCellSlotKey(c) === newSlotKey,
+            );
+
+            if (existingAtNew) {
+              cells = cells.map((c) =>
+                c.id === existingAtNew.id
+                  ? {
+                      ...c,
+                      employeeIds: mergeUniqueEmployeeIds(c.employeeIds, [empId]),
+                    }
+                  : c,
+              );
+            } else {
+              nextCreatedCellIdRef.current += 1;
+              cells.push({
+                id: `cell-new-${nextCreatedCellIdRef.current}`,
+                ...newCellFields,
+                dayIndex: editingDayIndex,
+                cycleWeek: getCycleWeek(editingDayIndex),
+                employeeIds: [empId],
+              });
+            }
+          }
+
+          return syncTemplateMembers({ ...t, cells }, [empId]);
+        });
+
+        closeCellModal();
+        toast.success(locale === "zh" ? "班次已保存" : "Shift saved");
+        return;
+      }
+
       const employeeIdsToSave =
         cellModalMode === "employee"
           ? editingCell.employeeIds
