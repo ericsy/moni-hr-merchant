@@ -823,6 +823,11 @@ export default function RosterTemplatePage({
     [activeTemplate],
   );
 
+  const templateMemberEmployeeOrder = useMemo(
+    () => getTemplateMemberEmployeeIds(activeTemplate),
+    [activeTemplate],
+  );
+
   const sidebarEmployees = useMemo(() => {
     if (gridViewMode !== "employee") return filteredEmployees;
     return filteredEmployees.filter(
@@ -832,10 +837,11 @@ export default function RosterTemplatePage({
 
   const gridEmployees = useMemo(() => {
     if (gridViewMode !== "employee") return filteredEmployees;
-    return filteredEmployees.filter((employee) =>
-      templateMemberEmployeeIds.has(employee.id),
-    );
-  }, [filteredEmployees, gridViewMode, templateMemberEmployeeIds]);
+    const empById = new Map(filteredEmployees.map((employee) => [employee.id, employee]));
+    return templateMemberEmployeeOrder
+      .map((id) => empById.get(id))
+      .filter(Boolean) as typeof filteredEmployees;
+  }, [filteredEmployees, gridViewMode, templateMemberEmployeeOrder]);
 
   // Hours per employee per day — iterate employeeIds array
   const empHoursMap: Record<string, number[]> = {};
@@ -1179,10 +1185,13 @@ export default function RosterTemplatePage({
   const syncTemplateMembers = (
     template: RosterTemplate,
     memberIds: string[],
-  ): RosterTemplate => ({
-    ...template,
-    employeeIds: mergeUniqueEmployeeIds(template.employeeIds, memberIds),
-  });
+  ): RosterTemplate => {
+    const nextIds = [...(template.employeeIds || [])];
+    memberIds.forEach((id) => {
+      if (id && !nextIds.includes(id)) nextIds.push(id);
+    });
+    return { ...template, employeeIds: nextIds };
+  };
 
   const handleAddEmployeeToTemplate = (empId: string) => {
     if (!empId) return;
@@ -1194,7 +1203,10 @@ export default function RosterTemplatePage({
       return;
     }
 
-    updateTemplate((t) => syncTemplateMembers(t, [empId]));
+    updateTemplate((t) => ({
+      ...t,
+      employeeIds: [...(t.employeeIds || []), empId],
+    }));
     setDragEmpId(null);
     toast.success(
       locale === "zh" ? "员工已加入模版" : "Employee added to template",

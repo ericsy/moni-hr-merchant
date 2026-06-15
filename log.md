@@ -63,3 +63,5 @@
 - 更新 `RosterTemplate.tsx` 员工视图拖拽范围：左侧员工可拖到模版表格**任意位置**（表头、员工行、日期格、班次格等）加入模版；拖到已有班次格时**不会**把员工加入该班次；`ShiftCell` 在员工视图下不再拦截拖放，由外层格子统一处理。
 
 - 修复 `RosterTemplate.tsx` 员工视图拖拽失效：浏览器 `dragover` 阶段无法读取自定义 `employeeId` 类型，改为用 `dragEmpId` 状态判断；统一 `EmployeeCard` 设置拖放数据并移除嵌套 `draggable`；补全各日期格的 `onAddEmployeeToTemplate` 回调。
+
+- 更新 `RosterTemplate.tsx` 员工视图行顺序：拖拽加入模版的员工按加入顺序**追加到表格最后一行**（不再按姓名 A-Z 排序）；`employeeIds` 维护成员顺序，`gridEmployees` 按该顺序渲染。

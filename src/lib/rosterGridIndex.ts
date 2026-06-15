@@ -126,14 +126,22 @@ export function mergeUniqueEmployeeIds(
   );
 }
 
-/** 模版成员：显式 employeeIds ∪ 各格子中的员工（兼容旧数据） */
+/** 模版成员（有序）：先按 employeeIds 顺序，格子中额外出现的员工追加到末尾 */
 export function getTemplateMemberEmployeeIds(
   template: Pick<RosterTemplate, "employeeIds" | "cells"> | null | undefined,
 ): string[] {
-  const ids = new Set<string>();
-  (template?.employeeIds || []).forEach((id) => ids.add(id));
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (id: string) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ordered.push(id);
+  };
+
+  (template?.employeeIds || []).forEach(add);
   (template?.cells || []).forEach((cell) => {
-    (cell.employeeIds || []).forEach((id) => ids.add(id));
+    (cell.employeeIds || []).forEach(add);
   });
-  return Array.from(ids);
+  return ordered;
 }
