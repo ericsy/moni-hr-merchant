@@ -30,7 +30,6 @@ import {
   LogOut,
   MapPin,
   Store,
-  User,
   Users,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -300,11 +299,6 @@ export default function AppLayout({
   };
 
   const userMenuItems = [
-    {
-      key: "profile",
-      icon: <User size={14} />,
-      label: locale === "zh" ? "个人资料" : "Profile",
-    },
     {
       key: "changePassword",
       icon: <KeyRound size={14} />,
