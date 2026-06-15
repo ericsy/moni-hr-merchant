@@ -61,3 +61,5 @@
 - 更新排班模版员工视图拖拽逻辑：拖拽员工到模版**仅加入员工、不创建班次**；班次需在各员工行的「+」按钮单独编辑添加。新增模版级 `employeeIds` 字段（`DataContext`、`merchantApi`、`rosterGridIndex`）追踪成员；底部常驻拖入行；员工行支持 hover 移除出模版。
 
 - 更新 `RosterTemplate.tsx` 员工视图拖拽范围：左侧员工可拖到模版表格**任意位置**（表头、员工行、日期格、班次格等）加入模版；拖到已有班次格时**不会**把员工加入该班次；`ShiftCell` 在员工视图下不再拦截拖放，由外层格子统一处理。
+
+- 修复 `RosterTemplate.tsx` 员工视图拖拽失效：浏览器 `dragover` 阶段无法读取自定义 `employeeId` 类型，改为用 `dragEmpId` 状态判断；统一 `EmployeeCard` 设置拖放数据并移除嵌套 `draggable`；补全各日期格的 `onAddEmployeeToTemplate` 回调。

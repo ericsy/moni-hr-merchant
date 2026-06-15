@@ -156,6 +156,7 @@ interface EmployeeCardProps {
   color?: string;
   hoursPerDay?: number[];
   onDragStart?: (empId: string) => void;
+  onDragEnd?: () => void;
 }
 
 function EmployeeCard({
@@ -166,6 +167,7 @@ function EmployeeCard({
   color = "var(--primary)",
   hoursPerDay = [],
   onDragStart = () => {},
+  onDragEnd = () => {},
 }: EmployeeCardProps) {
   const total = hoursPerDay.reduce((s, h) => s + h, 0);
 
@@ -173,7 +175,13 @@ function EmployeeCard({
     <div
       data-cmp="EmployeeCard"
       draggable
-      onDragStart={() => onDragStart(employeeId)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("employeeId", employeeId);
+        e.dataTransfer.setData("text/plain", employeeId);
+        e.dataTransfer.effectAllowed = "copy";
+        onDragStart(employeeId);
+      }}
+      onDragEnd={onDragEnd}
       className="rounded-lg p-3 mb-2 cursor-grab active:cursor-grabbing"
       style={{ background: "var(--card)", border: "1px solid var(--border)" }}
     >
@@ -420,8 +428,14 @@ function ShiftCell({
   );
 }
 
-const isSidebarEmployeeDragEvent = (e: DragEvent) =>
-  Array.from(e.dataTransfer.types).includes("employeeId");
+const readSidebarEmployeeId = (
+  e: DragEvent,
+  fallbackId?: string | null,
+): string =>
+  e.dataTransfer.getData("employeeId") ||
+  e.dataTransfer.getData("text/plain") ||
+  fallbackId ||
+  "";
 
 interface TemplateEmployeeDayCellProps {
   dayIndex: number;
@@ -446,6 +460,7 @@ interface TemplateEmployeeDayCellProps {
   onDropEmployee?: (cellId: string, empId: string) => void;
   onRemoveEmployee?: (cellId: string, empId: string) => void;
   onAddEmployeeToTemplate?: (empId: string) => void;
+  sidebarDragEmpId?: string | null;
   getTemplateShiftAvailabilityWarning?: typeof getTemplateShiftAvailabilityWarning;
 }
 
@@ -468,6 +483,7 @@ function TemplateEmployeeDayCell({
   onDropEmployee = () => {},
   onRemoveEmployee = () => {},
   onAddEmployeeToTemplate = () => {},
+  sidebarDragEmpId = null,
 }: TemplateEmployeeDayCellProps) {
   const isStoreClosed = isStoreClosedOnDayIndex(activeTemplateStore, dayIndex);
   const isAddEmployeeRow = rowKind === "add-employee";
@@ -488,15 +504,15 @@ function TemplateEmployeeDayCell({
             : "transparent",
       }}
       onDragOver={(e) => {
-        if (!isSidebarEmployeeDragEvent(e)) return;
+        if (!sidebarDragEmpId) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
       }}
       onDrop={(e) => {
-        if (!isSidebarEmployeeDragEvent(e)) return;
+        if (!sidebarDragEmpId) return;
         e.preventDefault();
         e.stopPropagation();
-        const empId = e.dataTransfer.getData("employeeId");
+        const empId = readSidebarEmployeeId(e, sidebarDragEmpId);
         if (empId) onAddEmployeeToTemplate(empId);
       }}
     >
@@ -1200,18 +1216,16 @@ export default function RosterTemplatePage({
   };
 
   const handleTemplateMemberDragOver = (e: DragEvent) => {
-    if (gridViewMode !== "employee") return;
-    if (!isSidebarEmployeeDragEvent(e)) return;
+    if (gridViewMode !== "employee" || !dragEmpId) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   };
 
   const handleTemplateMemberDrop = (e: DragEvent) => {
-    if (gridViewMode !== "employee") return;
-    if (!isSidebarEmployeeDragEvent(e)) return;
+    if (gridViewMode !== "employee" || !dragEmpId) return;
     e.preventDefault();
     e.stopPropagation();
-    const empId = e.dataTransfer.getData("employeeId");
+    const empId = readSidebarEmployeeId(e, dragEmpId);
     if (empId) handleAddEmployeeToTemplate(empId);
   };
 
@@ -1892,26 +1906,20 @@ export default function RosterTemplatePage({
           {/* Employee list */}
           <div className="flex-1 overflow-y-auto px-3 py-2">
             {sidebarEmployees.map((emp) => (
-              <div
+              <EmployeeCard
                 key={emp.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("employeeId", emp.id);
-                  setDragEmpId(emp.id);
-                  console.log("[RosterTemplate] drag start:", emp.id);
+                employeeId={emp.id}
+                firstName={emp.firstName}
+                lastName={emp.lastName}
+                avatarUrl={getEmployeeAvatarUrl(emp)}
+                color={emp.employeeColor || "var(--primary)"}
+                hoursPerDay={empHoursMap[emp.id] || []}
+                onDragStart={(id) => {
+                  setDragEmpId(id);
+                  console.log("[RosterTemplate] drag start:", id);
                 }}
                 onDragEnd={() => setDragEmpId(null)}
-              >
-                <EmployeeCard
-                  employeeId={emp.id}
-                  firstName={emp.firstName}
-                  lastName={emp.lastName}
-                  avatarUrl={getEmployeeAvatarUrl(emp)}
-                  color={emp.employeeColor || "var(--primary)"}
-                  hoursPerDay={empHoursMap[emp.id] || []}
-                  onDragStart={(id) => setDragEmpId(id)}
-                />
-              </div>
+              />
             ))}
 
             {/* Add Employee placeholder */}
@@ -2558,6 +2566,8 @@ export default function RosterTemplatePage({
                           onDeleteCell={handleDeleteCellForEmployeeRow}
                           onDropEmployee={handleDropEmployee}
                           onRemoveEmployee={handleRemoveEmployee}
+                          onAddEmployeeToTemplate={handleAddEmployeeToTemplate}
+                          sidebarDragEmpId={dragEmpId}
                         />
                       );
                     })}
@@ -2621,6 +2631,8 @@ export default function RosterTemplatePage({
                           onDeleteCell={handleDeleteCellForEmployeeRow}
                           onDropEmployee={handleDropEmployee}
                           onRemoveEmployee={handleRemoveEmployee}
+                          onAddEmployeeToTemplate={handleAddEmployeeToTemplate}
+                          sidebarDragEmpId={dragEmpId}
                         />
                       );
                     })}
@@ -2641,6 +2653,8 @@ export default function RosterTemplatePage({
                 >
                   <div
                     className="sticky left-0 flex-shrink-0 flex items-center px-3 py-2"
+                    onDragOver={handleTemplateMemberDragOver}
+                    onDrop={handleTemplateMemberDrop}
                     style={{
                       width: TEMPLATE_AREA_COLUMN_WIDTH,
                       borderRight: "1px solid var(--border)",
@@ -2675,6 +2689,7 @@ export default function RosterTemplatePage({
                         activeTemplateStore={activeTemplateStore}
                         locale={locale}
                         onAddEmployeeToTemplate={handleAddEmployeeToTemplate}
+                        sidebarDragEmpId={dragEmpId}
                       />
                     );
                   })}
