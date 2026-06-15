@@ -126,6 +126,33 @@ export function mergeUniqueEmployeeIds(
   );
 }
 
+export function getWeekScheduleMemberEmployeeIds(
+  shifts: ScheduleShift[],
+  weekFromStr: string,
+  weekToStr: string,
+  storeId?: string,
+  memberIds: string[] = [],
+): string[] {
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (id: string) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ordered.push(id);
+  };
+
+  memberIds.forEach(add);
+  shifts.forEach((shift) => {
+    if (!shiftMatchesStore(shift, storeId)) return;
+    const date = (shift.date || "").slice(0, 10);
+    if (!date || date < weekFromStr || date > weekToStr) return;
+    getShiftEmployeeIds(shift).forEach(add);
+  });
+
+  return ordered;
+}
+
 /** 模版成员（有序）：先按 employeeIds 顺序，格子中额外出现的员工追加到末尾 */
 export function getTemplateMemberEmployeeIds(
   template: Pick<RosterTemplate, "employeeIds" | "cells"> | null | undefined,

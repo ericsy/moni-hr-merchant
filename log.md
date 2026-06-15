@@ -67,3 +67,5 @@
 - 更新 `RosterTemplate.tsx` 员工视图行顺序：拖拽加入模版的员工按加入顺序**追加到表格最后一行**（不再按姓名 A-Z 排序）；`employeeIds` 维护成员顺序，`gridEmployees` 按该顺序渲染。
 
 - 更新 `App.tsx`：全局 Sonner toast 自动消失时间由默认 4 秒改为 **2 秒**（`duration={2000}`）。
+
+- 更新 `Rosters.tsx` 排班管理员工视图：与排班模版一致，左侧仅显示未加入排班表的员工，右侧网格仅显示已在排班表中的员工；拖拽加入排班表**不创建班次**，按加入顺序追加到最后一行；底部常驻拖入行；员工行 hover 可移出排班表；`rosterGridIndex.ts` 新增 `getWeekScheduleMemberEmployeeIds`。

@@ -32,7 +32,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 import {
   ColorSwatchPicker,
@@ -59,6 +59,7 @@ import {
   filterShiftsForEmployeeOnDate,
   filterUnassignedShiftsOnDate,
   getShiftEmployeeIds,
+  getWeekScheduleMemberEmployeeIds,
   makeScheduleShiftSlotKey,
   mergeUniqueEmployeeIds,
   readStoredGridViewMode,
@@ -337,6 +338,15 @@ function TemplateCard({
   );
 }
 
+const readSidebarEmployeeId = (
+  e: DragEvent,
+  fallbackId?: string | null,
+): string =>
+  e.dataTransfer.getData("employeeId") ||
+  e.dataTransfer.getData("text/plain") ||
+  fallbackId ||
+  "";
+
 // ─── ShiftEntry (inside a cell) ───────────────────────────────────────────────
 
 interface ShiftEntryProps {
@@ -400,6 +410,7 @@ function ShiftEntry({
       }}
       onDragOver={(e) => {
         if (isLocked && !hasTemplateDragData(e.dataTransfer)) return;
+        if (isEmployeeView && !hasTemplateDragData(e.dataTransfer)) return;
         e.preventDefault();
         e.stopPropagation();
         setIsDragOver(true);
@@ -415,6 +426,7 @@ function ShiftEntry({
           onDropTemplate(templateId);
           return;
         }
+        if (isEmployeeView) return;
         if (isLocked) return;
         const empId = e.dataTransfer.getData("employeeId");
         if (empId) onDropEmployee(empId);
@@ -1024,7 +1036,7 @@ function AreaDateCell({
 interface EmployeeDateCellProps {
   date?: dayjs.Dayjs;
   employeeId?: string;
-  rowKind?: "employee" | "unassigned";
+  rowKind?: "employee" | "unassigned" | "add-employee";
   shifts?: ScheduleShift[];
   areaNameMap?: Record<string, string>;
   employees?: {
@@ -1046,6 +1058,8 @@ interface EmployeeDateCellProps {
   ) => void;
   onDropEmployeeToShift?: (empId: string, shift: ScheduleShift) => void;
   onDropTemplate?: (templateId: string) => void;
+  onAddEmployeeToRoster?: (empId: string) => void;
+  sidebarDragEmpId?: string | null;
   getAvailabilityWarning?: (
     empId: string,
     shift: ScheduleShift,
@@ -1075,6 +1089,8 @@ function EmployeeDateCell({
   onDropEmployee = () => {},
   onDropEmployeeToShift = () => {},
   onDropTemplate = () => {},
+  onAddEmployeeToRoster = () => {},
+  sidebarDragEmpId = null,
   getAvailabilityWarning = () => null,
   getApprovedLeaveHint = () => null,
   isToday = false,
@@ -1085,6 +1101,7 @@ function EmployeeDateCell({
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale } = useLocale();
   const dateStr = date?.format("YYYY-MM-DD") || "";
+  const isAddEmployeeRow = rowKind === "add-employee";
 
   const empMap: Record<
     string,
@@ -1103,12 +1120,18 @@ function EmployeeDateCell({
     e.preventDefault();
     setIsDragOver(false);
     const templateId = e.dataTransfer.getData("templateId");
-    const empId = e.dataTransfer.getData("employeeId");
     if (templateId) {
       onDropTemplate(templateId);
-    } else if (readonly) {
       return;
-    } else if (empId && defaultAreaId) {
+    }
+    const empId = readSidebarEmployeeId(e, sidebarDragEmpId);
+    if (sidebarDragEmpId && empId) {
+      e.stopPropagation();
+      onAddEmployeeToRoster(empId);
+      return;
+    }
+    if (readonly) return;
+    if (empId && defaultAreaId) {
       onDropEmployee(empId, dateStr, defaultAreaId);
     }
   };
@@ -1120,24 +1143,37 @@ function EmployeeDateCell({
       style={{
         flex: `1 1 ${DATE_COL_MIN_W}px`,
         minWidth: DATE_COL_MIN_W,
-        minHeight: 88,
+        minHeight: isAddEmployeeRow ? 44 : 88,
         borderRight: "1px solid var(--border)",
         background: isDragOver
           ? "var(--secondary)"
-          : isToday
-            ? "var(--workday-active-bg)"
-            : isPublicHoliday
-              ? "rgba(250, 204, 21, 0.12)"
-              : isClosedDay
-                ? "var(--workday-weekend-header)"
-                : "transparent",
+          : isAddEmployeeRow
+            ? "var(--muted)"
+            : isToday
+              ? "var(--workday-active-bg)"
+              : isPublicHoliday
+                ? "rgba(250, 204, 21, 0.12)"
+                : isClosedDay
+                  ? "var(--workday-weekend-header)"
+                  : "transparent",
         transition: "background 0.12s",
         outline: isDragOver ? `2px dashed var(--primary)` : undefined,
         outlineOffset: -2,
         opacity: readonly ? 0.82 : 1,
       }}
       onDragOver={(e) => {
-        if (readonly && !hasTemplateDragData(e.dataTransfer)) return;
+        if (hasTemplateDragData(e.dataTransfer)) {
+          e.preventDefault();
+          setIsDragOver(true);
+          return;
+        }
+        if (sidebarDragEmpId) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+          setIsDragOver(true);
+          return;
+        }
+        if (readonly) return;
         e.preventDefault();
         setIsDragOver(true);
       }}
@@ -1197,7 +1233,7 @@ function EmployeeDateCell({
         );
       })}
 
-      {!readonly && defaultAreaId && (
+      {!readonly && defaultAreaId && !isAddEmployeeRow && (
         <button
           onClick={() =>
             onAddShift(
@@ -1306,6 +1342,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     readStoredGridViewMode(ROSTER_GRID_VIEW_STORAGE_KEY),
   );
   const [employeeSearch, setEmployeeSearch] = useState("");
+  const [dragEmpId, setDragEmpId] = useState<string | null>(null);
+  const [rosterMemberEmployeeIds, setRosterMemberEmployeeIds] = useState<
+    string[]
+  >([]);
+  const rosterScopeKeyRef = useRef("");
 
   // Convert shared RosterTemplate[] → display RosterTemplateCard[] (derived, not stored in state)
   const rosterTemplates: RosterTemplateCard[] =
@@ -1431,6 +1472,57 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         .toLowerCase()
         .includes(employeeSearch.toLowerCase()),
   );
+
+  const rosterScopeKey = `${selectedStoreId || "all"}:${weekFromStr}`;
+
+  useEffect(() => {
+    const shiftMemberIds = getWeekScheduleMemberEmployeeIds(
+      scheduleShifts,
+      weekFromStr,
+      weekToStr,
+      selectedStoreId,
+    );
+
+    if (rosterScopeKeyRef.current !== rosterScopeKey) {
+      rosterScopeKeyRef.current = rosterScopeKey;
+      setRosterMemberEmployeeIds(shiftMemberIds);
+      return;
+    }
+
+    setRosterMemberEmployeeIds((prev) => {
+      const next = [...prev];
+      let changed = false;
+      shiftMemberIds.forEach((id) => {
+        if (!next.includes(id)) {
+          next.push(id);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [rosterScopeKey, scheduleShifts, weekFromStr, weekToStr, selectedStoreId]);
+
+  const rosterMemberEmployeeIdSet = useMemo(
+    () => new Set(rosterMemberEmployeeIds),
+    [rosterMemberEmployeeIds],
+  );
+
+  const sidebarEmployees = useMemo(() => {
+    if (gridViewMode !== "employee") return filteredEmployees;
+    return filteredEmployees.filter(
+      (employee) => !rosterMemberEmployeeIdSet.has(employee.id),
+    );
+  }, [filteredEmployees, gridViewMode, rosterMemberEmployeeIdSet]);
+
+  const gridEmployees = useMemo(() => {
+    if (gridViewMode !== "employee") return filteredEmployees;
+    const empById = new Map(
+      filteredEmployees.map((employee) => [employee.id, employee]),
+    );
+    return rosterMemberEmployeeIds
+      .map((id) => empById.get(id))
+      .filter(Boolean) as typeof filteredEmployees;
+  }, [filteredEmployees, gridViewMode, rosterMemberEmployeeIds]);
 
   const empNameMap: Record<string, string> = {};
   const empColorMap: Record<string, string> = {};
@@ -2324,6 +2416,69 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     handleDropEmployee(empId, areaId, dateStr);
   };
 
+  const handleAddEmployeeToRoster = (empId: string) => {
+    if (!empId) return;
+    if (isReadonlyWeek) {
+      toast.warning(readonlyRosterMessage);
+      setDragEmpId(null);
+      return;
+    }
+    if (rosterMemberEmployeeIdSet.has(empId)) {
+      toast.warning(
+        locale === "zh" ? "该员工已在排班表中" : "Employee already in roster",
+      );
+      setDragEmpId(null);
+      return;
+    }
+
+    setRosterMemberEmployeeIds((prev) => [...prev, empId]);
+    setDragEmpId(null);
+    toast.success(
+      locale === "zh" ? "员工已加入排班表" : "Employee added to roster",
+    );
+  };
+
+  const handleRemoveEmployeeFromRoster = (empId: string) => {
+    if (isReadonlyWeek) {
+      toast.warning(readonlyRosterMessage);
+      return;
+    }
+
+    setRosterMemberEmployeeIds((prev) => prev.filter((id) => id !== empId));
+    setScheduleShifts((prev) =>
+      prev.map((shift) => {
+        const employeeIds = getShiftEmployeeIds(shift).filter(
+          (id) => id !== empId,
+        );
+        if (employeeIds.length === getShiftEmployeeIds(shift).length) {
+          return shift;
+        }
+        return {
+          ...shift,
+          employeeId: employeeIds[0] || "",
+          employeeIds,
+        };
+      }),
+    );
+    toast.success(
+      locale === "zh" ? "员工已从排班表移除" : "Employee removed from roster",
+    );
+  };
+
+  const handleRosterMemberDragOver = (e: DragEvent) => {
+    if (gridViewMode !== "employee" || !dragEmpId || isReadonlyWeek) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleRosterMemberDrop = (e: DragEvent) => {
+    if (gridViewMode !== "employee" || !dragEmpId || isReadonlyWeek) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const empId = readSidebarEmployeeId(e, dragEmpId);
+    if (empId) handleAddEmployeeToRoster(empId);
+  };
+
   const openEditShift = (shift: ScheduleShift, rowEmployeeId = "") => {
     if (!isScheduleDateEditable(shift.date)) {
       toast.warning(readonlyRosterMessage);
@@ -3193,9 +3348,13 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   <span
                     style={{ fontSize: 11, color: "var(--muted-foreground)" }}
                   >
-                    {isZh
-                      ? "拖拽到格子中添加班次"
-                      : "Drag to a cell to add a shift"}
+                    {gridViewMode === "employee"
+                      ? isZh
+                        ? "拖拽到排班表格添加员工"
+                        : "Drag to roster grid to add employees"
+                      : isZh
+                        ? "拖拽到格子中添加班次"
+                        : "Drag to a cell to add a shift"}
                   </span>
                   <span
                     className="rounded-full px-1.5 py-0.5"
@@ -3205,12 +3364,18 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                       color: "var(--primary)",
                     }}
                   >
-                    {filteredEmployees.length}
+                    {(gridViewMode === "employee"
+                      ? sidebarEmployees
+                      : filteredEmployees
+                    ).length}
                   </span>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-2">
-                {filteredEmployees.map((emp) => {
+                {(gridViewMode === "employee"
+                  ? sidebarEmployees
+                  : filteredEmployees
+                ).map((emp) => {
                   const hrs = parseFloat(weekHoursForEmp(emp.id));
                   const shortDays = ["M", "T", "W", "T", "F", "S", "S"];
                   const sidebarLeaveWarn = getSidebarDateLeaveWarning(emp.id);
@@ -3227,8 +3392,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                           return;
                         }
                         e.dataTransfer.setData("employeeId", emp.id);
+                        e.dataTransfer.setData("text/plain", emp.id);
+                        e.dataTransfer.effectAllowed = "copy";
+                        setDragEmpId(emp.id);
                         console.log("[Rosters] drag employee:", emp.id);
                       }}
+                      onDragEnd={() => setDragEmpId(null)}
                       className="rounded-xl p-2.5 mb-2 select-none transition-all hover:shadow-custom"
                       style={{
                         background: "var(--muted)",
@@ -3349,7 +3518,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     </Tooltip>
                   );
                 })}
-                {filteredEmployees.length === 0 && (
+                {(gridViewMode === "employee"
+                  ? sidebarEmployees
+                  : filteredEmployees
+                ).length === 0 && (
                   <div
                     className="flex flex-col items-center py-8"
                     style={{ color: "var(--muted-foreground)" }}
@@ -3370,10 +3542,16 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
         {/* ── Right: Grid ───────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-auto relative">
-          <div style={{ minWidth: TOTAL_GRID_MIN_W, width: "100%" }}>
+          <div
+            style={{ minWidth: TOTAL_GRID_MIN_W, width: "100%" }}
+            onDragOver={handleRosterMemberDragOver}
+            onDrop={handleRosterMemberDrop}
+          >
             {/* ── Sticky header row ───────────────────────────────────────── */}
             <div
               className="flex sticky top-0 z-20"
+              onDragOver={handleRosterMemberDragOver}
+              onDrop={handleRosterMemberDrop}
               style={{
                 background: "var(--card)",
                 borderBottom: "1px solid var(--border)",
@@ -3530,8 +3708,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   </span>
                 </div>
               </div>
-            ) : filteredEmployees.length === 0 &&
-              !hasUnassignedShiftsInWeek ? (
+            ) : gridEmployees.length === 0 &&
+              !hasUnassignedShiftsInWeek &&
+              sidebarEmployees.length === 0 &&
+              filteredEmployees.length === 0 ? (
               <div
                 className="flex items-center justify-center"
                 style={{ minHeight: 220, color: "var(--muted-foreground)" }}
@@ -3545,7 +3725,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               </div>
             ) : (
               <>
-                {filteredEmployees.map((emp) => {
+                {gridEmployees.map((emp) => {
                   const hrs = parseFloat(weekHoursForEmp(emp.id));
                   const sidebarLeaveWarn = getSidebarDateLeaveWarning(emp.id);
                   return (
@@ -3555,7 +3735,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                       style={{ borderBottom: "1px solid var(--border)" }}
                     >
                       <div
-                        className="sticky left-0 flex-shrink-0 flex items-start px-3 py-3"
+                        className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
+                        onDragOver={handleRosterMemberDragOver}
+                        onDrop={handleRosterMemberDrop}
                         style={{
                           width: LEFT_COL_W,
                           borderRight: "1px solid var(--border)",
@@ -3566,7 +3748,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                           zIndex: 10,
                         }}
                       >
-                        <div className="flex items-center gap-1.5 min-w-0 w-full">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <Avatar
                             size={24}
                             src={getEmployeeAvatarUrl(emp) || undefined}
@@ -3606,6 +3788,31 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                             </div>
                           </div>
                         </div>
+                        {!isReadonlyWeek && (
+                          <Popconfirm
+                            title={
+                              isZh
+                                ? "从排班表中移除此员工？"
+                                : "Remove this employee from roster?"
+                            }
+                            onConfirm={() =>
+                              handleRemoveEmployeeFromRoster(emp.id)
+                            }
+                            okText={isZh ? "是" : "Yes"}
+                            cancelText={isZh ? "否" : "No"}
+                          >
+                            <button
+                              type="button"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+                              style={{
+                                color: "var(--destructive)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </Popconfirm>
+                        )}
                       </div>
 
                       {weekDates.map((d, i) => {
@@ -3641,6 +3848,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                             onDropEmployee={handleDropEmployeeByDate}
                             onDropEmployeeToShift={handleDropEmployeeToShift}
                             onDropTemplate={handleDropTemplateToCurrentWeek}
+                            onAddEmployeeToRoster={handleAddEmployeeToRoster}
+                            sidebarDragEmpId={dragEmpId}
                             getAvailabilityWarning={
                               findPatternAvailabilityWarning
                             }
@@ -3709,6 +3918,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                           onDropEmployee={handleDropEmployeeByDate}
                           onDropEmployeeToShift={handleDropEmployeeToShift}
                           onDropTemplate={handleDropTemplateToCurrentWeek}
+                          onAddEmployeeToRoster={handleAddEmployeeToRoster}
+                          sidebarDragEmpId={dragEmpId}
                           getAvailabilityWarning={
                             findPatternAvailabilityWarning
                           }
@@ -3722,6 +3933,60 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     })}
                   </div>
                 )}
+                <div
+                  key="__roster_add_employee__"
+                  className="flex"
+                  style={{ borderBottom: "1px solid var(--border)" }}
+                >
+                  <div
+                    className="sticky left-0 flex-shrink-0 flex items-center px-3 py-2"
+                    onDragOver={handleRosterMemberDragOver}
+                    onDrop={handleRosterMemberDrop}
+                    style={{
+                      width: LEFT_COL_W,
+                      borderRight: "1px solid var(--border)",
+                      minHeight: 44,
+                      background: "var(--muted)",
+                      zIndex: 10,
+                    }}
+                  >
+                    <span
+                      className="text-xs italic"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {isZh
+                        ? "从左侧拖入员工"
+                        : "Drag employees from the left"}
+                    </span>
+                  </div>
+                  {weekDates.map((d, i) => {
+                    const dateStr = d.format("YYYY-MM-DD");
+                    const isToday = dateStr === todayStr;
+                    const isClosedDay = isStoreClosedDate(d);
+                    const isPublicHoliday =
+                      publicHolidayNameByDate.has(dateStr);
+                    const isReadonlyDate = !isScheduleDateEditable(d);
+
+                    return (
+                      <EmployeeDateCell
+                        key={i}
+                        date={d}
+                        rowKind="add-employee"
+                        shifts={[]}
+                        areaNameMap={areaNameMap}
+                        employees={allEmpList}
+                        defaultAreaId={defaultScheduleAreaId}
+                        onAddEmployeeToRoster={handleAddEmployeeToRoster}
+                        sidebarDragEmpId={dragEmpId}
+                        onDropTemplate={handleDropTemplateToCurrentWeek}
+                        isToday={isToday}
+                        isClosedDay={isClosedDay}
+                        isPublicHoliday={isPublicHoliday}
+                        readonly={isReadonlyDate}
+                      />
+                    );
+                  })}
+                </div>
               </>
             )}
           </div>
