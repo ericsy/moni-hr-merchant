@@ -28,7 +28,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { toast } from "sonner";
 import {
   ColorSwatchPicker,
@@ -255,11 +255,16 @@ function ShiftCell({
         transition: "all 0.15s",
       }}
       onDragOver={(e) => {
+        if (isEmployeeView) return;
         e.preventDefault();
         setIsDragOver(true);
       }}
-      onDragLeave={() => setIsDragOver(false)}
+      onDragLeave={() => {
+        if (isEmployeeView) return;
+        setIsDragOver(false);
+      }}
       onDrop={(e) => {
+        if (isEmployeeView) return;
         e.preventDefault();
         setIsDragOver(false);
         const id = e.dataTransfer.getData("employeeId");
@@ -415,6 +420,9 @@ function ShiftCell({
   );
 }
 
+const isSidebarEmployeeDragEvent = (e: DragEvent) =>
+  Array.from(e.dataTransfer.types).includes("employeeId");
+
 interface TemplateEmployeeDayCellProps {
   dayIndex: number;
   employeeId?: string;
@@ -480,30 +488,16 @@ function TemplateEmployeeDayCell({
             : "transparent",
       }}
       onDragOver={(e) => {
-        if (isAddEmployeeRow || rowKind === "unassigned") {
-          e.preventDefault();
-        }
+        if (!isSidebarEmployeeDragEvent(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
       }}
       onDrop={(e) => {
+        if (!isSidebarEmployeeDragEvent(e)) return;
         e.preventDefault();
+        e.stopPropagation();
         const empId = e.dataTransfer.getData("employeeId");
-        if (!empId) return;
-
-        if (isAddEmployeeRow) {
-          onAddEmployeeToTemplate(empId);
-          return;
-        }
-
-        if (rowKind === "employee") {
-          return;
-        }
-
-        if (!defaultAreaId) return;
-        if (cells.length > 0) {
-          onDropEmployee(cells[0].id, empId);
-          return;
-        }
-        onAddCell(defaultAreaId, dayIndex, [empId]);
+        if (empId) onAddEmployeeToTemplate(empId);
       }}
     >
       {cells.map((cell) => {
@@ -1205,6 +1199,22 @@ export default function RosterTemplatePage({
     );
   };
 
+  const handleTemplateMemberDragOver = (e: DragEvent) => {
+    if (gridViewMode !== "employee") return;
+    if (!isSidebarEmployeeDragEvent(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleTemplateMemberDrop = (e: DragEvent) => {
+    if (gridViewMode !== "employee") return;
+    if (!isSidebarEmployeeDragEvent(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const empId = e.dataTransfer.getData("employeeId");
+    if (empId) handleAddEmployeeToTemplate(empId);
+  };
+
   // ── Cell CRUD ─────────────────────────────────────────────────────────────
 
   const openAddCell = (
@@ -1851,8 +1861,8 @@ export default function RosterTemplatePage({
               >
                 {gridViewMode === "employee"
                   ? locale === "zh"
-                    ? "拖拽到下方添加员工"
-                    : "Drag below to add employees"
+                    ? "拖拽到模版表格添加员工"
+                    : "Drag to template grid to add employees"
                   : locale === "zh"
                     ? "显示所有职位"
                     : "Show All Positions"}
@@ -2143,6 +2153,8 @@ export default function RosterTemplatePage({
           {/* Grid */}
           <div
             ref={gridContentRef}
+            onDragOver={handleTemplateMemberDragOver}
+            onDrop={handleTemplateMemberDrop}
             style={{
               width: "100%",
               minWidth: Math.max(
@@ -2156,6 +2168,8 @@ export default function RosterTemplatePage({
             {/* Day header row */}
             <div
               className="flex sticky top-10 z-20"
+              onDragOver={handleTemplateMemberDragOver}
+              onDrop={handleTemplateMemberDrop}
               style={{
                 background: "var(--card)",
                 borderBottom: "1px solid var(--border)",
@@ -2453,6 +2467,8 @@ export default function RosterTemplatePage({
                   >
                     <div
                       className="sticky left-0 flex-shrink-0 flex items-start justify-between px-3 py-3 group"
+                      onDragOver={handleTemplateMemberDragOver}
+                      onDrop={handleTemplateMemberDrop}
                       style={{
                         width: TEMPLATE_AREA_COLUMN_WIDTH,
                         borderRight: "1px solid var(--border)",
