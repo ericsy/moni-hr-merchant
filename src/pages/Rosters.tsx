@@ -1057,7 +1057,7 @@ interface EmployeeDateCellProps {
     defaultAreaId: string,
   ) => void;
   onDropEmployeeToShift?: (empId: string, shift: ScheduleShift) => void;
-  onDropTemplate?: (templateId: string) => void;
+  onDropTemplate?: (templateId: string, dateStr: string) => void;
   onAddEmployeeToRoster?: (empId: string) => void;
   sidebarDragEmpId?: string | null;
   getAvailabilityWarning?: (
@@ -1121,7 +1121,7 @@ function EmployeeDateCell({
     setIsDragOver(false);
     const templateId = e.dataTransfer.getData("templateId");
     if (templateId) {
-      onDropTemplate(templateId);
+      onDropTemplate(templateId, dateStr);
       return;
     }
     const empId = readSidebarEmployeeId(e, sidebarDragEmpId);
@@ -1222,7 +1222,7 @@ function EmployeeDateCell({
               onRemoveEmployeeFromShift(sh.id, empId)
             }
             onDropEmployee={(empId) => onDropEmployeeToShift(empId, sh)}
-            onDropTemplate={onDropTemplate}
+            onDropTemplate={(templateId) => onDropTemplate(templateId, dateStr)}
             onAddEmployeeClick={() =>
               onEditShift(sh, rowKind === "employee" ? employeeId : undefined)
             }
@@ -3948,7 +3948,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                             }
                             onDropEmployee={handleDropEmployeeByDate}
                             onDropEmployeeToShift={handleDropEmployeeToShift}
-                            onDropTemplate={handleDropTemplateToCurrentWeek}
+                            onDropTemplate={handleDropTemplateToDate}
                             onAddEmployeeToRoster={handleAddEmployeeToRoster}
                             sidebarDragEmpId={dragEmpId}
                             getAvailabilityWarning={
@@ -4018,7 +4018,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                           }
                           onDropEmployee={handleDropEmployeeByDate}
                           onDropEmployeeToShift={handleDropEmployeeToShift}
-                          onDropTemplate={handleDropTemplateToCurrentWeek}
+                          onDropTemplate={handleDropTemplateToDate}
                           onAddEmployeeToRoster={handleAddEmployeeToRoster}
                           sidebarDragEmpId={dragEmpId}
                           getAvailabilityWarning={
@@ -4079,7 +4079,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                         defaultAreaId={defaultScheduleAreaId}
                         onAddEmployeeToRoster={handleAddEmployeeToRoster}
                         sidebarDragEmpId={dragEmpId}
-                        onDropTemplate={handleDropTemplateToCurrentWeek}
+                        onDropTemplate={handleDropTemplateToDate}
                         isToday={isToday}
                         isClosedDay={isClosedDay}
                         isPublicHoliday={isPublicHoliday}
