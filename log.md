@@ -83,3 +83,9 @@
 - 修复 `Rosters.tsx` 排班管理个人视图 chip：合并班次仅显示当前行员工自己的头像与姓名，不再展示同班次其他员工；替班/请假/工作时段不匹配仍通过 chip 标识。
 
 - 更新 `Rosters.tsx` 排班管理个人视图：移除班次格内员工 chip；替班/请假/工作时段不匹配标识移至工作时长（Xh）badge 前，悬停 Tooltip 展示详情。
+
+## 2026-06-22
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：排班模版与排班管理的班次列表（区域模式/员工模式）中，班次名称与时间改为固定主题色（`var(--foreground)` / `var(--muted-foreground)`），不再随班次背景色变化。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内员工 chip 及员工模式状态 badge（替/假）文字字号各加大 2px（如 10→12、8→10）。
