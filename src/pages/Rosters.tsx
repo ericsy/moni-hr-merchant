@@ -428,7 +428,7 @@ function EmployeeViewStatusBadges({
           <span
             className="rounded px-1 font-bold"
             style={{
-              fontSize: 10,
+              fontSize: 12,
               background: "#f3e8ff",
               color: "#7c3aed",
               border: "1px solid #c4b5fd",
@@ -442,7 +442,7 @@ function EmployeeViewStatusBadges({
           <span
             className="rounded px-1 font-bold"
             style={{
-              fontSize: 10,
+              fontSize: 12,
               background: "rgba(34, 197, 94, 0.18)",
               color: "#065f46",
               border: "1px solid rgba(34, 197, 94, 0.35)",
@@ -558,8 +558,8 @@ function ShiftEntry({
     >
       {/* Time + status badges + hours */}
       <div className="flex items-center gap-1 flex-wrap mb-0.5">
-        <Clock size={8} style={{ color: "var(--muted-foreground)" }} />
-        <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>
+        <Clock size={12} style={{ color: "var(--foreground)" }} />
+        <span style={{ fontSize: 13, color: "var(--foreground)" }}>
           {formatTime12(shift.startTime)} – {formatTime12(shift.endTime)}
         </span>
         <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">
@@ -574,7 +574,7 @@ function ShiftEntry({
           <span
             className="rounded-full px-1 font-semibold"
             style={{
-              fontSize: 8,
+              fontSize: 10,
               background: cs.border,
               color: "var(--primary-foreground)",
             }}
@@ -590,7 +590,7 @@ function ShiftEntry({
           <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
             <span
               className="text-xs font-semibold truncate"
-              style={{ color: "var(--foreground)", fontSize: 10 }}
+              style={{ color: "var(--foreground)", fontSize: 14 }}
               title={shift.shiftName || ""}
             >
               {shift.shiftName || formatTime12(shift.startTime)}
@@ -599,7 +599,7 @@ function ShiftEntry({
               <span
                 className="rounded px-1 font-bold flex-shrink-0"
                 style={{
-                  fontSize: 8,
+                  fontSize: 10,
                   background: "#f3e8ff",
                   color: "#7c3aed",
                   border: "1px solid #c4b5fd",
@@ -643,7 +643,7 @@ function ShiftEntry({
       {shift.isSubstitution && shift.originalDisplayName ? (
         <div
           className="mt-0.5 truncate"
-          style={{ fontSize: 9, color: "#6d28d9", fontWeight: 600 }}
+          style={{ fontSize: 11, color: "#6d28d9", fontWeight: 600 }}
           title={`${t.schedule.substitutionReplacedFor}: ${shift.originalDisplayName}`}
         >
           {t.schedule.substitutionReplacedFor}: {shift.originalDisplayName}
@@ -653,7 +653,7 @@ function ShiftEntry({
       {isEmployeeView && areaName ? (
         <div
           className="mt-0.5 truncate"
-          style={{ fontSize: 9, color: "var(--muted-foreground)", fontWeight: 600 }}
+          style={{ fontSize: 11, color: "var(--muted-foreground)", fontWeight: 600 }}
           title={areaName}
         >
           {areaName}
@@ -681,7 +681,7 @@ function ShiftEntry({
           <span
             style={{
               color: isDragOver ? "var(--primary)" : cs.text,
-              fontSize: 9,
+              fontSize: 11,
             }}
           >
             {assignedEmployees.length > 0
@@ -748,7 +748,7 @@ function ShiftEntry({
                   style={{
                     background: emp.color,
                     flexShrink: 0,
-                    fontSize: 9,
+                    fontSize: 11,
                   }}
                 >
                   {getEmployeeInitials(emp.name)}
@@ -762,7 +762,7 @@ function ShiftEntry({
                         ? "#065f46"
                         : "var(--foreground)",
                     maxWidth: 72,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: emp.availabilityWarning ? 700 : 400,
                   }}
                 >
@@ -772,7 +772,7 @@ function ShiftEntry({
                   <span
                     className="rounded px-1 flex-shrink-0"
                     style={{
-                      fontSize: 10,
+                      fontSize: 12,
                       background: "rgba(34, 197, 94, 0.18)",
                       color: "#065f46",
                       border: "1px solid rgba(34, 197, 94, 0.35)",

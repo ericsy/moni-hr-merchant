@@ -89,3 +89,9 @@
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：排班模版与排班管理的班次列表（区域模式/员工模式）中，班次名称与时间改为固定主题色（`var(--foreground)` / `var(--muted-foreground)`），不再随班次背景色变化。
 
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内员工 chip 及员工模式状态 badge（替/假）文字字号各加大 2px（如 10→12、8→10）。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内班次名称（10→12）与时间（9→11）字号各加大 2px。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内时间文字由灰色（`var(--muted-foreground)`）改为主题黑色（`var(--foreground)`），与班次名称一致。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内全部文字（班次名、时间、工时、员工 chip、状态 badge、区域名等）字号再加大 2px。

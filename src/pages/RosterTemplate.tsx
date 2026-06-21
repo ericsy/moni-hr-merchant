@@ -281,14 +281,14 @@ function ShiftCell({
     >
       {/* Time row (moved up) */}
       <div className="flex items-center gap-1 mb-0.5">
-        <Clock size={8} style={{ color: "var(--muted-foreground)" }} />
-        <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>
+        <Clock size={12} style={{ color: "var(--foreground)" }} />
+        <span style={{ fontSize: 13, color: "var(--foreground)" }}>
           {formatTime12(cell.startTime)} – {formatTime12(cell.endTime)}
         </span>
         <span
           className="rounded-full px-1 ml-auto font-semibold"
           style={{
-            fontSize: 8,
+            fontSize: 10,
             background: sc.border,
             color: "var(--primary-foreground)",
           }}
@@ -302,7 +302,7 @@ function ShiftCell({
         <div className="min-w-0 w-full overflow-hidden">
           <span
             className="text-xs font-semibold truncate"
-            style={{ color: "var(--foreground)", fontSize: 10 }}
+            style={{ color: "var(--foreground)", fontSize: 14 }}
             title={cell.label || ""}
           >
             {cell.label || formatTime12(cell.startTime)}
@@ -329,7 +329,7 @@ function ShiftCell({
       {isEmployeeView && areaName ? (
         <div
           className="mt-0.5 truncate"
-          style={{ fontSize: 9, color: "var(--muted-foreground)", fontWeight: 600 }}
+          style={{ fontSize: 11, color: "var(--muted-foreground)", fontWeight: 600 }}
           title={areaName}
         >
           {areaName}
@@ -357,7 +357,7 @@ function ShiftCell({
         <span
           style={{
             color: isDragOver ? "var(--primary)" : sc.text,
-            fontSize: 9,
+            fontSize: 11,
           }}
         >
           {employees.length > 0 ? `+ 添加员工` : `选择员工`}
@@ -385,7 +385,7 @@ function ShiftCell({
                   style={{
                     background: emp.color,
                     flexShrink: 0,
-                    fontSize: 9,
+                    fontSize: 11,
                   }}
                 >
                   {getEmployeeInitials(emp.name)}
@@ -397,7 +397,7 @@ function ShiftCell({
                       ? "var(--destructive)"
                       : "var(--foreground)",
                     maxWidth: 80,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: emp.availabilityWarning ? 700 : 400,
                   }}
                 >
