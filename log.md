@@ -97,3 +97,5 @@
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内全部文字（班次名、时间、工时、员工 chip、状态 badge、区域名等）字号再加大 2px。
 
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内时间文字字号缩小 2px（13→11），时钟图标同步缩小。
+
+- 更新 `RosterTemplate.tsx`：顶部模版时长选择由按钮组改为下拉列表（1–4 周预设选项），自定义天数整合至下拉面板底部。

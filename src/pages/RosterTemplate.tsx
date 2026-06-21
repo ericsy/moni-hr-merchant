@@ -13,7 +13,6 @@ import {
 import dayjs from "dayjs";
 import {
   AlertTriangle,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -650,7 +649,6 @@ export default function RosterTemplatePage({
   });
 
   // Duration selector
-  const [customDaysOpen, setCustomDaysOpen] = useState(false);
   const [customDaysInput, setCustomDaysInput] = useState<number>(14);
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -711,6 +709,10 @@ export default function RosterTemplatePage({
   useEffect(() => {
     storeGridViewMode(TEMPLATE_GRID_VIEW_STORAGE_KEY, gridViewMode);
   }, [gridViewMode]);
+
+  useEffect(() => {
+    setCustomDaysInput(activeTemplateTotalDays);
+  }, [activeTemplateTotalDays]);
 
   const hasUnassignedCellsInTemplate = useMemo(
     () =>
@@ -1741,6 +1743,17 @@ export default function RosterTemplatePage({
     { label: locale === "zh" ? "3周" : "3 Weeks", days: 21 },
     { label: locale === "zh" ? "4周" : "4 Weeks", days: 28 },
   ];
+  const durationSelectOptions = [
+    ...durationOptions.map((opt) => ({ value: opt.days, label: opt.label })),
+    ...(durationOptions.some((opt) => opt.days === activeTemplateTotalDays)
+      ? []
+      : [
+          {
+            value: activeTemplateTotalDays,
+            label: formatDurationLabel(activeTemplateTotalDays, locale),
+          },
+        ]),
+  ];
 
   const visibleTemplateCount = visibleTemplates.length;
 
@@ -1814,83 +1827,63 @@ export default function RosterTemplatePage({
 
         {/* Right: duration selector + save */}
         <div className="flex items-center gap-2">
-          {durationOptions.map((opt) => (
-            <button
-              key={opt.days}
-              onClick={() => handleSetDays(opt.days)}
-              className="px-3 py-1.5 rounded-lg text-sm transition-all"
-              style={{
-                background:
-                  activeTemplate?.totalDays === opt.days
-                    ? "var(--secondary)"
-                    : "var(--muted)",
-                color:
-                  activeTemplate?.totalDays === opt.days
-                    ? "var(--primary)"
-                    : "var(--muted-foreground)",
-                border:
-                  activeTemplate?.totalDays === opt.days
-                    ? "1px solid var(--primary)"
-                    : "1px solid var(--border)",
-                fontWeight: activeTemplate?.totalDays === opt.days ? 600 : 400,
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-
-          {/* Custom days */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCustomDaysOpen(!customDaysOpen)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition-all"
-              style={{
-                background: "var(--muted)",
-                color: "var(--muted-foreground)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              {locale === "zh" ? "自定义" : "Custom"}
-              <ChevronDown size={12} />
-            </button>
-            {customDaysOpen && (
-              <div
-                className="flex items-center gap-1 rounded-lg px-2 py-1"
-                style={{
-                  background: "var(--card)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <InputNumber
-                  size="small"
-                  min={7}
-                  max={84}
-                  step={7}
-                  value={customDaysInput}
-                  onChange={(v) =>
-                    setCustomDaysInput(Math.max(7, Number(v) || 7))
-                  }
-                  style={{ width: 60 }}
-                />
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  {locale === "zh" ? "天" : "days"}
-                </span>
-                <Button
-                  size="small"
-                  type="primary"
-                  onClick={() => {
-                    handleSetDays(customDaysInput);
-                    setCustomDaysOpen(false);
+          <span
+            className="text-sm"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            {locale === "zh" ? "模版时长" : "Duration"}
+          </span>
+          <Select
+            value={activeTemplateTotalDays}
+            onChange={(days) => handleSetDays(Number(days))}
+            disabled={!activeTemplate}
+            style={{ minWidth: locale === "zh" ? 120 : 140 }}
+            options={durationSelectOptions}
+            dropdownRender={(menu) => (
+              <>
+                {menu}
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    borderTop: "1px solid var(--border)",
                   }}
                 >
-                  {locale === "zh" ? "确定" : "OK"}
-                </Button>
-              </div>
+                  <div
+                    className="text-xs mb-2"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    {locale === "zh" ? "自定义天数" : "Custom days"}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <InputNumber
+                      size="small"
+                      min={7}
+                      max={84}
+                      step={7}
+                      value={customDaysInput}
+                      onChange={(v) =>
+                        setCustomDaysInput(Math.max(7, Number(v) || 7))
+                      }
+                      style={{ width: 72 }}
+                    />
+                    <span
+                      className="text-xs"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {locale === "zh" ? "天" : "days"}
+                    </span>
+                    <Button
+                      size="small"
+                      type="primary"
+                      onClick={() => handleSetDays(customDaysInput)}
+                    >
+                      {locale === "zh" ? "确定" : "OK"}
+                    </Button>
+                  </div>
+                </div>
+              </>
             )}
-          </div>
+          />
 
           <Button
             type="primary"
