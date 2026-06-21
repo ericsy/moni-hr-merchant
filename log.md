@@ -95,3 +95,5 @@
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内时间文字由灰色（`var(--muted-foreground)`）改为主题黑色（`var(--foreground)`），与班次名称一致。
 
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内全部文字（班次名、时间、工时、员工 chip、状态 badge、区域名等）字号再加大 2px。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内时间文字字号缩小 2px（13→11），时钟图标同步缩小。

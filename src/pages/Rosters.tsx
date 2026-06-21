@@ -558,8 +558,8 @@ function ShiftEntry({
     >
       {/* Time + status badges + hours */}
       <div className="flex items-center gap-1 flex-wrap mb-0.5">
-        <Clock size={12} style={{ color: "var(--foreground)" }} />
-        <span style={{ fontSize: 13, color: "var(--foreground)" }}>
+        <Clock size={10} style={{ color: "var(--foreground)" }} />
+        <span style={{ fontSize: 11, color: "var(--foreground)" }}>
           {formatTime12(shift.startTime)} – {formatTime12(shift.endTime)}
         </span>
         <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">

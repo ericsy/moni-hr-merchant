@@ -281,8 +281,8 @@ function ShiftCell({
     >
       {/* Time row (moved up) */}
       <div className="flex items-center gap-1 mb-0.5">
-        <Clock size={12} style={{ color: "var(--foreground)" }} />
-        <span style={{ fontSize: 13, color: "var(--foreground)" }}>
+        <Clock size={10} style={{ color: "var(--foreground)" }} />
+        <span style={{ fontSize: 11, color: "var(--foreground)" }}>
           {formatTime12(cell.startTime)} – {formatTime12(cell.endTime)}
         </span>
         <span
