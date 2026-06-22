@@ -111,3 +111,5 @@
 - 更新 `RosterTemplate.tsx`：模版表头在周几前增加「第 N 周」标识（如「第1周 周一」「第2周 周四」）。
 
 - 更新 `RosterTemplate.tsx`：多周模版表头周次改为日历图标 badge（如「1周」/「W1」），悬停显示完整「第 N 周」；单周模版仅显示周几。
+
+- 更新 `RosterTemplate.tsx`：中文周次 badge 文字由「1周」改为「第1周」。

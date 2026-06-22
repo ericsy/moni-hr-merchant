@@ -132,7 +132,8 @@ function TemplateDayColumnHeader({
   const weekdayLabel = getWeekdayLabel(dayIndex, locale);
   const weekTitle =
     locale === "zh" ? `第${weekNumber}周` : `Week ${weekNumber}`;
-  const weekBadgeLabel = locale === "zh" ? `${weekNumber}周` : `W${weekNumber}`;
+  const weekBadgeLabel =
+    locale === "zh" ? `第${weekNumber}周` : `W${weekNumber}`;
   const textColor = isStoreClosed
     ? "var(--workday-weekend-text)"
     : "var(--foreground)";
