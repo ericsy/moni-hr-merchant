@@ -142,3 +142,7 @@
 - 新增 `public/moni-hr-logo.png`、`MoniHrLogo` 组件；替换产品介绍页、登录页、激活页、重置密码页及后台侧栏中的占位图标为 MONI-HR 官方 Logo，并更新站点 favicon。
 
 - 调整 `Landing.tsx`：首页导航栏左上角 Logo 尺寸由 36px 增大至 48px。
+
+- 调整 `Landing.tsx`：首页导航栏左上角 Logo 恢复为替换前占位图标尺寸（36px，`h-9 w-9`）。
+
+- 调整 `Landing.tsx`：首页导航栏 Logo 放大至 72px，顶栏高度由 `h-16` 增至 `h-20`，以适配横向 Logo 在正方形容器内的实际显示尺寸。
