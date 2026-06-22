@@ -4049,7 +4049,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                             <div
                               className="truncate"
                               style={{
-                                fontSize: 11,
+                                fontSize: 13,
                                 color: "var(--muted-foreground)",
                               }}
                             >
@@ -4058,7 +4058,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                             <div
                               className="font-semibold mt-0.5"
                               style={{
-                                fontSize: 11,
+                                fontSize: 13,
                                 color: hrs > 0 ? "var(--primary)" : "var(--muted-foreground)",
                               }}
                             >

@@ -123,3 +123,5 @@
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：个人视图排班表左侧员工列文字加大 2px（姓名 14、角色/工时 11、表头/拖入提示 14、未分配 16）。
 
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：区域视图班次格内「添加员工/选择员工」文字固定为主题黑色（`var(--foreground)`），不再随班次背景色变化。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：个人视图排班表员工列中岗位文字加大 2px（11→13）；排班管理周工时同步加大 2px（11→13）。

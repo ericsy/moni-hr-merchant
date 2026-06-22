@@ -2678,7 +2678,7 @@ export default function RosterTemplatePage({
                           <div
                             className="truncate"
                             style={{
-                              fontSize: 11,
+                              fontSize: 13,
                               color: "var(--muted-foreground)",
                             }}
                           >
