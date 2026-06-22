@@ -1844,19 +1844,18 @@ export default function RosterTemplatePage({
                 {menu}
                 <div
                   style={{
-                    padding: "8px 12px",
+                    padding: "12px 16px",
                     borderTop: "1px solid var(--border)",
                   }}
                 >
                   <div
-                    className="text-xs mb-2"
+                    className="text-sm mb-2.5"
                     style={{ color: "var(--muted-foreground)" }}
                   >
                     {locale === "zh" ? "自定义天数" : "Custom days"}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <InputNumber
-                      size="small"
                       min={7}
                       max={84}
                       step={7}
@@ -1864,18 +1863,19 @@ export default function RosterTemplatePage({
                       onChange={(v) =>
                         setCustomDaysInput(Math.max(7, Number(v) || 7))
                       }
-                      style={{ width: 72 }}
+                      style={{ width: 120, height: 36 }}
+                      controls
                     />
                     <span
-                      className="text-xs"
+                      className="text-sm"
                       style={{ color: "var(--muted-foreground)" }}
                     >
                       {locale === "zh" ? "天" : "days"}
                     </span>
                     <Button
-                      size="small"
                       type="primary"
                       onClick={() => handleSetDays(customDaysInput)}
+                      style={{ height: 36 }}
                     >
                       {locale === "zh" ? "确定" : "OK"}
                     </Button>
