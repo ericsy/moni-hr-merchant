@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   CalendarDays,
   Eye,
   EyeOff,
@@ -9,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Checkbox } from "../components/ui/checkbox";
 import { useAuth } from "../context/AuthContext";
@@ -49,6 +50,7 @@ const T = {
       "Password reset link sent. Please check your email.",
     toastForgotPasswordError: "Failed to send reset link",
     cancel: "Cancel",
+    backHome: "Back to home",
   },
   zh: {
     welcomeBack: "欢迎回来",
@@ -73,6 +75,7 @@ const T = {
     toastForgotPasswordSuccess: "密码重置链接已发送，请查收邮件。",
     toastForgotPasswordError: "发送重置链接失败",
     cancel: "取消",
+    backHome: "返回首页",
   },
 } as const;
 
@@ -242,6 +245,20 @@ export default function Login() {
             opacity: 0.8,
           }}
         />
+      </div>
+
+      <div
+        className="absolute top-5 left-6"
+        style={{ zIndex: 10 }}
+      >
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-70"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          <ArrowLeft size={16} />
+          {t.backHome}
+        </Link>
       </div>
 
       <div

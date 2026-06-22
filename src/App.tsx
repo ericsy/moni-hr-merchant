@@ -26,6 +26,7 @@ import {
 import { StoreProvider } from "./context/StoreContext";
 import Activate from "./pages/Activate";
 import Home from "./pages/Home";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
@@ -130,6 +131,16 @@ function normalizeAppPathname(pathname: string) {
   return nextPathname.startsWith("/") ? nextPathname : `/${nextPathname}`;
 }
 
+function UnauthenticatedRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 function AuthGate() {
   const { status } = useAuth();
   const location = useLocation();
@@ -153,7 +164,7 @@ function AuthGate() {
   }
 
   if (status === "unauthenticated") {
-    return <Login />;
+    return <UnauthenticatedRoutes />;
   }
 
   if (status === "needs_activation") {

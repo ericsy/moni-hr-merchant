@@ -28,6 +28,7 @@ declare global {
   const CalendarX: typeof import('lucide-react').CalendarX
   const Check: typeof import('lucide-react').Check
   const CheckCircle: typeof import('lucide-react').CheckCircle
+  const CheckCircle2: typeof import('lucide-react').CheckCircle2
   const CheckCircleIcon: typeof import('lucide-react').CheckCircleIcon
   const CheckIcon: typeof import('lucide-react').CheckIcon
   const ChevronDown: typeof import('lucide-react').ChevronDown
@@ -98,6 +99,7 @@ declare global {
   const MapPin: typeof import('lucide-react').MapPin
   const MapPinIcon: typeof import('lucide-react').MapPinIcon
   const Menu: typeof import('lucide-react').Menu
+  const MessageSquare: typeof import('lucide-react').MessageSquare
   const Minus: typeof import('lucide-react').Minus
   const MinusIcon: typeof import('lucide-react').MinusIcon
   const MoreHorizontal: typeof import('lucide-react').MoreHorizontal
@@ -125,6 +127,7 @@ declare global {
   const Send: typeof import('lucide-react').Send
   const Settings: typeof import('lucide-react').Settings
   const Sheet: typeof import('lucide-react').Sheet
+  const Shield: typeof import('lucide-react').Shield
   const ShieldAlertIcon: typeof import('lucide-react').ShieldAlertIcon
   const ShieldCheck: typeof import('lucide-react').ShieldCheck
   const ShieldCheckIcon: typeof import('lucide-react').ShieldCheckIcon
