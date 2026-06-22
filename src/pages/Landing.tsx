@@ -348,37 +348,38 @@ export default function Landing() {
           background: "rgba(255, 255, 255, 0.88)",
         }}
       >
-        <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <div className="flex items-center gap-2.5">
+        <div className="mx-auto grid h-20 max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
             <MoniHrLogo size={72} />
             <span className="text-lg font-bold tracking-tight">{t.brand}</span>
           </div>
 
-          <nav className="hidden items-center gap-6 md:flex">
-            <a
-              href="#features"
-              className="text-sm font-medium transition-opacity hover:opacity-70"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {t.navFeatures}
-            </a>
-            <a
-              href="#flow"
-              className="text-sm font-medium transition-opacity hover:opacity-70"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {t.navFlow}
-            </a>
-            <a
-              href="#industries"
-              className="text-sm font-medium transition-opacity hover:opacity-70"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {t.navIndustries}
-            </a>
+          <nav
+            className="hidden items-center gap-0.5 rounded-full p-1 md:flex"
+            style={{
+              background: "var(--secondary)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {(
+              [
+                { href: "#features", label: t.navFeatures },
+                { href: "#flow", label: t.navFlow },
+                { href: "#industries", label: t.navIndustries },
+              ] as const
+            ).map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="rounded-full px-4 py-1.5 text-sm font-medium transition-colors hover:opacity-80"
+                style={{ color: "var(--foreground)" }}
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-end gap-3">
             <LangToggle />
             <Link
               to="/login"
