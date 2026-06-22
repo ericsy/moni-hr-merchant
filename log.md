@@ -134,3 +134,7 @@
 - 更新 `App.tsx`：未登录路由拆分为首页与登录页；`Login.tsx` 增加返回首页链接。
 
 - 更新 `Landing.tsx`：适用场景改为 6 张配图卡片（零售、餐饮、医疗、制造、活动、清洁），含场景描述与要点列表。
+
+- 修复 `Landing.tsx`：活动与场馆、清洁与后勤配图外链 404，改为本地资源 `public/landing/events.jpg`、`public/landing/cleaning.jpg`。
+
+- 更新 `Landing.tsx`：适用场景全部 6 张配图下载至 `public/landing/`（retail、hospitality、healthcare、manufacturing、events、cleaning），移除对 Unsplash 外链依赖。

@@ -132,36 +132,12 @@ type IndustryKey =
   | "cleaning";
 
 const industryScenarios: Array<{ key: IndustryKey; image: string }> = [
-  {
-    key: "retail",
-    image:
-      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    key: "hospitality",
-    image:
-      "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    key: "healthcare",
-    image:
-      "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    key: "manufacturing",
-    image:
-      "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    key: "events",
-    image:
-      "https://images.unsplash.com/photo-1540575467057-686bc46c19a8?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    key: "cleaning",
-    image:
-      "https://images.unsplash.com/photo-1581578731548-6466bd758b0f?auto=format&fit=crop&w=900&q=80",
-  },
+  { key: "retail", image: "/landing/retail.jpg" },
+  { key: "hospitality", image: "/landing/hospitality.jpg" },
+  { key: "healthcare", image: "/landing/healthcare.jpg" },
+  { key: "manufacturing", image: "/landing/manufacturing.jpg" },
+  { key: "events", image: "/landing/events.jpg" },
+  { key: "cleaning", image: "/landing/cleaning.jpg" },
 ];
 
 const industryCards = {
