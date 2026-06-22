@@ -140,3 +140,5 @@
 - 更新 `Landing.tsx`：适用场景全部 6 张配图下载至 `public/landing/`（retail、hospitality、healthcare、manufacturing、events、cleaning），移除对 Unsplash 外链依赖。
 
 - 新增 `public/moni-hr-logo.png`、`MoniHrLogo` 组件；替换产品介绍页、登录页、激活页、重置密码页及后台侧栏中的占位图标为 MONI-HR 官方 Logo，并更新站点 favicon。
+
+- 调整 `Landing.tsx`：首页导航栏左上角 Logo 尺寸由 36px 增大至 48px。
