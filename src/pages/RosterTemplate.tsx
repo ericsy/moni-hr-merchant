@@ -1467,18 +1467,37 @@ export default function RosterTemplatePage({
         };
 
         if (isSameSlot && editingCell.employeeIds.length > 1) {
-          updateTemplate((t) => ({
-            ...t,
-            cells: t.cells.map((c) =>
-              c.id === editingCell.id
-                ? {
-                    ...c,
-                    ...newCellFields,
-                    employeeIds: editingCell.employeeIds,
-                  }
-                : c,
-            ),
-          }));
+          const unchanged =
+            (cellForm.color || "") === (editingCell.color || "") &&
+            cellForm.label === editingCell.label &&
+            cellForm.startTime === editingCell.startTime &&
+            cellForm.endTime === editingCell.endTime &&
+            (cellForm.shiftId || "") === (editingCell.shiftId || "");
+
+          if (unchanged) {
+            closeCellModal();
+            return;
+          }
+
+          updateTemplate((t) => {
+            const cells = t.cells
+              .map((c) => {
+                if (c.id !== editingCell.id) return c;
+                return { ...c, employeeIds: remainingIds };
+              })
+              .filter((c) => c.employeeIds.length > 0);
+
+            nextCreatedCellIdRef.current += 1;
+            cells.push({
+              id: `cell-new-${nextCreatedCellIdRef.current}`,
+              ...newCellFields,
+              dayIndex: editingDayIndex,
+              cycleWeek: getCycleWeek(editingDayIndex),
+              employeeIds: [empId],
+            });
+
+            return syncTemplateMembers({ ...t, cells }, [empId]);
+          });
           closeCellModal();
           toast.success(locale === "zh" ? "班次已保存" : "Shift saved");
           return;

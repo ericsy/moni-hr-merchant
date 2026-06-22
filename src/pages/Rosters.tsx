@@ -2776,19 +2776,39 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         };
 
         if (isSameSlot && getShiftEmployeeIds(editingShift).length > 1) {
-          const allEmployeeIds = getShiftEmployeeIds(editingShift);
-          setScheduleShifts((prev) =>
-            prev.map((s) =>
-              s.id === editingShift.id
-                ? {
-                    ...s,
-                    ...newShiftFields,
-                    employeeId: allEmployeeIds[0] || "",
-                    employeeIds: allEmployeeIds,
-                  }
-                : s,
-            ),
-          );
+          const unchanged =
+            (shiftForm.color || "") === (editingShift.color || "") &&
+            (shiftForm.note || "") === (editingShift.note || "") &&
+            shiftForm.breakMinutes === editingShift.breakMinutes;
+
+          if (unchanged) {
+            closeShiftModal();
+            return;
+          }
+
+          setScheduleShifts((prev) => {
+            const shifts = prev
+              .map((s) => {
+                if (s.id !== editingShift.id) return s;
+                return {
+                  ...s,
+                  employeeId: remainingIds[0] || "",
+                  employeeIds: remainingIds,
+                };
+              })
+              .filter((s) => getShiftEmployeeIds(s).length > 0);
+
+            nextCreatedShiftIdRef.current += 1;
+            shifts.push({
+              ...editingShift,
+              id: `sh-new-${nextCreatedShiftIdRef.current}`,
+              ...newShiftFields,
+              employeeId: empId,
+              employeeIds: [empId],
+            });
+
+            return shifts;
+          });
           closeShiftModal();
           toast.success(locale === "zh" ? "班次已更新" : "Shift updated");
           return;
