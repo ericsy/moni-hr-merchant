@@ -521,6 +521,11 @@ function ShiftEntry({
   const rowEmp = isEmployeeView ? displayEmployees[0] : undefined;
   const cs = getColorStyle(shift.color);
   const hrs = calcHours(shift.startTime, shift.endTime, shift.breakMinutes);
+  const areaAvailabilityWarnings = !isEmployeeView
+    ? displayEmployees
+        .filter((emp) => emp.availabilityWarning)
+        .map((emp) => emp.availabilityWarning as string)
+    : [];
 
   return (
     <div
@@ -563,14 +568,6 @@ function ShiftEntry({
           {formatTime12(shift.startTime)} – {formatTime12(shift.endTime)}
         </span>
         <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">
-          {isEmployeeView ? (
-            <EmployeeViewStatusBadges
-              emp={rowEmp}
-              shift={shift}
-              locale={locale}
-              substitutionLabel={t.schedule.substitutionReplacedFor}
-            />
-          ) : null}
           <span
             className="rounded-full px-1 font-semibold"
             style={{
@@ -608,6 +605,35 @@ function ShiftEntry({
               >
                 {locale === "zh" ? "替班" : "Sub"}
               </span>
+            ) : null}
+            {isEmployeeView ? (
+              <EmployeeViewStatusBadges
+                emp={rowEmp}
+                shift={shift}
+                locale={locale}
+                substitutionLabel={t.schedule.substitutionReplacedFor}
+              />
+            ) : null}
+            {!isEmployeeView && areaAvailabilityWarnings.length > 0 ? (
+              <Tooltip
+                title={
+                  <div style={{ fontSize: 12, lineHeight: 1.35 }}>
+                    {areaAvailabilityWarnings.map((warning, index) => (
+                      <div
+                        key={`${warning}-${index}`}
+                        style={{ marginTop: index > 0 ? 6 : 0 }}
+                      >
+                        {warning}
+                      </div>
+                    ))}
+                  </div>
+                }
+              >
+                <AlertTriangle
+                  size={10}
+                  style={{ color: "var(--destructive)", flexShrink: 0 }}
+                />
+              </Tooltip>
             ) : null}
           </span>
         </div>
@@ -782,12 +808,6 @@ function ShiftEntry({
                   >
                     {locale === "zh" ? "假" : "Leave"}
                   </span>
-                )}
-                {emp.availabilityWarning && (
-                  <AlertTriangle
-                    size={9}
-                    style={{ color: "var(--destructive)", flexShrink: 0 }}
-                  />
                 )}
                 {!isLocked && (
                   <button
@@ -3879,7 +3899,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     publicHolidayName={publicHolidayName}
                     dateFormatCountry={dateFormatCountry}
                     onDropTemplate={handleDropTemplateToDate}
-                    shiftCount={cnt}
+                    shiftCount={gridViewMode === "employee" ? 0 : cnt}
                     readonly={!isScheduleDateEditable(d)}
                   />
                 );

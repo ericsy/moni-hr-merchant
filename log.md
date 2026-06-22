@@ -125,3 +125,7 @@
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：区域视图班次格内「添加员工/选择员工」文字固定为主题黑色（`var(--foreground)`），不再随班次背景色变化。
 
 - 更新 `RosterTemplate.tsx`、`Rosters.tsx`：个人视图排班表员工列中岗位文字加大 2px（11→13）；排班管理周工时同步加大 2px（11→13）。
+
+- 更新 `Rosters.tsx`：员工模式表头日期下方不再显示班次数量 badge。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：班次格内异常提示图标（可用性警告、个人视图替/假标识）移至班次名称同一行；区域视图员工 chip 上不再重复显示警告三角图标。

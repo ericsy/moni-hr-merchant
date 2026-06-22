@@ -277,6 +277,7 @@ interface ShiftCellProps {
   onAddEmployeeClick?: () => void;
   viewMode?: RosterGridViewMode;
   areaName?: string;
+  rowEmployeeId?: string;
 }
 
 function ShiftCell({
@@ -289,6 +290,7 @@ function ShiftCell({
   onAddEmployeeClick = () => {},
   viewMode = "area",
   areaName = "",
+  rowEmployeeId = "",
 }: ShiftCellProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const { locale } = useLocale();
@@ -298,6 +300,15 @@ function ShiftCell({
   const isEmployeeView = viewMode === "employee";
   const sc = getShiftColor(cell.color);
   const hrs = calcHours(cell.startTime, cell.endTime);
+  const rowEmpWarning =
+    isEmployeeView && rowEmployeeId
+      ? employees.find((emp) => emp.id === rowEmployeeId)?.availabilityWarning
+      : null;
+  const areaAvailabilityWarnings = !isEmployeeView
+    ? employees
+        .filter((emp) => emp.availabilityWarning)
+        .map((emp) => emp.availabilityWarning as string)
+    : [];
 
   return (
     <div
@@ -347,12 +358,43 @@ function ShiftCell({
       {/* Shift name + action buttons (moved down) */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
         <div className="min-w-0 w-full overflow-hidden">
-          <span
-            className="text-xs font-semibold truncate"
-            style={{ color: "var(--foreground)", fontSize: 14 }}
-            title={cell.label || ""}
-          >
-            {cell.label || formatTime12(cell.startTime)}
+          <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
+            <span
+              className="text-xs font-semibold truncate"
+              style={{ color: "var(--foreground)", fontSize: 14 }}
+              title={cell.label || ""}
+            >
+              {cell.label || formatTime12(cell.startTime)}
+            </span>
+            {rowEmpWarning ? (
+              <Tooltip title={rowEmpWarning}>
+                <AlertTriangle
+                  size={10}
+                  style={{ color: "var(--destructive)", flexShrink: 0 }}
+                />
+              </Tooltip>
+            ) : null}
+            {!isEmployeeView && areaAvailabilityWarnings.length > 0 ? (
+              <Tooltip
+                title={
+                  <div style={{ fontSize: 12, lineHeight: 1.35 }}>
+                    {areaAvailabilityWarnings.map((warning, index) => (
+                      <div
+                        key={`${warning}-${index}`}
+                        style={{ marginTop: index > 0 ? 6 : 0 }}
+                      >
+                        {warning}
+                      </div>
+                    ))}
+                  </div>
+                }
+              >
+                <AlertTriangle
+                  size={10}
+                  style={{ color: "var(--destructive)", flexShrink: 0 }}
+                />
+              </Tooltip>
+            ) : null}
           </span>
         </div>
         <div className="flex items-center gap-0.5 justify-self-end opacity-0 transition-opacity flex-shrink-0 group-hover:opacity-100">
@@ -450,12 +492,6 @@ function ShiftCell({
                 >
                   {emp.name}
                 </span>
-                {emp.availabilityWarning && (
-                  <AlertTriangle
-                    size={9}
-                    style={{ color: "var(--destructive)", flexShrink: 0 }}
-                  />
-                )}
                 <button
                   onClick={() => onRemoveEmployee(emp.id)}
                   className="rounded-full hover:opacity-70"
@@ -612,6 +648,7 @@ function TemplateEmployeeDayCell({
             }
             viewMode="employee"
             areaName={areaNameMap[cell.areaId] || cell.areaId}
+            rowEmployeeId={rowKind === "employee" ? employeeId : undefined}
           />
         );
       })}
