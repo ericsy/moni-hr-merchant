@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  CalendarDays,
   Edit2,
   GripVertical,
   LayoutGrid,
@@ -115,6 +116,52 @@ const getDetailedDayLabel = (dayIndex: number, locale: "zh" | "en") => {
 };
 
 const getCycleWeek = (dayIndex: number) => Math.floor(dayIndex / 7) + 1;
+
+function TemplateDayColumnHeader({
+  dayIndex,
+  locale,
+  isStoreClosed,
+  showWeekBadge = true,
+}: {
+  dayIndex: number;
+  locale: "zh" | "en";
+  isStoreClosed: boolean;
+  showWeekBadge?: boolean;
+}) {
+  const weekNumber = getCycleWeek(dayIndex);
+  const weekdayLabel = getWeekdayLabel(dayIndex, locale);
+  const weekTitle =
+    locale === "zh" ? `第${weekNumber}周` : `Week ${weekNumber}`;
+  const weekBadgeLabel = locale === "zh" ? `${weekNumber}周` : `W${weekNumber}`;
+  const textColor = isStoreClosed
+    ? "var(--workday-weekend-text)"
+    : "var(--foreground)";
+
+  return (
+    <span className="inline-flex flex-col items-center gap-1">
+      {showWeekBadge ? (
+        <Tooltip title={weekTitle}>
+          <span
+            className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-semibold"
+            style={{
+              fontSize: 10,
+              lineHeight: 1,
+              background: "var(--secondary)",
+              color: "var(--primary)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <CalendarDays size={10} style={{ flexShrink: 0 }} />
+            {weekBadgeLabel}
+          </span>
+        </Tooltip>
+      ) : null}
+      <span className="text-sm font-semibold" style={{ color: textColor }}>
+        {weekdayLabel}
+      </span>
+    </span>
+  );
+}
 
 const formatDurationLabel = (days: number, locale: "zh" | "en") => {
   if (days % 7 === 0) {
@@ -2321,16 +2368,12 @@ export default function RosterTemplatePage({
                         : "var(--card)",
                     }}
                   >
-                    <span
-                      className="text-sm font-semibold"
-                      style={{
-                        color: isStoreClosed
-                          ? "var(--workday-weekend-text)"
-                          : "var(--foreground)",
-                      }}
-                    >
-                      {getDetailedDayLabel(dayIndex, locale)}
-                    </span>
+                    <TemplateDayColumnHeader
+                      dayIndex={dayIndex}
+                      locale={locale}
+                      isStoreClosed={isStoreClosed}
+                      showWeekBadge={activeTemplateTotalDays > 7}
+                    />
                   </div>
                 );
               })}
