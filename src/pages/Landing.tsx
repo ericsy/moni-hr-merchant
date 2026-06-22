@@ -62,14 +62,8 @@ const T = {
     flow3Title: "Track attendance",
     flow3Desc: "Monitor clock-ins, absences, and daily labour metrics on the dashboard.",
     industriesTitle: "Built for shift-based businesses",
-    industries: [
-      "Retail",
-      "Hospitality",
-      "Healthcare",
-      "Manufacturing",
-      "Events & venues",
-      "Cleaning services",
-    ],
+    industriesSubtitle:
+      "From front-line retail to 24/7 care facilities, MONI-HR adapts to how your teams actually work.",
     ctaTitle: "Ready to simplify your rostering?",
     ctaSubtitle: "Sign in to your merchant console and start managing your team today.",
     ctaButton: "Go to Log In",
@@ -120,18 +114,168 @@ const T = {
     flow3Title: "跟踪出勤",
     flow3Desc: "在看板查看打卡、缺勤与当日人力指标。",
     industriesTitle: "适用于各类轮班制场景",
-    industries: [
-      "零售",
-      "餐饮酒店",
-      "医疗健康",
-      "生产制造",
-      "活动场馆",
-      "清洁服务",
-    ],
+    industriesSubtitle:
+      "从一线零售到 24 小时照护机构，MONI-HR 贴合真实排班与考勤管理需求。",
     ctaTitle: "准备好简化排班了吗？",
     ctaSubtitle: "登录商家后台，立即开始管理您的团队。",
     ctaButton: "前往登录",
     footer: "© {year} MONI-HR 商家端。为现代劳动力团队而生。",
+  },
+} as const;
+
+type IndustryKey =
+  | "retail"
+  | "hospitality"
+  | "healthcare"
+  | "manufacturing"
+  | "events"
+  | "cleaning";
+
+const industryScenarios: Array<{ key: IndustryKey; image: string }> = [
+  {
+    key: "retail",
+    image:
+      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    key: "hospitality",
+    image:
+      "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    key: "healthcare",
+    image:
+      "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    key: "manufacturing",
+    image:
+      "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    key: "events",
+    image:
+      "https://images.unsplash.com/photo-1540575467057-686bc46c19a8?auto=format&fit=crop&w=900&q=80",
+  },
+  {
+    key: "cleaning",
+    image:
+      "https://images.unsplash.com/photo-1581578731548-6466bd758b0f?auto=format&fit=crop&w=900&q=80",
+  },
+];
+
+const industryCards = {
+  en: {
+    retail: {
+      title: "Retail & commerce",
+      desc: "Match staffing to foot traffic, weekends, and seasonal peaks without spreadsheet chaos.",
+      bullets: [
+        "Peak-hour coverage by area",
+        "Multi-store employee sharing",
+        "Part-time & casual shift patterns",
+      ],
+    },
+    hospitality: {
+      title: "Hospitality & food service",
+      desc: "Coordinate kitchen, floor, and bar teams across busy nights, events, and public holidays.",
+      bullets: [
+        "Split shifts & late finishes",
+        "Leave and substitution on rosters",
+        "Store-level area scheduling",
+      ],
+    },
+    healthcare: {
+      title: "Healthcare & aged care",
+      desc: "Keep wards and care units covered with clear visibility of who is on shift and who is on leave.",
+      bullets: [
+        "24/7 rotating rosters",
+        "Approved leave conflict hints",
+        "Role-based area assignments",
+      ],
+    },
+    manufacturing: {
+      title: "Manufacturing & production",
+      desc: "Plan machine lines and operator rotations with consistent weekly templates.",
+      bullets: [
+        "Multi-week roster templates",
+        "Overtime risk visibility",
+        "Planned hours vs attendance",
+      ],
+    },
+    events: {
+      title: "Events & venues",
+      desc: "Staff multi-day events with per-day areas, flexible windows, and rapid roster updates.",
+      bullets: [
+        "Event-day area breakdown",
+        "Template apply across dates",
+        "Quick staff reassignment",
+      ],
+    },
+    cleaning: {
+      title: "Cleaning & facilities",
+      desc: "Dispatch teams across sites and time windows with mobile-friendly roster publishing.",
+      bullets: [
+        "Multi-site team management",
+        "Morning / evening shift splits",
+        "Attendance tracking per site",
+      ],
+    },
+  },
+  zh: {
+    retail: {
+      title: "零售与商超",
+      desc: "根据客流高峰、周末与旺季灵活排班，告别 Excel 表格来回改。",
+      bullets: [
+        "按区域配置高峰人力",
+        "多门店员工共享排班",
+        "兼职与临时工班次管理",
+      ],
+    },
+    hospitality: {
+      title: "餐饮与酒店",
+      desc: "统筹后厨、前厅与服务团队，应对晚高峰、活动日及节假日波动。",
+      bullets: [
+        "跨时段拆班与晚班管理",
+        "请假与替班在排班表展示",
+        "按门店区域精细排班",
+      ],
+    },
+    healthcare: {
+      title: "医疗与养老照护",
+      desc: "让病区与照护单元排班一目了然，清楚掌握谁在岗、谁已请假。",
+      bullets: [
+        "24 小时轮班排班",
+        "已批准请假冲突提示",
+        "按区域与岗位分配人力",
+      ],
+    },
+    manufacturing: {
+      title: "生产制造",
+      desc: "用可复用周模版规划产线与岗位轮班，保持生产节奏稳定。",
+      bullets: [
+        "多周排班模版复用",
+        "超时风险员工提示",
+        "计划工时与出勤对比",
+      ],
+    },
+    events: {
+      title: "活动与场馆",
+      desc: "应对多日活动排班，按天划分区域与时段，快速调整人手。",
+      bullets: [
+        "活动日按区域拆分",
+        "模版跨日期批量应用",
+        "临时增员与调班",
+      ],
+    },
+    cleaning: {
+      title: "清洁与后勤",
+      desc: "跨站点、跨时段调度保洁与后勤团队，排班发布更高效。",
+      bullets: [
+        "多站点团队统一管理",
+        "早班 / 晚班灵活配置",
+        "各站点考勤跟踪",
+      ],
+    },
   },
 } as const;
 
@@ -522,41 +666,96 @@ export default function Landing() {
 
         <section id="industries" className="border-t py-16 sm:py-20" style={{ borderColor: "var(--border)" }}>
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-xl">
-                <h2 className="text-3xl font-bold tracking-tight">
-                  {t.industriesTitle}
-                </h2>
-                <div className="mt-6 flex items-start gap-3">
-                  <Shield
-                    size={20}
-                    style={{ color: "var(--primary)", marginTop: 2 }}
-                  />
-                  <p
-                    className="text-sm leading-6"
-                    style={{ color: "var(--muted-foreground)" }}
-                  >
-                    {locale === "zh"
-                      ? "无论您是单店还是多门店连锁，MONI-HR 都能帮助您统一管理排班、考勤与员工数据。"
-                      : "Whether you run one site or many, MONI-HR helps you manage rosters, attendance, and employee data in one console."}
-                  </p>
-                </div>
+            <div className="max-w-3xl">
+              <h2 className="text-3xl font-bold tracking-tight">
+                {t.industriesTitle}
+              </h2>
+              <p
+                className="mt-3 text-base leading-7"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {t.industriesSubtitle}
+              </p>
+              <div className="mt-5 flex items-start gap-3">
+                <Shield
+                  size={20}
+                  style={{ color: "var(--primary)", marginTop: 2, flexShrink: 0 }}
+                />
+                <p
+                  className="text-sm leading-6"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  {locale === "zh"
+                    ? "无论您是单店还是多门店连锁，MONI-HR 都能帮助您统一管理排班、考勤与员工数据。"
+                    : "Whether you run one site or many, MONI-HR helps you manage rosters, attendance, and employee data in one console."}
+                </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {t.industries.map((industry) => (
-                  <span
-                    key={industry}
-                    className="rounded-full border px-4 py-2 text-sm font-medium"
+            </div>
+
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {industryScenarios.map((scenario) => {
+                const card = industryCards[locale][scenario.key];
+                return (
+                  <article
+                    key={scenario.key}
+                    className="group overflow-hidden rounded-2xl border transition-shadow hover:shadow-custom"
                     style={{
                       borderColor: "var(--border)",
                       background: "var(--card)",
-                      color: "var(--foreground)",
                     }}
                   >
-                    {industry}
-                  </span>
-                ))}
-              </div>
+                    <div className="relative aspect-[16/10] overflow-hidden">
+                      <img
+                        src={scenario.image}
+                        alt={card.title}
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          background:
+                            "linear-gradient(180deg, transparent 35%, rgba(15,23,42,0.55) 100%)",
+                        }}
+                      />
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <h3 className="text-lg font-semibold text-white">
+                          {card.title}
+                        </h3>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <p
+                        className="text-sm leading-6"
+                        style={{ color: "var(--muted-foreground)" }}
+                      >
+                        {card.desc}
+                      </p>
+                      <ul className="mt-4 space-y-2">
+                        {card.bullets.map((bullet) => (
+                          <li
+                            key={bullet}
+                            className="flex items-start gap-2 text-sm"
+                          >
+                            <CheckCircle2
+                              size={15}
+                              style={{
+                                color: "var(--primary)",
+                                marginTop: 2,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span style={{ color: "var(--foreground)" }}>
+                              {bullet}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>
