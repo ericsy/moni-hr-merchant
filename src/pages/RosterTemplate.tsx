@@ -1840,45 +1840,55 @@ export default function RosterTemplatePage({
             style={{ minWidth: locale === "zh" ? 120 : 140 }}
             options={durationSelectOptions}
             popupMatchSelectWidth={false}
+            dropdownStyle={{ minWidth: 280, padding: 0 }}
+            dropdownRender={(menu) => (
+              <div style={{ minWidth: 280 }}>
+                {menu}
+                <div
+                  onMouseDown={(e) => e.preventDefault()}
+                  style={{
+                    padding: "12px 16px",
+                    borderTop: "1px solid var(--border)",
+                    background: "var(--card)",
+                  }}
+                >
+                  <div
+                    className="text-sm mb-2.5"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    {locale === "zh" ? "自定义天数" : "Custom days"}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <InputNumber
+                      min={7}
+                      max={84}
+                      step={7}
+                      value={customDaysInput}
+                      onChange={(v) =>
+                        setCustomDaysInput(Math.max(7, Number(v) || 7))
+                      }
+                      disabled={!activeTemplate}
+                      style={{ width: 100, flexShrink: 0 }}
+                    />
+                    <span
+                      className="text-sm flex-shrink-0"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {locale === "zh" ? "天" : "days"}
+                    </span>
+                    <Button
+                      type="primary"
+                      disabled={!activeTemplate}
+                      onClick={() => handleSetDays(customDaysInput)}
+                      style={{ flexShrink: 0 }}
+                    >
+                      {locale === "zh" ? "应用" : "Apply"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           />
-          <div
-            className="flex items-center gap-2 rounded-xl px-3 py-1.5"
-            style={{
-              background: "var(--muted)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <span
-              className="text-sm flex-shrink-0"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {locale === "zh" ? "自定义" : "Custom"}
-            </span>
-            <InputNumber
-              min={7}
-              max={84}
-              step={7}
-              value={customDaysInput}
-              onChange={(v) =>
-                setCustomDaysInput(Math.max(7, Number(v) || 7))
-              }
-              disabled={!activeTemplate}
-              style={{ width: 88 }}
-            />
-            <span
-              className="text-sm flex-shrink-0"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {locale === "zh" ? "天" : "days"}
-            </span>
-            <Button
-              type="primary"
-              disabled={!activeTemplate}
-              onClick={() => handleSetDays(customDaysInput)}
-            >
-              {locale === "zh" ? "应用" : "Apply"}
-            </Button>
-          </div>
 
           <Button
             type="primary"
