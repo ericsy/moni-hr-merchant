@@ -12,6 +12,7 @@ import {
   Tooltip,
   type MenuProps,
 } from "antd";
+import { MoniHrLogo } from "./MoniHrLogo";
 import {
   BarChart3,
   Bell,
@@ -428,16 +429,7 @@ export default function AppLayout({
               overflow: "hidden",
             }}
           >
-            <div
-              className="flex items-center justify-center rounded-lg flex-shrink-0"
-              style={{
-                width: 36,
-                height: 36,
-                background: "var(--primary)",
-              }}
-            >
-              <CalendarDays size={20} color="var(--primary-foreground)" />
-            </div>
+            <MoniHrLogo size={36} rounded="lg" />
             {!collapsed && (
               <div className="ml-3 overflow-hidden">
                 <div

@@ -1,6 +1,5 @@
 import {
   ArrowLeft,
-  CalendarDays,
   Eye,
   EyeOff,
   Globe,
@@ -12,6 +11,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { MoniHrLogo } from "../components/MoniHrLogo";
 import { Checkbox } from "../components/ui/checkbox";
 import { useAuth } from "../context/AuthContext";
 import { useLocale } from "../context/LocaleContext";
@@ -317,16 +317,7 @@ export default function Login() {
         <div className="p-10">
           {/* Logo & title */}
           <div className="flex flex-col items-center mb-8">
-            <div
-              className="flex items-center justify-center rounded-2xl mb-4"
-              style={{
-                width: 56,
-                height: 56,
-                background: "var(--primary)",
-              }}
-            >
-              <CalendarDays size={28} color="var(--primary-foreground)" />
-            </div>
+            <MoniHrLogo size={56} rounded="2xl" className="mb-4" />
             <h1 className="text-2xl font-bold text-foreground">MONI-HR</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {t.welcomeBack}, {t.subtitle}

@@ -1,6 +1,5 @@
 import {
   ArrowRight,
-  CalendarDays,
   CalendarRange,
   CheckCircle2,
   Clock,
@@ -13,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { MoniHrLogo } from "../components/MoniHrLogo";
 import { useLocale } from "../context/LocaleContext";
 
 const T = {
@@ -350,15 +350,7 @@ export default function Landing() {
       >
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-xl"
-              style={{ background: "var(--primary)" }}
-            >
-              <CalendarDays
-                size={18}
-                style={{ color: "var(--primary-foreground)" }}
-              />
-            </div>
+            <MoniHrLogo size={36} />
             <span className="text-lg font-bold tracking-tight">{t.brand}</span>
           </div>
 

@@ -138,3 +138,5 @@
 - 修复 `Landing.tsx`：活动与场馆、清洁与后勤配图外链 404，改为本地资源 `public/landing/events.jpg`、`public/landing/cleaning.jpg`。
 
 - 更新 `Landing.tsx`：适用场景全部 6 张配图下载至 `public/landing/`（retail、hospitality、healthcare、manufacturing、events、cleaning），移除对 Unsplash 外链依赖。
+
+- 新增 `public/moni-hr-logo.png`、`MoniHrLogo` 组件；替换产品介绍页、登录页、激活页、重置密码页及后台侧栏中的占位图标为 MONI-HR 官方 Logo，并更新站点 favicon。

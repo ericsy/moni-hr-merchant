@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { MoniHrLogo } from "../components/MoniHrLogo";
 import { useAuth } from "../context/AuthContext";
 import { useLocale } from "../context/LocaleContext";
 import { merchantApi } from "../lib/merchantApi";
@@ -364,12 +365,7 @@ export default function Activate() {
             <div className="flex flex-col gap-1.5">
               {/* Logo */}
               <div className="flex items-center gap-2 mb-3">
-                <div
-                  className="flex items-center justify-center rounded-lg"
-                  style={{ width: 34, height: 34, background: "var(--primary)" }}
-                >
-                  <CalendarDays size={17} color="var(--primary-foreground)" />
-                </div>
+                <MoniHrLogo size={34} rounded="lg" />
                 <span className="text-sm font-bold text-foreground">MONI-HR</span>
               </div>
 
