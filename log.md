@@ -154,3 +154,5 @@
 - 调整 `Landing.tsx`：首页 Logo 尺寸改为 60px。
 
 - 调整 `Landing.tsx`：首页 Logo 尺寸改为 64px，与页眉高度 `h-16` 对齐。
+
+- 调整 `Landing.tsx`：首页 Logo 尺寸改为 70px。

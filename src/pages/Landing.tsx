@@ -350,7 +350,7 @@ export default function Landing() {
       >
         <div className="mx-auto grid h-16 max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
-            <MoniHrLogo size={64} />
+            <MoniHrLogo size={70} />
             <span className="text-lg font-bold tracking-tight">{t.brand}</span>
           </div>
 
