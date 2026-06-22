@@ -2776,6 +2776,19 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         };
 
         if (isSameSlot && getShiftEmployeeIds(editingShift).length > 1) {
+          const allEmployeeIds = getShiftEmployeeIds(editingShift);
+          setScheduleShifts((prev) =>
+            prev.map((s) =>
+              s.id === editingShift.id
+                ? {
+                    ...s,
+                    ...newShiftFields,
+                    employeeId: allEmployeeIds[0] || "",
+                    employeeIds: allEmployeeIds,
+                  }
+                : s,
+            ),
+          );
           closeShiftModal();
           toast.success(locale === "zh" ? "班次已更新" : "Shift updated");
           return;
@@ -2824,6 +2837,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                 s.id === existingAtNew.id
                   ? {
                       ...s,
+                      ...newShiftFields,
                       employeeId: mergedIds[0] || "",
                       employeeIds: mergedIds,
                     }

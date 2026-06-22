@@ -1467,6 +1467,18 @@ export default function RosterTemplatePage({
         };
 
         if (isSameSlot && editingCell.employeeIds.length > 1) {
+          updateTemplate((t) => ({
+            ...t,
+            cells: t.cells.map((c) =>
+              c.id === editingCell.id
+                ? {
+                    ...c,
+                    ...newCellFields,
+                    employeeIds: editingCell.employeeIds,
+                  }
+                : c,
+            ),
+          }));
           closeCellModal();
           toast.success(locale === "zh" ? "班次已保存" : "Shift saved");
           return;
@@ -1501,6 +1513,7 @@ export default function RosterTemplatePage({
                 c.id === existingAtNew.id
                   ? {
                       ...c,
+                      ...newCellFields,
                       employeeIds: mergeUniqueEmployeeIds(c.employeeIds, [empId]),
                     }
                   : c,
