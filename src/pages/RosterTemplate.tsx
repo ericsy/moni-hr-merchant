@@ -2329,7 +2329,7 @@ export default function RosterTemplatePage({
                           : "var(--foreground)",
                       }}
                     >
-                      {getWeekdayLabel(dayIndex, locale)}
+                      {getDetailedDayLabel(dayIndex, locale)}
                     </span>
                   </div>
                 );

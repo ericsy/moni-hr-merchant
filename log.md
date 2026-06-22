@@ -107,3 +107,5 @@
 - 更新 `RosterTemplate.tsx`：自定义天数重新合并至模版时长下拉列表底部，设置 `popupMatchSelectWidth={false}` 与最小宽度 280px，并阻止点击输入区时关闭下拉。
 
 - 更新 `RosterTemplate.tsx`：缩小模版时长下拉宽度（280→210/230px）并收紧内边距，减少右侧留白。
+
+- 更新 `RosterTemplate.tsx`：模版表头在周几前增加「第 N 周」标识（如「第1周 周一」「第2周 周四」）。
