@@ -105,3 +105,5 @@
 - 更新 `RosterTemplate.tsx`：自定义天数从下拉面板内移出，改为 Select 旁独立区域（标签 + 输入框 + 「应用」按钮），修复下拉宽度不足导致输入框与按钮被挤压的问题。
 
 - 更新 `RosterTemplate.tsx`：自定义天数重新合并至模版时长下拉列表底部，设置 `popupMatchSelectWidth={false}` 与最小宽度 280px，并阻止点击输入区时关闭下拉。
+
+- 更新 `RosterTemplate.tsx`：缩小模版时长下拉宽度（280→210/230px）并收紧内边距，减少右侧留白。

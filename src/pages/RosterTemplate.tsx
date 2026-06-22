@@ -1840,25 +1840,28 @@ export default function RosterTemplatePage({
             style={{ minWidth: locale === "zh" ? 120 : 140 }}
             options={durationSelectOptions}
             popupMatchSelectWidth={false}
-            dropdownStyle={{ minWidth: 280, padding: 0 }}
+            dropdownStyle={{
+              padding: 0,
+              minWidth: locale === "zh" ? 210 : 230,
+            }}
             dropdownRender={(menu) => (
-              <div style={{ minWidth: 280 }}>
+              <div>
                 {menu}
                 <div
                   onMouseDown={(e) => e.preventDefault()}
                   style={{
-                    padding: "12px 16px",
+                    padding: "10px 12px",
                     borderTop: "1px solid var(--border)",
                     background: "var(--card)",
                   }}
                 >
                   <div
-                    className="text-sm mb-2.5"
+                    className="text-sm mb-2"
                     style={{ color: "var(--muted-foreground)" }}
                   >
                     {locale === "zh" ? "自定义天数" : "Custom days"}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <InputNumber
                       min={7}
                       max={84}
@@ -1868,7 +1871,7 @@ export default function RosterTemplatePage({
                         setCustomDaysInput(Math.max(7, Number(v) || 7))
                       }
                       disabled={!activeTemplate}
-                      style={{ width: 100, flexShrink: 0 }}
+                      style={{ width: 88, flexShrink: 0 }}
                     />
                     <span
                       className="text-sm flex-shrink-0"
