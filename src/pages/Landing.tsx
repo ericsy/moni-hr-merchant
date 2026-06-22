@@ -348,9 +348,9 @@ export default function Landing() {
           background: "rgba(255, 255, 255, 0.88)",
         }}
       >
-        <div className="mx-auto grid h-20 max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
+        <div className="mx-auto grid h-16 max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
-            <MoniHrLogo size={72} />
+            <MoniHrLogo size={60} />
             <span className="text-lg font-bold tracking-tight">{t.brand}</span>
           </div>
 
