@@ -119,3 +119,7 @@
 - 同步修复 `RosterTemplate.tsx` 个人视图相同问题。
 
 - 调整 `Rosters.tsx`、`RosterTemplate.tsx` 个人视图：多人共用班次仅改颜色/备注等时，从原班次拆出当前员工并单独保存，不影响同班次其他员工。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：个人视图排班表左侧员工列文字加大 2px（姓名 14、角色/工时 11、表头/拖入提示 14、未分配 16）。
+
+- 更新 `RosterTemplate.tsx`、`Rosters.tsx`：区域视图班次格内「添加员工/选择员工」文字固定为主题黑色（`var(--foreground)`），不再随班次背景色变化。

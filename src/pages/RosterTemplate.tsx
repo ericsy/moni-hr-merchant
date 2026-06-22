@@ -403,7 +403,7 @@ function ShiftCell({
       >
         <span
           style={{
-            color: isDragOver ? "var(--primary)" : sc.text,
+            color: "var(--foreground)",
             fontSize: 11,
           }}
         >
@@ -2367,7 +2367,10 @@ export default function RosterTemplatePage({
               >
                 <span
                   className="text-xs font-semibold"
-                  style={{ color: "var(--muted-foreground)" }}
+                  style={{
+                    color: "var(--muted-foreground)",
+                    fontSize: gridViewMode === "employee" ? 14 : undefined,
+                  }}
                 >
                   {gridViewMode === "area"
                     ? locale === "zh"
@@ -2660,22 +2663,22 @@ export default function RosterTemplatePage({
                             background:
                               empColorMap[emp.id] || "var(--primary)",
                             flexShrink: 0,
-                            fontSize: 10,
+                            fontSize: 12,
                           }}
                         >
                           {getEmployeeInitials(emp.firstName, emp.lastName)}
                         </Avatar>
                         <div className="min-w-0 flex-1">
                           <div
-                            className="text-xs font-semibold truncate"
-                            style={{ color: "var(--foreground)" }}
+                            className="font-semibold truncate"
+                            style={{ color: "var(--foreground)", fontSize: 14 }}
                           >
                             {emp.firstName} {emp.lastName}
                           </div>
                           <div
                             className="truncate"
                             style={{
-                              fontSize: 9,
+                              fontSize: 11,
                               color: "var(--muted-foreground)",
                             }}
                           >
@@ -2766,8 +2769,11 @@ export default function RosterTemplatePage({
                       }}
                     >
                       <span
-                        className="text-sm font-medium italic"
-                        style={{ color: "var(--muted-foreground)" }}
+                        className="font-medium italic"
+                        style={{
+                          color: "var(--muted-foreground)",
+                          fontSize: 16,
+                        }}
                       >
                         {locale === "zh" ? "未分配" : "Unassigned"}
                       </span>
@@ -2831,8 +2837,11 @@ export default function RosterTemplatePage({
                     }}
                   >
                     <span
-                      className="text-xs italic"
-                      style={{ color: "var(--muted-foreground)" }}
+                      className="italic"
+                      style={{
+                        color: "var(--muted-foreground)",
+                        fontSize: 14,
+                      }}
                     >
                       {locale === "zh"
                         ? "从左侧拖入员工"
