@@ -15,6 +15,7 @@ import type {
 } from "../context/DataContext";
 import type {
   FieldJobAssignPayload,
+  FieldJobAssignmentsSyncPayload,
   FieldJobAssignPreview,
   FieldJobListParams,
   FieldJobUpsertPayload,
@@ -1780,10 +1781,13 @@ function mapApiFieldJobAssignment(input: unknown): FieldServiceJobAssignment | n
 
 function mapApiFieldJob(input: unknown): FieldServiceJob {
   const raw = asRecord(input);
-  const assignmentRaw = raw.assignment ?? raw.assignments;
-  const assignment = Array.isArray(assignmentRaw)
-    ? mapApiFieldJobAssignment(assignmentRaw[0])
-    : mapApiFieldJobAssignment(assignmentRaw);
+  const assignmentRaw = raw.assignments ?? raw.assignment;
+  const assignments = Array.isArray(assignmentRaw)
+    ? assignmentRaw.map(mapApiFieldJobAssignment).filter(Boolean) as FieldServiceJobAssignment[]
+    : mapApiFieldJobAssignment(assignmentRaw)
+      ? [mapApiFieldJobAssignment(assignmentRaw) as FieldServiceJobAssignment]
+      : [];
+  const assignment = assignments[0] ?? null;
 
   return {
     id: asString(raw.id),
@@ -1802,6 +1806,7 @@ function mapApiFieldJob(input: unknown): FieldServiceJob {
     status: (asString(raw.status, "pending") as FieldServiceJob["status"]),
     notes: asString(raw.notes) || undefined,
     assignment,
+    assignments,
     createdAt: asString(raw.createdAt || raw.created_at) || undefined,
     updatedAt: asString(raw.updatedAt || raw.updated_at) || undefined,
   };
@@ -2369,6 +2374,44 @@ export const merchantApi = {
         syncStoreClockOut: payload.syncStoreClockOut,
       },
     });
+    return mapApiFieldJob(data);
+  },
+  reassignFieldJob: async (storeId: string, jobId: string, payload: FieldJobAssignmentsSyncPayload) => {
+    const data = await apiRequest<unknown>(
+      appendEndpointPath(getMerchantEndpoint("fieldJobs"), jobId, "reassign"),
+      {
+        method: "POST",
+        storeId,
+        body: {
+          assignments: payload.assignments.map((item) => ({
+            merchantAdminId: item.merchantAdminId,
+            syncStoreClockIn: item.syncStoreClockIn,
+            syncStoreClockOut: item.syncStoreClockOut,
+          })),
+        },
+      },
+    );
+    return mapApiFieldJob(data);
+  },
+  syncFieldJobAssignments: async (
+    storeId: string,
+    jobId: string,
+    payload: FieldJobAssignmentsSyncPayload,
+  ) => {
+    const data = await apiRequest<unknown>(
+      appendEndpointPath(getMerchantEndpoint("fieldJobs"), jobId, "assignments", "sync"),
+      {
+        method: "POST",
+        storeId,
+        body: {
+          assignments: payload.assignments.map((item) => ({
+            merchantAdminId: item.merchantAdminId,
+            syncStoreClockIn: item.syncStoreClockIn,
+            syncStoreClockOut: item.syncStoreClockOut,
+          })),
+        },
+      },
+    );
     return mapApiFieldJob(data);
   },
   uploadEmployeeContract: (file: File) =>

@@ -2,6 +2,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "./merchantApi";
 import { intervalsOverlap } from "./fieldServiceAssign";
 import type { FieldServiceJob } from "../types/fieldService";
+import { getFieldJobAssignmentEmployeeIds } from "./fieldJobEmployees";
 
 export const FIELD_JOB_MIN_GAP_MINUTES = 60;
 
@@ -87,7 +88,7 @@ export function isEmployeeOnLeaveForWindow(
 
 function isActiveAssignedFieldJob(job: FieldServiceJob) {
   if (job.status === "cancelled" || job.status === "completed") return false;
-  return Boolean(job.assignment?.merchantAdminId);
+  return getFieldJobAssignmentEmployeeIds(job).length > 0;
 }
 
 /** 两段时间重叠，或首尾间隔不足 minGapMinutes 分钟，视为冲突 */
@@ -123,7 +124,7 @@ export function isEmployeeConflictingWithFieldJobs(
   for (const job of existingJobs) {
     if (excludeJobId && job.id === excludeJobId) continue;
     if (!isActiveAssignedFieldJob(job)) continue;
-    if (String(job.assignment?.merchantAdminId) !== empId) continue;
+    if (!getFieldJobAssignmentEmployeeIds(job).includes(empId)) continue;
 
     const jobStart = dayjs(job.scheduledStart);
     const jobEnd = dayjs(job.scheduledEnd);
@@ -175,7 +176,7 @@ export function getEmployeeFieldJobBlockInfo(
   for (const job of existingJobs) {
     if (excludeJobId && job.id === excludeJobId) continue;
     if (!isActiveAssignedFieldJob(job)) continue;
-    if (String(job.assignment?.merchantAdminId) !== empId) continue;
+    if (!getFieldJobAssignmentEmployeeIds(job).includes(empId)) continue;
 
     const jobStart = dayjs(job.scheduledStart);
     const jobEnd = dayjs(job.scheduledEnd);
@@ -204,7 +205,7 @@ export function filterEmployeesAvailableForFieldJob(
   dateLeaves: EmployeeDateLeave[],
   shiftLeaves: EmployeeShiftLeave[],
   options?: {
-    includeEmployeeId?: string;
+    includeEmployeeIds?: string[];
     existingJobs?: FieldServiceJob[];
     excludeJobId?: string;
   },
@@ -243,11 +244,15 @@ export function filterEmployeesAvailableForFieldJob(
     return true;
   });
 
-  const includeId = options?.includeEmployeeId;
-  if (!includeId || available.some((employee) => employee.id === includeId)) {
+  const includeIds = (options?.includeEmployeeIds ?? []).filter(Boolean);
+  if (includeIds.length === 0) {
     return available;
   }
 
-  const preserved = employees.find((employee) => employee.id === includeId);
-  return preserved ? [preserved, ...available] : available;
+  const preserved = includeIds
+    .filter((employeeId) => !available.some((employee) => employee.id === employeeId))
+    .map((employeeId) => employees.find((employee) => employee.id === employeeId))
+    .filter((employee): employee is { id: string; name: string } => Boolean(employee));
+
+  return preserved.length > 0 ? [...preserved, ...available] : available;
 }

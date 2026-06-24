@@ -10,6 +10,7 @@ import {
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantApi";
 import type { GooglePlaceSummary } from "../../lib/googleMaps";
 import type { FieldJobFormSubmitPayload, FieldServiceJob } from "../../types/fieldService";
+import { getFieldJobAssignmentEmployeeIds, getFieldJobAssignments } from "../../lib/fieldJobEmployees";
 
 const { TextArea } = Input;
 
@@ -21,7 +22,7 @@ export interface FieldJobFormValues {
   serviceAddress: string;
   serviceType: string;
   serviceDate: Dayjs;
-  merchantAdminId?: string;
+  merchantAdminIds?: string[];
   latitude: number;
   longitude: number;
   geofenceRadius: number;
@@ -126,7 +127,7 @@ export default function FieldJobFormModal({
   const [preservedGeocodeAddress, setPreservedGeocodeAddress] = useState("");
   const serviceAddress = Form.useWatch("serviceAddress", form);
   const serviceDate = Form.useWatch("serviceDate", form);
-  const selectedEmployeeId = Form.useWatch("merchantAdminId", form);
+  const selectedEmployeeIds = (Form.useWatch("merchantAdminIds", form) || []) as string[];
   const [geo, setGeo] = useState({
     latitude: job?.latitude ?? -36.8485,
     longitude: job?.longitude ?? 174.7633,
@@ -154,7 +155,10 @@ export default function FieldJobFormModal({
       dateLeaves,
       shiftLeaves,
       {
-        includeEmployeeId: selectedEmployeeId || job?.assignment?.merchantAdminId,
+        includeEmployeeIds: [
+          ...selectedEmployeeIds,
+          ...getFieldJobAssignmentEmployeeIds(job),
+        ],
         existingJobs,
         excludeJobId: job?.id,
       },
@@ -163,46 +167,46 @@ export default function FieldJobFormModal({
     dateLeaves,
     employees,
     existingJobs,
-    job?.assignment?.merchantAdminId,
-    job?.id,
+    job,
     scheduledWindow,
-    selectedEmployeeId,
+    selectedEmployeeIds,
     shiftLeaves,
   ]);
-
-  const selectedEmployeeBlockInfo = useMemo(() => {
-    if (!selectedEmployeeId || !scheduledWindow) return null;
-    return getEmployeeFieldJobBlockInfo(
-      selectedEmployeeId,
-      scheduledWindow.scheduledStart,
-      scheduledWindow.scheduledEnd,
-      dateLeaves,
-      shiftLeaves,
-      existingJobs,
-      { excludeJobId: job?.id },
-    );
-  }, [
-    dateLeaves,
-    existingJobs,
-    job?.id,
-    scheduledWindow,
-    selectedEmployeeId,
-    shiftLeaves,
-  ]);
-
-  const selectedEmployeeName = useMemo(() => {
-    if (!selectedEmployeeId) return "";
-    return (
-      employees.find((employee) => employee.id === selectedEmployeeId)?.name ||
-      job?.assignment?.employeeName ||
-      selectedEmployeeId
-    );
-  }, [employees, job?.assignment?.employeeName, selectedEmployeeId]);
 
   const employeeAvailabilityMessage = useMemo(() => {
-    if (!selectedEmployeeBlockInfo) return "";
-    return formatBlockMessage(labels, selectedEmployeeName, selectedEmployeeBlockInfo);
-  }, [labels, selectedEmployeeBlockInfo, selectedEmployeeName]);
+    if (!scheduledWindow || selectedEmployeeIds.length === 0) return "";
+
+    for (const employeeId of selectedEmployeeIds) {
+      const blockInfo = getEmployeeFieldJobBlockInfo(
+        employeeId,
+        scheduledWindow.scheduledStart,
+        scheduledWindow.scheduledEnd,
+        dateLeaves,
+        shiftLeaves,
+        existingJobs,
+        { excludeJobId: job?.id },
+      );
+      if (!blockInfo) continue;
+
+      const employeeName =
+        employees.find((employee) => employee.id === employeeId)?.name ||
+        getFieldJobAssignments(job).find((assignment) => assignment.merchantAdminId === employeeId)
+          ?.employeeName ||
+        employeeId;
+      return formatBlockMessage(labels, employeeName, blockInfo);
+    }
+
+    return "";
+  }, [
+    dateLeaves,
+    employees,
+    existingJobs,
+    job,
+    labels,
+    scheduledWindow,
+    selectedEmployeeIds,
+    shiftLeaves,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -225,7 +229,7 @@ export default function FieldJobFormModal({
         longitude: job.longitude,
         geofenceRadius: job.geofenceRadius,
         notes: job.notes,
-        merchantAdminId: job.assignment?.merchantAdminId || undefined,
+        merchantAdminIds: getFieldJobAssignmentEmployeeIds(job),
       });
       setStartTime(toTimeString(start));
       setEndTime(toTimeString(end, 11, 0));
@@ -247,7 +251,7 @@ export default function FieldJobFormModal({
       serviceType: "cleaning",
       serviceDate: today,
       geofenceRadius: 100,
-      merchantAdminId: undefined,
+      merchantAdminIds: [],
     });
     setStartTime("09:00");
     setEndTime("11:00");
@@ -299,23 +303,24 @@ export default function FieldJobFormModal({
       }
       setTimeError("");
 
-      if (values.merchantAdminId) {
-        const blockInfo = getEmployeeFieldJobBlockInfo(
-          values.merchantAdminId,
-          toLocalDateTimeString(scheduledStart),
-          toLocalDateTimeString(scheduledEnd),
-          dateLeaves,
-          shiftLeaves,
-          existingJobs,
-          { excludeJobId: job?.id },
-        );
-        if (blockInfo) {
-          const employeeName =
-            employees.find((employee) => employee.id === values.merchantAdminId)?.name ||
-            selectedEmployeeName;
-          const message = formatBlockMessage(labels, employeeName, blockInfo);
-          setEmployeeError(message);
-          return;
+      const selectedIds = (values.merchantAdminIds || []).filter(Boolean);
+      if (selectedIds.length > 0) {
+        for (const employeeId of selectedIds) {
+          const blockInfo = getEmployeeFieldJobBlockInfo(
+            employeeId,
+            toLocalDateTimeString(scheduledStart),
+            toLocalDateTimeString(scheduledEnd),
+            dateLeaves,
+            shiftLeaves,
+            existingJobs,
+            { excludeJobId: job?.id },
+          );
+          if (blockInfo) {
+            const employeeName =
+              employees.find((employee) => employee.id === employeeId)?.name || employeeId;
+            setEmployeeError(formatBlockMessage(labels, employeeName, blockInfo));
+            return;
+          }
         }
       }
       setEmployeeError("");
@@ -333,7 +338,7 @@ export default function FieldJobFormModal({
         scheduledEnd: toLocalDateTimeString(scheduledEnd),
         serviceType: values.serviceType,
         notes: values.notes?.trim() || undefined,
-        merchantAdminId: values.merchantAdminId || undefined,
+        merchantAdminIds: selectedIds,
       });
     } finally {
       setSubmitting(false);
@@ -433,7 +438,7 @@ export default function FieldJobFormModal({
         </div>
 
         <Form.Item
-          name="merchantAdminId"
+          name="merchantAdminIds"
           label={String(labels.employee)}
           validateStatus={employeeError ? "error" : undefined}
           help={employeeError || (
@@ -445,6 +450,7 @@ export default function FieldJobFormModal({
           <Select
             allowClear
             showSearch
+            mode="multiple"
             className="w-full"
             placeholder={String(labels.selectEmployeeOptional)}
             options={availableEmployees.map((employee) => ({

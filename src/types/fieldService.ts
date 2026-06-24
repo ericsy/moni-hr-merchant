@@ -35,7 +35,9 @@ export interface FieldServiceJob {
   serviceType: string;
   status: FieldJobStatus;
   notes?: string;
+  /** @deprecated 兼容旧接口，取 assignments 首条 */
   assignment?: FieldServiceJobAssignment | null;
+  assignments?: FieldServiceJobAssignment[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -78,6 +80,10 @@ export interface FieldJobAssignPayload {
   syncStoreClockOut: boolean;
 }
 
+export interface FieldJobAssignmentsSyncPayload {
+  assignments: FieldJobAssignPayload[];
+}
+
 export interface FieldJobListParams {
   storeId?: string;
   status?: FieldJobStatus | "";
@@ -102,9 +108,9 @@ export interface FieldJobUpsertPayload {
   notes?: string;
 }
 
-/** 表单提交：可选员工，选中后走派单接口 */
+/** 表单提交：可选多名员工，选中后走派单/改派同步接口 */
 export interface FieldJobFormSubmitPayload extends FieldJobUpsertPayload {
-  merchantAdminId?: string;
+  merchantAdminIds?: string[];
 }
 
 export interface TimelineStoreShiftItem {

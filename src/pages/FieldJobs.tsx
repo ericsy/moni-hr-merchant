@@ -11,9 +11,12 @@ import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { filterLeavesForStore, getEmployeeFieldJobBlockInfo } from "../lib/employeeLeave";
+import { applyFieldJobAssignments, isFieldJobAssigned } from "../lib/fieldJobAssignment";
+import { buildFieldJobAssignmentPayloads, getFieldJobEmployeeNamesLabel } from "../lib/fieldJobEmployees";
 import { filterJobsInWeek, getWeekStart } from "../lib/fieldJobSchedule";
+import { ApiError } from "../lib/apiClient";
 import { merchantApi } from "../lib/merchantApi";
-import type { FieldJobFormSubmitPayload, FieldJobStatus, FieldServiceJob } from "../types/fieldService";
+import type { FieldJobFormSubmitPayload, FieldJobAssignPayload, FieldJobStatus, FieldServiceJob } from "../types/fieldService";
 
 type FieldJobViewMode = "list" | "calendar";
 
@@ -24,6 +27,13 @@ const STATUS_COLORS: Record<FieldJobStatus, string> = {
   completed: "success",
   cancelled: "error",
 };
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiError && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
 
 export default function FieldJobs() {
   const { t, locale } = useLocale();
@@ -233,11 +243,11 @@ export default function FieldJobs() {
       return;
     }
 
-    const { merchantAdminId, ...upsert } = payload;
+    const { merchantAdminIds = [], ...upsert } = payload;
 
-    if (merchantAdminId) {
+    for (const employeeId of merchantAdminIds) {
       const blockMessage = getEmployeeBlockMessage(
-        merchantAdminId,
+        employeeId,
         upsert.scheduledStart,
         upsert.scheduledEnd,
       );
@@ -263,12 +273,9 @@ export default function FieldJobs() {
         jobId = created.id;
       }
 
-      if (merchantAdminId && jobId) {
-        await merchantApi.assignFieldJob(selectedStoreId, jobId, {
-          merchantAdminId,
-          syncStoreClockIn: false,
-          syncStoreClockOut: false,
-        });
+      if (jobId) {
+        const assignments = buildFieldJobAssignmentPayloads(editingJob, merchantAdminIds);
+        await applyFieldJobAssignments(selectedStoreId, jobId, editingJob, assignments);
       }
 
       toast.success(labels.saveSuccess);
@@ -277,39 +284,42 @@ export default function FieldJobs() {
       await loadJobs();
     } catch (error) {
       console.log("[FieldJobs] save failed:", error);
-      if (merchantAdminId) {
+      for (const employeeId of merchantAdminIds) {
         const blockMessage = getEmployeeBlockMessage(
-          merchantAdminId,
+          employeeId,
           upsert.scheduledStart,
           upsert.scheduledEnd,
         );
         if (blockMessage) {
           toast.error(blockMessage);
-          throw error;
+          return;
         }
       }
-      toast.error(labels.saveFailed);
-      throw error;
+      toast.error(getApiErrorMessage(error, labels.saveFailed));
     }
   };
 
-  const handleAssignSubmit = async (payload: {
-    merchantAdminId: string;
-    syncStoreClockIn: boolean;
-    syncStoreClockOut: boolean;
-  }) => {
+  const handleAssignSubmit = async (payload: { assignments: FieldJobAssignPayload[] }) => {
     if (!selectedStoreId || !assigningJob) return;
 
+    const isReassign = isFieldJobAssigned(assigningJob);
+
     try {
-      await merchantApi.assignFieldJob(selectedStoreId, assigningJob.id, payload);
-      toast.success(labels.assignSuccess);
+      await applyFieldJobAssignments(
+        selectedStoreId,
+        assigningJob.id,
+        assigningJob,
+        payload.assignments,
+      );
+      toast.success(isReassign ? labels.reassignSuccess : labels.assignSuccess);
       setAssignOpen(false);
       setAssigningJob(null);
       await loadJobs();
     } catch (error) {
       console.log("[FieldJobs] assign failed:", error);
-      toast.error(labels.assignFailed);
-      throw error;
+      toast.error(
+        getApiErrorMessage(error, isReassign ? labels.reassignFailed : labels.assignFailed),
+      );
     }
   };
 
@@ -375,7 +385,7 @@ export default function FieldJobs() {
       title: labels.employee,
       key: "employee",
       width: 120,
-      render: (_, record) => record.assignment?.employeeName || "—",
+      render: (_, record) => getFieldJobEmployeeNamesLabel(record),
     },
     {
       title: t.status,
@@ -397,7 +407,7 @@ export default function FieldJobs() {
           </Button>
           {record.status === "pending" || record.status === "assigned" ? (
             <Button size="small" type="primary" icon={<UserPlus size={14} />} onClick={() => handleAssign(record)}>
-              {labels.assign}
+              {isFieldJobAssigned(record) ? labels.reassign : labels.assign}
             </Button>
           ) : null}
           {record.status !== "completed" && record.status !== "cancelled" ? (

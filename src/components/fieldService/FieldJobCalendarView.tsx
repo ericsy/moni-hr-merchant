@@ -8,6 +8,7 @@ import {
   filterJobsOnDate,
   getWeekDates,
 } from "../../lib/fieldJobSchedule";
+import { getFieldJobEmployeeNamesLabel, isFieldJobAssigned } from "../../lib/fieldJobEmployees";
 import type { FieldJobStatus, FieldServiceJob } from "../../types/fieldService";
 
 interface FieldJobCalendarViewProps {
@@ -197,7 +198,7 @@ export default function FieldJobCalendarView({
                         <span className="truncate">{job.serviceAddress}</span>
                       </div>
                       <div className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
-                        {String(labels.employee)}：{job.assignment?.employeeName || "—"}
+                        {String(labels.employee)}：{getFieldJobEmployeeNamesLabel(job)}
                       </div>
                     </div>
                     <div className="flex w-full flex-col gap-2 sm:w-auto">
@@ -211,7 +212,7 @@ export default function FieldJobCalendarView({
                           icon={<UserPlus size={14} />}
                           onClick={() => onAssign(job)}
                         >
-                          {String(labels.assign)}
+                          {String(isFieldJobAssigned(job) ? labels.reassign : labels.assign)}
                         </Button>
                       ) : null}
                       {job.status !== "completed" && job.status !== "cancelled" ? (

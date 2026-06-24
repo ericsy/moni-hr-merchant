@@ -7,8 +7,13 @@ import {
   validateAssignSyncOptions,
 } from "../../lib/fieldServiceAssign";
 import { filterEmployeesAvailableForFieldJob } from "../../lib/employeeLeave";
+import {
+  buildFieldJobAssignmentPayloads,
+  getFieldJobAssignmentEmployeeIds,
+  isFieldJobAssigned,
+} from "../../lib/fieldJobEmployees";
 import { merchantApi } from "../../lib/merchantApi";
-import type { FieldJobAssignPreview, FieldServiceJob } from "../../types/fieldService";
+import type { FieldJobAssignPayload, FieldJobAssignPreview, FieldServiceJob } from "../../types/fieldService";
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantApi";
 import type { ScheduleShift } from "../../context/DataContext";
 
@@ -30,11 +35,7 @@ interface FieldJobAssignModalProps {
   locale: "zh" | "en";
   labels: Record<string, unknown>;
   onCancel: () => void;
-  onSubmit: (payload: {
-    merchantAdminId: string;
-    syncStoreClockIn: boolean;
-    syncStoreClockOut: boolean;
-  }) => Promise<void>;
+  onSubmit: (payload: { assignments: FieldJobAssignPayload[] }) => Promise<void>;
 }
 
 export default function FieldJobAssignModal({
@@ -52,7 +53,7 @@ export default function FieldJobAssignModal({
   onCancel,
   onSubmit,
 }: FieldJobAssignModalProps) {
-  const [employeeId, setEmployeeId] = useState("");
+  const [employeeIds, setEmployeeIds] = useState<string[]>([]);
   const [syncStoreClockIn, setSyncStoreClockIn] = useState(false);
   const [syncStoreClockOut, setSyncStoreClockOut] = useState(false);
   const [preview, setPreview] = useState<FieldJobAssignPreview | null>(null);
@@ -61,18 +62,25 @@ export default function FieldJobAssignModal({
   const [errors, setErrors] = useState<string[]>([]);
 
   const resetState = useCallback(() => {
-    setEmployeeId("");
+    setEmployeeIds([]);
     setSyncStoreClockIn(false);
     setSyncStoreClockOut(false);
     setPreview(null);
     setErrors([]);
   }, []);
 
+  const isReassign = isFieldJobAssigned(job);
+  const singleEmployeeMode = employeeIds.length === 1;
+  const previewEmployeeId = singleEmployeeMode ? employeeIds[0] : "";
+
   useEffect(() => {
     if (!open) {
       resetState();
+      return;
     }
-  }, [open, resetState]);
+
+    setEmployeeIds(getFieldJobAssignmentEmployeeIds(job));
+  }, [job, open, resetState]);
 
   const availableEmployees = useMemo(() => {
     if (!job) return employees;
@@ -82,17 +90,23 @@ export default function FieldJobAssignModal({
       job.scheduledEnd,
       dateLeaves,
       shiftLeaves,
-      { existingJobs, excludeJobId: job.id },
+      {
+        existingJobs,
+        excludeJobId: job.id,
+        includeEmployeeIds: [
+          ...employeeIds,
+          ...getFieldJobAssignmentEmployeeIds(job),
+        ],
+      },
     );
-  }, [dateLeaves, employees, existingJobs, job, shiftLeaves]);
+  }, [dateLeaves, employeeIds, employees, existingJobs, job, shiftLeaves]);
 
   useEffect(() => {
-    if (!employeeId) return;
-    if (!availableEmployees.some((employee) => employee.id === employeeId)) {
-      setEmployeeId("");
-      setPreview(null);
-    }
-  }, [availableEmployees, employeeId]);
+    if (!open) return;
+    setEmployeeIds((current) =>
+      current.filter((employeeId) => availableEmployees.some((employee) => employee.id === employeeId)),
+    );
+  }, [availableEmployees, open]);
 
   const loadPreview = useCallback(
     async (nextEmployeeId: string) => {
@@ -127,13 +141,27 @@ export default function FieldJobAssignModal({
   );
 
   useEffect(() => {
-    if (!open || !employeeId) return;
-    void loadPreview(employeeId);
-  }, [employeeId, loadPreview, open]);
+    if (!open || !previewEmployeeId) {
+      setPreview(null);
+      return;
+    }
+    void loadPreview(previewEmployeeId);
+  }, [loadPreview, open, previewEmployeeId]);
 
   const validation = useMemo(() => {
+    if (!singleEmployeeMode) {
+      return {
+        valid: employeeIds.length > 0,
+        warnings: [],
+        errors: employeeIds.length > 0 ? [] : [String(labels.employeeRequired)],
+      };
+    }
     if (!job || !preview?.storeShift) {
-      return { valid: !!employeeId, warnings: [], errors: employeeId ? [] : [String(labels.employeeRequired)] };
+      return {
+        valid: !!previewEmployeeId,
+        warnings: [],
+        errors: previewEmployeeId ? [] : [String(labels.employeeRequired)],
+      };
     }
     return validateAssignSyncOptions(
       job,
@@ -141,10 +169,20 @@ export default function FieldJobAssignModal({
       { syncStoreClockIn, syncStoreClockOut },
       locale,
     );
-  }, [employeeId, job, labels.employeeRequired, locale, preview?.storeShift, syncStoreClockIn, syncStoreClockOut]);
+  }, [
+    employeeIds.length,
+    job,
+    labels.employeeRequired,
+    locale,
+    preview?.storeShift,
+    previewEmployeeId,
+    singleEmployeeMode,
+    syncStoreClockIn,
+    syncStoreClockOut,
+  ]);
 
   const handleOk = async () => {
-    if (!employeeId) {
+    if (employeeIds.length === 0) {
       setErrors([String(labels.employeeRequired)]);
       return;
     }
@@ -153,13 +191,14 @@ export default function FieldJobAssignModal({
       return;
     }
 
+    const assignments = buildFieldJobAssignmentPayloads(job, employeeIds, {
+      syncStoreClockIn: singleEmployeeMode && preview?.overlap ? syncStoreClockIn : false,
+      syncStoreClockOut: singleEmployeeMode && preview?.overlap ? syncStoreClockOut : false,
+    });
+
     try {
       setSubmitting(true);
-      await onSubmit({
-        merchantAdminId: employeeId,
-        syncStoreClockIn: preview?.overlap ? syncStoreClockIn : false,
-        syncStoreClockOut: preview?.overlap ? syncStoreClockOut : false,
-      });
+      await onSubmit({ assignments });
     } finally {
       setSubmitting(false);
     }
@@ -170,11 +209,11 @@ export default function FieldJobAssignModal({
   return (
     <Modal
       open={open}
-      title={String(labels.assignTitle)}
+      title={String(isReassign ? labels.reassignTitle : labels.assignTitle)}
       onCancel={onCancel}
       onOk={handleOk}
       confirmLoading={submitting}
-      okText={String(labels.assignConfirm)}
+      okText={String(isReassign ? labels.reassignConfirm : labels.assignConfirm)}
       destroyOnClose
     >
       <div className="flex flex-col gap-4 py-2">
@@ -194,10 +233,11 @@ export default function FieldJobAssignModal({
           ) : (
             <Select
               showSearch
+              mode="multiple"
               className="w-full"
               placeholder={String(labels.selectEmployee)}
-              value={employeeId || undefined}
-              onChange={setEmployeeId}
+              value={employeeIds}
+              onChange={setEmployeeIds}
               options={availableEmployees.map((employee) => ({
                 value: employee.id,
                 label: employee.name,
@@ -207,13 +247,13 @@ export default function FieldJobAssignModal({
           )}
         </div>
 
-        {loadingPreview ? (
+        {singleEmployeeMode && loadingPreview ? (
           <div className="flex justify-center py-4">
             <Spin />
           </div>
         ) : null}
 
-        {preview && employeeId ? (
+        {singleEmployeeMode && preview && previewEmployeeId ? (
           <div className="flex flex-col gap-3">
             <Alert
               type={preview.hasStoreShift ? "info" : "success"}
@@ -247,6 +287,8 @@ export default function FieldJobAssignModal({
               <Alert type="warning" showIcon message={String(labels.overlapRequired)} />
             ) : null}
           </div>
+        ) : employeeIds.length > 1 ? (
+          <Alert type="info" showIcon message={String(labels.multiEmployeeAssignHint)} />
         ) : null}
 
         {errors.length > 0 ? (
