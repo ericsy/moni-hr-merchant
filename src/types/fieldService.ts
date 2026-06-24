@@ -102,6 +102,11 @@ export interface FieldJobUpsertPayload {
   notes?: string;
 }
 
+/** 表单提交：可选员工，选中后走派单接口 */
+export interface FieldJobFormSubmitPayload extends FieldJobUpsertPayload {
+  merchantAdminId?: string;
+}
+
 export interface TimelineStoreShiftItem {
   type: "store_shift";
   id: string;

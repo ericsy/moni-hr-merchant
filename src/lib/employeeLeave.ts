@@ -96,12 +96,13 @@ export function filterEmployeesAvailableForFieldJob(
   scheduledEnd: string,
   dateLeaves: EmployeeDateLeave[],
   shiftLeaves: EmployeeShiftLeave[],
+  options?: { includeEmployeeId?: string },
 ) {
   const windowStart = dayjs(scheduledStart);
   const windowEnd = dayjs(scheduledEnd);
   if (!windowStart.isValid() || !windowEnd.isValid()) return employees;
 
-  return employees.filter(
+  const available = employees.filter(
     (employee) =>
       !isEmployeeOnLeaveForWindow(
         employee.id,
@@ -111,4 +112,12 @@ export function filterEmployeesAvailableForFieldJob(
         shiftLeaves,
       ),
   );
+
+  const includeId = options?.includeEmployeeId;
+  if (!includeId || available.some((employee) => employee.id === includeId)) {
+    return available;
+  }
+
+  const preserved = employees.find((employee) => employee.id === includeId);
+  return preserved ? [preserved, ...available] : available;
 }

@@ -13,7 +13,7 @@ import { useStore } from "../context/StoreContext";
 import { filterLeavesForStore } from "../lib/employeeLeave";
 import { filterJobsInWeek, getWeekStart } from "../lib/fieldJobSchedule";
 import { merchantApi } from "../lib/merchantApi";
-import type { FieldJobStatus, FieldJobUpsertPayload, FieldServiceJob } from "../types/fieldService";
+import type { FieldJobFormSubmitPayload, FieldJobStatus, FieldServiceJob } from "../types/fieldService";
 
 type FieldJobViewMode = "list" | "calendar";
 
@@ -187,24 +187,38 @@ export default function FieldJobs() {
     setAssignOpen(true);
   };
 
-  const handleSave = async (payload: FieldJobUpsertPayload) => {
+  const handleSave = async (payload: FieldJobFormSubmitPayload) => {
     if (!selectedStoreId) {
       toast.error(labels.storeRequired);
       return;
     }
 
+    const { merchantAdminId, ...upsert } = payload;
+
     try {
+      let jobId = editingJob?.id;
+
       if (editingJob) {
         await merchantApi.updateFieldJob(selectedStoreId, editingJob.id, {
-          ...payload,
+          ...upsert,
           storeId: selectedStoreId,
         });
       } else {
-        await merchantApi.createFieldJob(selectedStoreId, {
-          ...payload,
+        const created = await merchantApi.createFieldJob(selectedStoreId, {
+          ...upsert,
           storeId: selectedStoreId,
         });
+        jobId = created.id;
       }
+
+      if (merchantAdminId && jobId) {
+        await merchantApi.assignFieldJob(selectedStoreId, jobId, {
+          merchantAdminId,
+          syncStoreClockIn: false,
+          syncStoreClockOut: false,
+        });
+      }
+
       toast.success(labels.saveSuccess);
       setFormOpen(false);
       setEditingJob(null);
@@ -417,6 +431,9 @@ export default function FieldJobs() {
       <FieldJobFormModal
         open={formOpen}
         job={editingJob}
+        employees={employees}
+        dateLeaves={dateLeavesForStore}
+        shiftLeaves={shiftLeavesForStore}
         locale={locale}
         labels={labels as unknown as Record<string, unknown>}
         onCancel={() => {

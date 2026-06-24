@@ -1,10 +1,12 @@
 import { DatePicker, Form, Input, Modal, Select, TimePicker } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import GeoFenceMapPicker from "../GeoFenceMapPicker";
 import GoogleAddressAutocompleteInput from "../GoogleAddressAutocompleteInput";
+import { filterEmployeesAvailableForFieldJob } from "../../lib/employeeLeave";
+import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantApi";
 import type { GooglePlaceSummary } from "../../lib/googleMaps";
-import type { FieldJobUpsertPayload, FieldServiceJob } from "../../types/fieldService";
+import type { FieldJobFormSubmitPayload, FieldServiceJob } from "../../types/fieldService";
 
 const { TextArea } = Input;
 
@@ -16,6 +18,7 @@ export interface FieldJobFormValues {
   serviceAddress: string;
   serviceType: string;
   serviceDate: Dayjs;
+  merchantAdminId?: string;
   latitude: number;
   longitude: number;
   geofenceRadius: number;
@@ -25,10 +28,13 @@ export interface FieldJobFormValues {
 interface FieldJobFormModalProps {
   open: boolean;
   job?: FieldServiceJob | null;
+  employees: Array<{ id: string; name: string }>;
+  dateLeaves: EmployeeDateLeave[];
+  shiftLeaves: EmployeeShiftLeave[];
   locale: "zh" | "en";
   labels: Record<string, unknown>;
   onCancel: () => void;
-  onSubmit: (payload: FieldJobUpsertPayload) => Promise<void>;
+  onSubmit: (payload: FieldJobFormSubmitPayload) => Promise<void>;
 }
 
 function getServiceTypeOptions(labels: Record<string, unknown>) {
@@ -78,6 +84,9 @@ function applyTimeChange(
 export default function FieldJobFormModal({
   open,
   job,
+  employees,
+  dateLeaves,
+  shiftLeaves,
   labels,
   onCancel,
   onSubmit,
@@ -90,11 +99,43 @@ export default function FieldJobFormModal({
   const [locateNow, setLocateNow] = useState(0);
   const [preservedGeocodeAddress, setPreservedGeocodeAddress] = useState("");
   const serviceAddress = Form.useWatch("serviceAddress", form);
+  const serviceDate = Form.useWatch("serviceDate", form);
+  const selectedEmployeeId = Form.useWatch("merchantAdminId", form);
   const [geo, setGeo] = useState({
     latitude: job?.latitude ?? -36.8485,
     longitude: job?.longitude ?? 174.7633,
     geofenceRadius: job?.geofenceRadius ?? 100,
   });
+
+  const scheduledWindow = useMemo(() => {
+    const date = serviceDate ? dayjs(serviceDate) : dayjs().startOf("day");
+    if (!date.isValid()) return null;
+    const start = combineDateAndTime(date, startTime);
+    const end = combineDateAndTime(date, endTime);
+    if (!end.isAfter(start)) return null;
+    return {
+      scheduledStart: toLocalDateTimeString(start),
+      scheduledEnd: toLocalDateTimeString(end),
+    };
+  }, [endTime, serviceDate, startTime]);
+
+  const availableEmployees = useMemo(() => {
+    if (!scheduledWindow) return employees;
+    return filterEmployeesAvailableForFieldJob(
+      employees,
+      scheduledWindow.scheduledStart,
+      scheduledWindow.scheduledEnd,
+      dateLeaves,
+      shiftLeaves,
+      { includeEmployeeId: job?.assignment?.merchantAdminId },
+    );
+  }, [dateLeaves, employees, job?.assignment?.merchantAdminId, scheduledWindow, shiftLeaves]);
+
+  useEffect(() => {
+    if (!open || !selectedEmployeeId) return;
+    if (availableEmployees.some((employee) => employee.id === selectedEmployeeId)) return;
+    form.setFieldValue("merchantAdminId", undefined);
+  }, [availableEmployees, form, open, selectedEmployeeId]);
 
   useEffect(() => {
     if (!open) return;
@@ -112,6 +153,7 @@ export default function FieldJobFormModal({
         longitude: job.longitude,
         geofenceRadius: job.geofenceRadius,
         notes: job.notes,
+        merchantAdminId: job.assignment?.merchantAdminId || undefined,
       });
       setStartTime(toTimeString(start));
       setEndTime(toTimeString(end, 11, 0));
@@ -132,6 +174,7 @@ export default function FieldJobFormModal({
       serviceType: "cleaning",
       serviceDate: today,
       geofenceRadius: 100,
+      merchantAdminId: undefined,
     });
     setStartTime("09:00");
     setEndTime("11:00");
@@ -195,6 +238,7 @@ export default function FieldJobFormModal({
         scheduledEnd: toLocalDateTimeString(scheduledEnd),
         serviceType: values.serviceType,
         notes: values.notes?.trim() || undefined,
+        merchantAdminId: values.merchantAdminId || undefined,
       });
     } finally {
       setSubmitting(false);
@@ -288,6 +332,28 @@ export default function FieldJobFormModal({
             />
           </Form.Item>
         </div>
+
+        <Form.Item
+          name="merchantAdminId"
+          label={String(labels.employee)}
+          extra={
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              {String(labels.formEmployeeHint)}
+            </span>
+          }
+        >
+          <Select
+            allowClear
+            showSearch
+            className="w-full"
+            placeholder={String(labels.selectEmployeeOptional)}
+            options={availableEmployees.map((employee) => ({
+              value: employee.id,
+              label: employee.name,
+            }))}
+            optionFilterProp="label"
+          />
+        </Form.Item>
 
         <Form.Item label={String(labels.geofenceRadius)}>
           <GeoFenceMapPicker
