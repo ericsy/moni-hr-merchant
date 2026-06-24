@@ -78,13 +78,28 @@ export default function FieldJobCalendarView({
         className="rounded-xl border p-4"
         style={{ borderColor: "var(--border)", background: "var(--card)" }}
       >
-        <div className="mb-3 text-sm font-medium" style={{ color: "var(--foreground)" }}>
-          {weekRangeLabel}
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+            {weekRangeLabel}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button size="small" icon={<ChevronLeft size={14} />} onClick={() => shiftWeek(-1)} />
+            <Button
+              size="small"
+              onClick={() => {
+                const today = dayjs().startOf("day");
+                onWeekChange(today.startOf("isoWeek"));
+                onSelectedDateChange(today);
+              }}
+            >
+              {String(labels.today)}
+            </Button>
+            <Button size="small" icon={<ChevronRight size={14} />} onClick={() => shiftWeek(1)} />
+          </div>
         </div>
 
-        <div className="flex items-stretch gap-3">
-          <div className="grid min-w-0 flex-1 grid-cols-7 gap-2">
-            {weekDates.map((date, index) => {
+        <div className="grid grid-cols-7 gap-2">
+          {weekDates.map((date, index) => {
               const dateKey = date.format("YYYY-MM-DD");
               const count = jobCountByDate.get(dateKey) || 0;
               const isSelected = date.isSame(selectedDate, "day");
@@ -126,38 +141,8 @@ export default function FieldJobCalendarView({
                       : " "}
                   </span>
                 </button>
-              );
-            })}
-          </div>
-
-          <div
-            className="flex shrink-0 flex-col gap-2"
-            style={{ width: 72 }}
-          >
-            <Button
-              block
-              size="small"
-              icon={<ChevronLeft size={14} />}
-              onClick={() => shiftWeek(-1)}
-            />
-            <Button
-              block
-              size="small"
-              onClick={() => {
-                const today = dayjs().startOf("day");
-                onWeekChange(today.startOf("isoWeek"));
-                onSelectedDateChange(today);
-              }}
-            >
-              {String(labels.today)}
-            </Button>
-            <Button
-              block
-              size="small"
-              icon={<ChevronRight size={14} />}
-              onClick={() => shiftWeek(1)}
-            />
-          </div>
+            );
+          })}
         </div>
       </div>
 

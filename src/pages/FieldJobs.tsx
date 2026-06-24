@@ -44,7 +44,7 @@ export default function FieldJobs() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<FieldJobStatus | "">("");
-  const [viewMode, setViewMode] = useState<FieldJobViewMode>("list");
+  const [viewMode, setViewMode] = useState<FieldJobViewMode>("calendar");
   const [selectedDate, setSelectedDate] = useState<Dayjs>(() => dayjs().startOf("day"));
   const [weekStart, setWeekStart] = useState<Dayjs>(() => dayjs().startOf("isoWeek"));
   const [formOpen, setFormOpen] = useState(false);
