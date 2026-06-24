@@ -566,6 +566,7 @@ export const locales = {
       dateRequired: "请选择服务日期",
       endTimeInvalid: "结束时间必须晚于开始时间",
       employeeRequired: "请选择员工",
+      noAvailableEmployees: "该时段内无可用员工（已请假员工不会显示）",
       serviceTypes: {
         cleaning: "保洁",
         repair: "维修",
@@ -1140,6 +1141,7 @@ export const locales = {
       dateRequired: "Please select service date",
       endTimeInvalid: "End time must be after start time",
       employeeRequired: "Please select an employee",
+      noAvailableEmployees: "No employees are available for this time slot (staff on leave are hidden)",
       serviceTypes: {
         cleaning: "Cleaning",
         repair: "Repair",

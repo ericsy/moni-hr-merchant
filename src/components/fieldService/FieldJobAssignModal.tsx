@@ -6,8 +6,10 @@ import {
   findEmployeeStoreShiftOnDate,
   validateAssignSyncOptions,
 } from "../../lib/fieldServiceAssign";
+import { filterEmployeesAvailableForFieldJob } from "../../lib/employeeLeave";
 import { merchantApi } from "../../lib/merchantApi";
 import type { FieldJobAssignPreview, FieldServiceJob } from "../../types/fieldService";
+import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantApi";
 import type { ScheduleShift } from "../../context/DataContext";
 
 interface EmployeeOption {
@@ -21,6 +23,8 @@ interface FieldJobAssignModalProps {
   storeId: string;
   storeNameById: Record<string, string>;
   employees: EmployeeOption[];
+  dateLeaves: EmployeeDateLeave[];
+  shiftLeaves: EmployeeShiftLeave[];
   scheduleShifts: ScheduleShift[];
   locale: "zh" | "en";
   labels: Record<string, unknown>;
@@ -38,6 +42,8 @@ export default function FieldJobAssignModal({
   storeId,
   storeNameById,
   employees,
+  dateLeaves,
+  shiftLeaves,
   scheduleShifts,
   locale,
   labels,
@@ -65,6 +71,25 @@ export default function FieldJobAssignModal({
       resetState();
     }
   }, [open, resetState]);
+
+  const availableEmployees = useMemo(() => {
+    if (!job) return employees;
+    return filterEmployeesAvailableForFieldJob(
+      employees,
+      job.scheduledStart,
+      job.scheduledEnd,
+      dateLeaves,
+      shiftLeaves,
+    );
+  }, [dateLeaves, employees, job, shiftLeaves]);
+
+  useEffect(() => {
+    if (!employeeId) return;
+    if (!availableEmployees.some((employee) => employee.id === employeeId)) {
+      setEmployeeId("");
+      setPreview(null);
+    }
+  }, [availableEmployees, employeeId]);
 
   const loadPreview = useCallback(
     async (nextEmployeeId: string) => {
@@ -161,18 +186,22 @@ export default function FieldJobAssignModal({
 
         <div>
           <div className="mb-2 text-sm font-medium">{String(labels.selectEmployee)}</div>
-          <Select
-            showSearch
-            className="w-full"
-            placeholder={String(labels.selectEmployee)}
-            value={employeeId || undefined}
-            onChange={setEmployeeId}
-            options={employees.map((employee) => ({
-              value: employee.id,
-              label: employee.name,
-            }))}
-            optionFilterProp="label"
-          />
+          {availableEmployees.length === 0 ? (
+            <Alert type="warning" showIcon message={String(labels.noAvailableEmployees)} />
+          ) : (
+            <Select
+              showSearch
+              className="w-full"
+              placeholder={String(labels.selectEmployee)}
+              value={employeeId || undefined}
+              onChange={setEmployeeId}
+              options={availableEmployees.map((employee) => ({
+                value: employee.id,
+                label: employee.name,
+              }))}
+              optionFilterProp="label"
+            />
+          )}
         </div>
 
         {loadingPreview ? (

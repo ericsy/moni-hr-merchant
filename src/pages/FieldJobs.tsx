@@ -9,6 +9,7 @@ import FieldJobFormModal from "../components/fieldService/FieldJobFormModal";
 import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
+import { filterLeavesForStore } from "../lib/employeeLeave";
 import { merchantApi } from "../lib/merchantApi";
 import type { FieldJobStatus, FieldJobUpsertPayload, FieldServiceJob } from "../types/fieldService";
 
@@ -24,7 +25,16 @@ export default function FieldJobs() {
   const { t, locale } = useLocale();
   const labels = t.fieldJobs;
   const { selectedStoreId } = useStore();
-  const { scheduleShifts, stores } = useData();
+  const { scheduleShifts, stores, employeeDateLeaves, employeeShiftLeaves } = useData();
+
+  const dateLeavesForStore = useMemo(
+    () => filterLeavesForStore(employeeDateLeaves, selectedStoreId),
+    [employeeDateLeaves, selectedStoreId],
+  );
+  const shiftLeavesForStore = useMemo(
+    () => filterLeavesForStore(employeeShiftLeaves, selectedStoreId),
+    [employeeShiftLeaves, selectedStoreId],
+  );
 
   const [jobs, setJobs] = useState<FieldServiceJob[]>([]);
   const [loading, setLoading] = useState(false);
@@ -296,12 +306,22 @@ export default function FieldJobs() {
 
   return (
     <div data-cmp="FieldJobs" className="flex min-h-[calc(100vh-112px)] flex-col gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{labels.title}</h1>
-          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            {labels.subtitle}
-          </p>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <Input
+            allowClear
+            prefix={<Search size={16} />}
+            placeholder={labels.searchPlaceholder}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="md:max-w-xs"
+          />
+          <Select
+            value={status}
+            onChange={setStatus}
+            options={statusOptions}
+            className="md:w-44"
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button icon={<RefreshCw size={16} />} onClick={() => void loadJobs()}>
@@ -311,23 +331,6 @@ export default function FieldJobs() {
             {labels.create}
           </Button>
         </div>
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-xl border p-4 md:flex-row" style={{ borderColor: "var(--border)" }}>
-        <Input
-          allowClear
-          prefix={<Search size={16} />}
-          placeholder={labels.searchPlaceholder}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="md:max-w-xs"
-        />
-        <Select
-          value={status}
-          onChange={setStatus}
-          options={statusOptions}
-          className="md:w-44"
-        />
       </div>
 
       <Table
@@ -357,6 +360,8 @@ export default function FieldJobs() {
         storeId={selectedStoreId}
         storeNameById={storeNameById}
         employees={employees}
+        dateLeaves={dateLeavesForStore}
+        shiftLeaves={shiftLeavesForStore}
         scheduleShifts={scheduleShifts.filter((shift) => shift.storeId === selectedStoreId)}
         locale={locale}
         labels={labels as unknown as Record<string, unknown>}
