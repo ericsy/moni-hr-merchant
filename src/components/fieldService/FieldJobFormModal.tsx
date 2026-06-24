@@ -59,6 +59,8 @@ export default function FieldJobFormModal({
 }: FieldJobFormModalProps) {
   const [form] = Form.useForm<FieldJobFormValues>();
   const [submitting, setSubmitting] = useState(false);
+  const [locateRequestId, setLocateRequestId] = useState(0);
+  const serviceAddress = Form.useWatch("serviceAddress", form);
   const [geo, setGeo] = useState({
     latitude: job?.latitude ?? -36.8485,
     longitude: job?.longitude ?? 174.7633,
@@ -102,6 +104,7 @@ export default function FieldJobFormModal({
       geofenceRadius: 100,
     });
     setGeo({ latitude: -36.8485, longitude: 174.7633, geofenceRadius: 100 });
+    setLocateRequestId(0);
   }, [form, job, open]);
 
   const handleOk = async () => {
@@ -167,8 +170,18 @@ export default function FieldJobFormModal({
           name="serviceAddress"
           label={String(labels.serviceAddress)}
           rules={[{ required: true, message: String(labels.addressRequired) }]}
+          extra={
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              {String(labels.addressLocateHint)}
+            </span>
+          }
         >
-          <Input />
+          <Input.Search
+            placeholder={String(labels.serviceAddressPlaceholder)}
+            enterButton={String(labels.locateOnMap)}
+            onSearch={() => setLocateRequestId((tick) => tick + 1)}
+            allowClear
+          />
         </Form.Item>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -204,7 +217,10 @@ export default function FieldJobFormModal({
         <Form.Item label={String(labels.geofenceRadius)}>
           <GeoFenceMapPicker
             value={geo}
-            defaultLocationQuery={form.getFieldValue("serviceAddress") || ""}
+            hideSearch
+            addressQuery={serviceAddress || ""}
+            locateRequestId={locateRequestId}
+            geofenceDesc={String(labels.geofenceDesc)}
             onChange={(next) => {
               setGeo(next);
               form.setFieldsValue({

@@ -76,6 +76,14 @@ interface GeoFenceMapPickerProps {
   onChange?: (val: GeoFenceValue) => void;
   storeName?: string;
   defaultLocationQuery?: string;
+  /** 外部地址（如服务地址），配合 locateRequestId 触发定位 */
+  addressQuery?: string;
+  /** 递增以根据 addressQuery 在地图上定位 */
+  locateRequestId?: number;
+  /** 隐藏地图上方独立搜索框（使用外部地址输入） */
+  hideSearch?: boolean;
+  /** 覆盖默认围栏说明文案 */
+  geofenceDesc?: string;
 }
 
 export default function GeoFenceMapPicker({
@@ -83,6 +91,10 @@ export default function GeoFenceMapPicker({
   onChange = () => {},
   storeName = "",
   defaultLocationQuery = "",
+  addressQuery = "",
+  locateRequestId = 0,
+  hideSearch = false,
+  geofenceDesc,
 }: GeoFenceMapPickerProps) {
   const { t } = useLocale();
   const st = t.store;
@@ -312,6 +324,17 @@ export default function GeoFenceMapPicker({
     geocodeAddress(nextQuery, false);
   }, [defaultLocationQuery, geocodeAddress, mapsReady, value?.latitude, value?.longitude]);
 
+  useEffect(() => {
+    if (!hideSearch || !mapsReady || locateRequestId <= 0) return;
+    const query = addressQuery.trim();
+    if (!query) {
+      toast.error("请先填写服务地址");
+      return;
+    }
+    userSelectedLocationRef.current = false;
+    geocodeAddress(query);
+  }, [addressQuery, geocodeAddress, hideSearch, locateRequestId, mapsReady]);
+
   // Radius change → update circle
   const handleRadiusChange = (val: number) => {
     setRadius(val);
@@ -335,10 +358,10 @@ export default function GeoFenceMapPicker({
         style={{ background: "var(--secondary)", color: "var(--secondary-foreground)" }}
       >
         <Info size={15} className="mt-0.5 flex-shrink-0" />
-        <span>{st.geofenceDesc}</span>
+        <span>{geofenceDesc || st.geofenceDesc}</span>
       </div>
 
-      {/* Search bar */}
+      {!hideSearch ? (
       <div className="flex items-center gap-2">
         <div className="flex-1 relative">
           <input
@@ -365,6 +388,7 @@ export default function GeoFenceMapPicker({
           {st.geofenceSearchBtn}
         </Button>
       </div>
+      ) : null}
 
       {/* Map container */}
       <div
