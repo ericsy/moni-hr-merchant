@@ -82,7 +82,7 @@ export default function FieldJobCalendarView({
           <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
             {weekRangeLabel}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-1.5">
             <Button size="small" icon={<ChevronLeft size={14} />} onClick={() => shiftWeek(-1)} />
             <Button
               size="small"
@@ -200,7 +200,7 @@ export default function FieldJobCalendarView({
                         {String(labels.employee)}：{job.assignment?.employeeName || "—"}
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex w-full flex-col gap-2 sm:w-auto">
                       <Button size="small" onClick={() => onEdit(job)}>
                         {String(labels.edit)}
                       </Button>
