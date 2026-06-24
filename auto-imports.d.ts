@@ -86,6 +86,7 @@ declare global {
   const LayoutDashboard: typeof import('lucide-react').LayoutDashboard
   const LayoutDashboardIcon: typeof import('lucide-react').LayoutDashboardIcon
   const LayoutGrid: typeof import('lucide-react').LayoutGrid
+  const LayoutList: typeof import('lucide-react').LayoutList
   const LayoutTemplate: typeof import('lucide-react').LayoutTemplate
   const List: typeof import('lucide-react').List
   const ListIcon: typeof import('lucide-react').ListIcon

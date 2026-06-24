@@ -1,10 +1,11 @@
-import { Button, Input, Select, Table, Tag } from "antd";
+import { Button, Input, Segmented, Select, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import dayjs from "dayjs";
-import { MapPin, Plus, RefreshCw, Search, UserPlus } from "lucide-react";
+import dayjs, { type Dayjs } from "dayjs";
+import { CalendarDays, LayoutList, MapPin, Plus, RefreshCw, Search, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import FieldJobAssignModal from "../components/fieldService/FieldJobAssignModal";
+import FieldJobCalendarView from "../components/fieldService/FieldJobCalendarView";
 import FieldJobFormModal from "../components/fieldService/FieldJobFormModal";
 import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
@@ -12,6 +13,8 @@ import { useStore } from "../context/StoreContext";
 import { filterLeavesForStore } from "../lib/employeeLeave";
 import { merchantApi } from "../lib/merchantApi";
 import type { FieldJobStatus, FieldJobUpsertPayload, FieldServiceJob } from "../types/fieldService";
+
+type FieldJobViewMode = "list" | "calendar";
 
 const STATUS_COLORS: Record<FieldJobStatus, string> = {
   pending: "default",
@@ -40,6 +43,9 @@ export default function FieldJobs() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<FieldJobStatus | "">("");
+  const [viewMode, setViewMode] = useState<FieldJobViewMode>("list");
+  const [selectedDate, setSelectedDate] = useState<Dayjs>(() => dayjs().startOf("day"));
+  const [calendarMonth, setCalendarMonth] = useState<Dayjs>(() => dayjs().startOf("month"));
   const [formOpen, setFormOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<FieldServiceJob | null>(null);
@@ -95,10 +101,22 @@ export default function FieldJobs() {
 
     try {
       setLoading(true);
+      const monthStart = calendarMonth.startOf("month");
+      const monthEnd = calendarMonth.endOf("month");
       const items = await merchantApi.listFieldJobs(selectedStoreId, {
         storeId: selectedStoreId,
         status,
         q: search.trim() || undefined,
+        ...(viewMode === "calendar"
+          ? {
+              from: monthStart.format("YYYY-MM-DD"),
+              to: monthEnd.format("YYYY-MM-DD"),
+              size: 200,
+            }
+          : {
+              page: 1,
+              size: 50,
+            }),
       });
       setJobs(items);
     } catch (error) {
@@ -108,7 +126,7 @@ export default function FieldJobs() {
     } finally {
       setLoading(false);
     }
-  }, [labels.loadFailed, search, selectedStoreId, status]);
+  }, [calendarMonth, labels.loadFailed, search, selectedStoreId, status, viewMode]);
 
   const loadEmployees = useCallback(async () => {
     if (!selectedStoreId) {
@@ -138,6 +156,14 @@ export default function FieldJobs() {
   useEffect(() => {
     void loadEmployees();
   }, [loadEmployees]);
+
+  const handleSelectedDateChange = useCallback((date: Dayjs) => {
+    const nextDate = date.startOf("day");
+    setSelectedDate(nextDate);
+    if (!nextDate.isSame(calendarMonth, "month")) {
+      setCalendarMonth(nextDate.startOf("month"));
+    }
+  }, [calendarMonth]);
 
   const handleCreate = () => {
     if (!selectedStoreId) {
@@ -308,6 +334,30 @@ export default function FieldJobs() {
     <div data-cmp="FieldJobs" className="flex min-h-[calc(100vh-112px)] flex-col gap-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <Segmented
+            value={viewMode}
+            onChange={(value) => setViewMode(value as FieldJobViewMode)}
+            options={[
+              {
+                value: "list",
+                label: (
+                  <span className="inline-flex items-center gap-1.5 px-1">
+                    <LayoutList size={14} />
+                    {labels.viewList}
+                  </span>
+                ),
+              },
+              {
+                value: "calendar",
+                label: (
+                  <span className="inline-flex items-center gap-1.5 px-1">
+                    <CalendarDays size={14} />
+                    {labels.viewCalendar}
+                  </span>
+                ),
+              },
+            ]}
+          />
           <Input
             allowClear
             prefix={<Search size={16} />}
@@ -333,14 +383,33 @@ export default function FieldJobs() {
         </div>
       </div>
 
-      <Table
-        rowKey="id"
-        loading={loading}
-        columns={columns}
-        dataSource={jobs}
-        pagination={{ pageSize: 20, showSizeChanger: false }}
-        locale={{ emptyText: selectedStoreId ? undefined : labels.storeRequired }}
-      />
+      {viewMode === "list" ? (
+        <Table
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={jobs}
+          pagination={{ pageSize: 20, showSizeChanger: false }}
+          locale={{ emptyText: selectedStoreId ? undefined : labels.storeRequired }}
+        />
+      ) : (
+        <FieldJobCalendarView
+          jobs={jobs}
+          loading={loading}
+          selectedDate={selectedDate}
+          calendarMonth={calendarMonth}
+          locale={locale}
+          labels={labels as unknown as Record<string, unknown>}
+          statusColors={STATUS_COLORS}
+          statusLabel={statusLabel}
+          serviceTypeLabel={serviceTypeLabel}
+          onSelectedDateChange={handleSelectedDateChange}
+          onCalendarMonthChange={setCalendarMonth}
+          onEdit={handleEdit}
+          onAssign={handleAssign}
+          onCancel={handleCancel}
+        />
+      )}
 
       <FieldJobFormModal
         open={formOpen}
