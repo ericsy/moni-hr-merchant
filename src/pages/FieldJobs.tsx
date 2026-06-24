@@ -10,7 +10,7 @@ import FieldJobFormModal from "../components/fieldService/FieldJobFormModal";
 import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
-import { filterLeavesForStore } from "../lib/employeeLeave";
+import { filterLeavesForStore, getEmployeeFieldJobBlockInfo } from "../lib/employeeLeave";
 import { filterJobsInWeek, getWeekStart } from "../lib/fieldJobSchedule";
 import { merchantApi } from "../lib/merchantApi";
 import type { FieldJobFormSubmitPayload, FieldJobStatus, FieldServiceJob } from "../types/fieldService";
@@ -187,6 +187,46 @@ export default function FieldJobs() {
     setAssignOpen(true);
   };
 
+  const getEmployeeBlockMessage = useCallback(
+    (employeeId: string, scheduledStart: string, scheduledEnd: string) => {
+      const blockInfo = getEmployeeFieldJobBlockInfo(
+        employeeId,
+        scheduledStart,
+        scheduledEnd,
+        dateLeavesForStore,
+        shiftLeavesForStore,
+        allJobs,
+        { excludeJobId: editingJob?.id },
+      );
+      if (!blockInfo) return "";
+
+      const employeeName =
+        employees.find((employee) => employee.id === employeeId)?.name || employeeId;
+
+      if (blockInfo.reason === "leave") {
+        return labels.employeeUnavailableLeave.replace("{name}", employeeName);
+      }
+
+      const conflictCustomer = blockInfo.conflictingJob?.customerName?.trim();
+      const template = conflictCustomer
+        ? labels.employeeUnavailableConflictWithJob
+        : labels.employeeUnavailableConflict;
+      return template
+        .replace("{name}", employeeName)
+        .replace("{customer}", conflictCustomer || "");
+    },
+    [
+      allJobs,
+      dateLeavesForStore,
+      editingJob?.id,
+      employees,
+      labels.employeeUnavailableConflict,
+      labels.employeeUnavailableConflictWithJob,
+      labels.employeeUnavailableLeave,
+      shiftLeavesForStore,
+    ],
+  );
+
   const handleSave = async (payload: FieldJobFormSubmitPayload) => {
     if (!selectedStoreId) {
       toast.error(labels.storeRequired);
@@ -194,6 +234,18 @@ export default function FieldJobs() {
     }
 
     const { merchantAdminId, ...upsert } = payload;
+
+    if (merchantAdminId) {
+      const blockMessage = getEmployeeBlockMessage(
+        merchantAdminId,
+        upsert.scheduledStart,
+        upsert.scheduledEnd,
+      );
+      if (blockMessage) {
+        toast.error(blockMessage);
+        return;
+      }
+    }
 
     try {
       let jobId = editingJob?.id;
@@ -225,6 +277,17 @@ export default function FieldJobs() {
       await loadJobs();
     } catch (error) {
       console.log("[FieldJobs] save failed:", error);
+      if (merchantAdminId) {
+        const blockMessage = getEmployeeBlockMessage(
+          merchantAdminId,
+          upsert.scheduledStart,
+          upsert.scheduledEnd,
+        );
+        if (blockMessage) {
+          toast.error(blockMessage);
+          throw error;
+        }
+      }
       toast.error(labels.saveFailed);
       throw error;
     }

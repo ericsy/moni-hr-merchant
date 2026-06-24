@@ -574,6 +574,9 @@ export const locales = {
       dateRequired: "请选择服务日期",
       endTimeInvalid: "结束时间必须晚于开始时间",
       employeeRequired: "请选择员工",
+      employeeUnavailableLeave: "{name} 在该服务时段已请假，请更换员工或调整服务时间",
+      employeeUnavailableConflict: "{name} 在该时段已有外勤安排或间隔不足 1 小时，请更换员工或调整服务时间",
+      employeeUnavailableConflictWithJob: "{name} 与已有外勤单「{customer}」时间冲突或间隔不足 1 小时，请更换员工或调整服务时间",
       noAvailableEmployees: "该时段内无可用员工（已请假或与已有外勤单时间冲突的员工不会显示）",
       serviceTypes: {
         cleaning: "保洁",
@@ -1157,6 +1160,9 @@ export const locales = {
       dateRequired: "Please select service date",
       endTimeInvalid: "End time must be after start time",
       employeeRequired: "Please select an employee",
+      employeeUnavailableLeave: "{name} is on leave during this time slot. Change the employee or adjust the schedule.",
+      employeeUnavailableConflict: "{name} already has a field job overlapping or within 1 hour of this slot. Change the employee or adjust the schedule.",
+      employeeUnavailableConflictWithJob: "{name} conflicts with field job \"{customer}\" (overlap or less than 1 hour apart). Change the employee or adjust the schedule.",
       noAvailableEmployees: "No employees are available (staff on leave or with conflicting field jobs are hidden)",
       serviceTypes: {
         cleaning: "Cleaning",

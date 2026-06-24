@@ -137,6 +137,58 @@ export function isEmployeeConflictingWithFieldJobs(
   return false;
 }
 
+export type EmployeeFieldJobBlockReason = "leave" | "field_job_conflict";
+
+export interface EmployeeFieldJobBlockInfo {
+  reason: EmployeeFieldJobBlockReason;
+  conflictingJob?: FieldServiceJob;
+}
+
+export function getEmployeeFieldJobBlockInfo(
+  employeeId: string,
+  scheduledStart: string,
+  scheduledEnd: string,
+  dateLeaves: EmployeeDateLeave[],
+  shiftLeaves: EmployeeShiftLeave[],
+  existingJobs: FieldServiceJob[],
+  options?: { excludeJobId?: string },
+): EmployeeFieldJobBlockInfo | null {
+  const windowStart = dayjs(scheduledStart);
+  const windowEnd = dayjs(scheduledEnd);
+  if (!windowStart.isValid() || !windowEnd.isValid()) return null;
+
+  if (
+    isEmployeeOnLeaveForWindow(
+      employeeId,
+      windowStart,
+      windowEnd,
+      dateLeaves,
+      shiftLeaves,
+    )
+  ) {
+    return { reason: "leave" };
+  }
+
+  const excludeJobId = options?.excludeJobId;
+  const empId = String(employeeId);
+
+  for (const job of existingJobs) {
+    if (excludeJobId && job.id === excludeJobId) continue;
+    if (!isActiveAssignedFieldJob(job)) continue;
+    if (String(job.assignment?.merchantAdminId) !== empId) continue;
+
+    const jobStart = dayjs(job.scheduledStart);
+    const jobEnd = dayjs(job.scheduledEnd);
+    if (!jobStart.isValid() || !jobEnd.isValid()) continue;
+
+    if (fieldJobTimeWindowsConflict(windowStart, windowEnd, jobStart, jobEnd)) {
+      return { reason: "field_job_conflict", conflictingJob: job };
+    }
+  }
+
+  return null;
+}
+
 export function filterLeavesForStore<T extends { storeId?: string | number | null }>(
   leaves: T[],
   storeId: string,

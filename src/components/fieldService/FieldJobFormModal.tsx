@@ -1,9 +1,12 @@
-import { DatePicker, Form, Input, Modal, Select, TimePicker } from "antd";
+import { DatePicker, Alert, Form, Input, Modal, Select, TimePicker } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 import GeoFenceMapPicker from "../GeoFenceMapPicker";
 import GoogleAddressAutocompleteInput from "../GoogleAddressAutocompleteInput";
-import { filterEmployeesAvailableForFieldJob } from "../../lib/employeeLeave";
+import {
+  filterEmployeesAvailableForFieldJob,
+  getEmployeeFieldJobBlockInfo,
+} from "../../lib/employeeLeave";
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantApi";
 import type { GooglePlaceSummary } from "../../lib/googleMaps";
 import type { FieldJobFormSubmitPayload, FieldServiceJob } from "../../types/fieldService";
@@ -74,6 +77,26 @@ function toLocalDateTimeString(value: Dayjs) {
   return value.format("YYYY-MM-DDTHH:mm:ss");
 }
 
+function formatBlockMessage(
+  labels: Record<string, unknown>,
+  employeeName: string,
+  blockInfo: ReturnType<typeof getEmployeeFieldJobBlockInfo>,
+) {
+  if (!blockInfo) return "";
+
+  if (blockInfo.reason === "leave") {
+    return String(labels.employeeUnavailableLeave).replace("{name}", employeeName);
+  }
+
+  const conflictCustomer = blockInfo.conflictingJob?.customerName?.trim();
+  const template = conflictCustomer
+    ? String(labels.employeeUnavailableConflictWithJob)
+    : String(labels.employeeUnavailableConflict);
+  return template
+    .replace("{name}", employeeName)
+    .replace("{customer}", conflictCustomer || "");
+}
+
 function applyTimeChange(
   time: Dayjs | Dayjs[] | null,
   onChange: (next: string) => void,
@@ -98,6 +121,7 @@ export default function FieldJobFormModal({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("11:00");
   const [timeError, setTimeError] = useState("");
+  const [employeeError, setEmployeeError] = useState("");
   const [locateNow, setLocateNow] = useState(0);
   const [preservedGeocodeAddress, setPreservedGeocodeAddress] = useState("");
   const serviceAddress = Form.useWatch("serviceAddress", form);
@@ -130,18 +154,60 @@ export default function FieldJobFormModal({
       dateLeaves,
       shiftLeaves,
       {
-        includeEmployeeId: job?.assignment?.merchantAdminId,
+        includeEmployeeId: selectedEmployeeId || job?.assignment?.merchantAdminId,
         existingJobs,
         excludeJobId: job?.id,
       },
     );
-  }, [dateLeaves, employees, existingJobs, job?.assignment?.merchantAdminId, job?.id, scheduledWindow, shiftLeaves]);
+  }, [
+    dateLeaves,
+    employees,
+    existingJobs,
+    job?.assignment?.merchantAdminId,
+    job?.id,
+    scheduledWindow,
+    selectedEmployeeId,
+    shiftLeaves,
+  ]);
+
+  const selectedEmployeeBlockInfo = useMemo(() => {
+    if (!selectedEmployeeId || !scheduledWindow) return null;
+    return getEmployeeFieldJobBlockInfo(
+      selectedEmployeeId,
+      scheduledWindow.scheduledStart,
+      scheduledWindow.scheduledEnd,
+      dateLeaves,
+      shiftLeaves,
+      existingJobs,
+      { excludeJobId: job?.id },
+    );
+  }, [
+    dateLeaves,
+    existingJobs,
+    job?.id,
+    scheduledWindow,
+    selectedEmployeeId,
+    shiftLeaves,
+  ]);
+
+  const selectedEmployeeName = useMemo(() => {
+    if (!selectedEmployeeId) return "";
+    return (
+      employees.find((employee) => employee.id === selectedEmployeeId)?.name ||
+      job?.assignment?.employeeName ||
+      selectedEmployeeId
+    );
+  }, [employees, job?.assignment?.employeeName, selectedEmployeeId]);
+
+  const employeeAvailabilityMessage = useMemo(() => {
+    if (!selectedEmployeeBlockInfo) return "";
+    return formatBlockMessage(labels, selectedEmployeeName, selectedEmployeeBlockInfo);
+  }, [labels, selectedEmployeeBlockInfo, selectedEmployeeName]);
 
   useEffect(() => {
-    if (!open || !selectedEmployeeId) return;
-    if (availableEmployees.some((employee) => employee.id === selectedEmployeeId)) return;
-    form.setFieldValue("merchantAdminId", undefined);
-  }, [availableEmployees, form, open, selectedEmployeeId]);
+    if (!open) return;
+    setEmployeeError(employeeAvailabilityMessage);
+  }, [employeeAvailabilityMessage, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -164,6 +230,7 @@ export default function FieldJobFormModal({
       setStartTime(toTimeString(start));
       setEndTime(toTimeString(end, 11, 0));
       setTimeError("");
+      setEmployeeError("");
       setGeo({
         latitude: job.latitude,
         longitude: job.longitude,
@@ -185,6 +252,7 @@ export default function FieldJobFormModal({
     setStartTime("09:00");
     setEndTime("11:00");
     setTimeError("");
+    setEmployeeError("");
     setGeo({ latitude: -36.8485, longitude: 174.7633, geofenceRadius: 100 });
     setPreservedGeocodeAddress("");
     setLocateNow(0);
@@ -231,6 +299,27 @@ export default function FieldJobFormModal({
       }
       setTimeError("");
 
+      if (values.merchantAdminId) {
+        const blockInfo = getEmployeeFieldJobBlockInfo(
+          values.merchantAdminId,
+          toLocalDateTimeString(scheduledStart),
+          toLocalDateTimeString(scheduledEnd),
+          dateLeaves,
+          shiftLeaves,
+          existingJobs,
+          { excludeJobId: job?.id },
+        );
+        if (blockInfo) {
+          const employeeName =
+            employees.find((employee) => employee.id === values.merchantAdminId)?.name ||
+            selectedEmployeeName;
+          const message = formatBlockMessage(labels, employeeName, blockInfo);
+          setEmployeeError(message);
+          return;
+        }
+      }
+      setEmployeeError("");
+
       setSubmitting(true);
       await onSubmit({
         storeId: job?.storeId || "",
@@ -262,6 +351,10 @@ export default function FieldJobFormModal({
       destroyOnClose
     >
       <Form form={form} layout="vertical" className="mt-2">
+        {employeeError ? (
+          <Alert type="error" showIcon className="mb-3" message={employeeError} />
+        ) : null}
+
         <div className="grid gap-3 md:grid-cols-2">
           <Form.Item
             name="customerName"
@@ -342,11 +435,12 @@ export default function FieldJobFormModal({
         <Form.Item
           name="merchantAdminId"
           label={String(labels.employee)}
-          extra={
+          validateStatus={employeeError ? "error" : undefined}
+          help={employeeError || (
             <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
               {String(labels.formEmployeeHint)}
             </span>
-          }
+          )}
         >
           <Select
             allowClear

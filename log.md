@@ -199,3 +199,5 @@
 - 涉及：`FieldJobFormModal.tsx`、`FieldJobs.tsx`、`employeeLeave.ts`（`includeEmployeeId`）、`fieldService.ts`（`FieldJobFormSubmitPayload`）、`locales.ts`。
 
 - 外勤员工筛选增加时间冲突规则：若员工已有外勤单与当前时段重叠，或首尾间隔不足 1 小时，则不显示在选择列表（派单与新建/编辑表单均生效）；编辑时排除当前工单自身。
+
+- 外勤工单编辑/新建：修改服务时间后若已选员工请假或与已有外勤单冲突，表单顶部与员工字段显示明确错误提示，并阻止保存（不再静默清空员工或直接报「保存失败」）。
