@@ -1,4 +1,4 @@
-import { Checkbox, DatePicker, Form, Input, InputNumber, Modal, Select } from "antd";
+import { DatePicker, Form, Input, Modal, Select, TimePicker } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useState } from "react";
 import GeoFenceMapPicker from "../GeoFenceMapPicker";
@@ -11,7 +11,9 @@ export interface FieldJobFormValues {
   customerPhone: string;
   serviceAddress: string;
   serviceType: string;
-  scheduledRange: [Dayjs, Dayjs];
+  serviceDate: Dayjs;
+  startTime: Dayjs;
+  endTime: Dayjs;
   latitude: number;
   longitude: number;
   geofenceRadius: number;
@@ -32,10 +34,25 @@ function getServiceTypeOptions(labels: Record<string, unknown>) {
   return Object.entries(types).map(([value, label]) => ({ value, label }));
 }
 
+function toTimeValue(source?: Dayjs | string, fallbackHour = 9, fallbackMinute = 0) {
+  const parsed = source ? dayjs(source) : null;
+  if (!parsed?.isValid()) {
+    return dayjs().hour(fallbackHour).minute(fallbackMinute).second(0).millisecond(0);
+  }
+  return dayjs().hour(parsed.hour()).minute(parsed.minute()).second(0).millisecond(0);
+}
+
+function combineDateAndTime(serviceDate: Dayjs, time: Dayjs) {
+  return serviceDate
+    .hour(time.hour())
+    .minute(time.minute())
+    .second(0)
+    .millisecond(0);
+}
+
 export default function FieldJobFormModal({
   open,
   job,
-  locale,
   labels,
   onCancel,
   onSubmit,
@@ -50,13 +67,18 @@ export default function FieldJobFormModal({
 
   useEffect(() => {
     if (!open) return;
+
     if (job) {
+      const start = dayjs(job.scheduledStart);
+      const end = dayjs(job.scheduledEnd);
       form.setFieldsValue({
         customerName: job.customerName,
         customerPhone: job.customerPhone,
         serviceAddress: job.serviceAddress,
         serviceType: job.serviceType || "cleaning",
-        scheduledRange: [dayjs(job.scheduledStart), dayjs(job.scheduledEnd)],
+        serviceDate: start.startOf("day"),
+        startTime: toTimeValue(start),
+        endTime: toTimeValue(end, 11, 0),
         latitude: job.latitude,
         longitude: job.longitude,
         geofenceRadius: job.geofenceRadius,
@@ -71,12 +93,12 @@ export default function FieldJobFormModal({
     }
 
     form.resetFields();
+    const today = dayjs().startOf("day");
     form.setFieldsValue({
       serviceType: "cleaning",
-      scheduledRange: [
-        dayjs().hour(9).minute(0).second(0),
-        dayjs().hour(11).minute(0).second(0),
-      ],
+      serviceDate: today,
+      startTime: toTimeValue(undefined, 9, 0),
+      endTime: toTimeValue(undefined, 11, 0),
       geofenceRadius: 100,
     });
     setGeo({ latitude: -36.8485, longitude: 174.7633, geofenceRadius: 100 });
@@ -85,8 +107,20 @@ export default function FieldJobFormModal({
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
+      const scheduledStart = combineDateAndTime(values.serviceDate, values.startTime);
+      const scheduledEnd = combineDateAndTime(values.serviceDate, values.endTime);
+
+      if (!scheduledEnd.isAfter(scheduledStart)) {
+        form.setFields([
+          {
+            name: "endTime",
+            errors: [String(labels.endTimeInvalid)],
+          },
+        ]);
+        return;
+      }
+
       setSubmitting(true);
-      const [start, end] = values.scheduledRange;
       await onSubmit({
         storeId: job?.storeId || "",
         customerName: values.customerName.trim(),
@@ -95,8 +129,8 @@ export default function FieldJobFormModal({
         latitude: geo.latitude,
         longitude: geo.longitude,
         geofenceRadius: geo.geofenceRadius,
-        scheduledStart: start.toISOString(),
-        scheduledEnd: end.toISOString(),
+        scheduledStart: scheduledStart.toISOString(),
+        scheduledEnd: scheduledEnd.toISOString(),
         serviceType: values.serviceType,
         notes: values.notes?.trim() || undefined,
       });
@@ -134,12 +168,7 @@ export default function FieldJobFormModal({
           label={String(labels.serviceAddress)}
           rules={[{ required: true, message: String(labels.addressRequired) }]}
         >
-          <Input
-            onChange={(event) => {
-              const value = event.target.value;
-              form.setFieldValue("serviceAddress", value);
-            }}
-          />
+          <Input />
         </Form.Item>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -147,15 +176,28 @@ export default function FieldJobFormModal({
             <Select options={getServiceTypeOptions(labels)} />
           </Form.Item>
           <Form.Item
-            name="scheduledRange"
-            label={`${String(labels.scheduledStart)} - ${String(labels.scheduledEnd)}`}
+            name="serviceDate"
+            label={String(labels.serviceDate)}
+            rules={[{ required: true, message: String(labels.dateRequired) }]}
+          >
+            <DatePicker className="w-full" format="YYYY-MM-DD" />
+          </Form.Item>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <Form.Item
+            name="startTime"
+            label={String(labels.scheduledStart)}
             rules={[{ required: true, message: String(labels.timeRequired) }]}
           >
-            <DatePicker.RangePicker
-              showTime={{ format: "HH:mm" }}
-              format="YYYY-MM-DD HH:mm"
-              className="w-full"
-            />
+            <TimePicker className="w-full" format="HH:mm" minuteStep={5} needConfirm={false} />
+          </Form.Item>
+          <Form.Item
+            name="endTime"
+            label={String(labels.scheduledEnd)}
+            rules={[{ required: true, message: String(labels.timeRequired) }]}
+          >
+            <TimePicker className="w-full" format="HH:mm" minuteStep={5} needConfirm={false} />
           </Form.Item>
         </div>
 
