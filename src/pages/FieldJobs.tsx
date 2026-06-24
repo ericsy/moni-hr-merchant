@@ -11,6 +11,7 @@ import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { filterLeavesForStore } from "../lib/employeeLeave";
+import { getWeekStart } from "../lib/fieldJobSchedule";
 import { merchantApi } from "../lib/merchantApi";
 import type { FieldJobStatus, FieldJobUpsertPayload, FieldServiceJob } from "../types/fieldService";
 
@@ -45,7 +46,7 @@ export default function FieldJobs() {
   const [status, setStatus] = useState<FieldJobStatus | "">("");
   const [viewMode, setViewMode] = useState<FieldJobViewMode>("list");
   const [selectedDate, setSelectedDate] = useState<Dayjs>(() => dayjs().startOf("day"));
-  const [calendarMonth, setCalendarMonth] = useState<Dayjs>(() => dayjs().startOf("month"));
+  const [weekStart, setWeekStart] = useState<Dayjs>(() => dayjs().startOf("isoWeek"));
   const [formOpen, setFormOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<FieldServiceJob | null>(null);
@@ -101,16 +102,15 @@ export default function FieldJobs() {
 
     try {
       setLoading(true);
-      const monthStart = calendarMonth.startOf("month");
-      const monthEnd = calendarMonth.endOf("month");
+      const weekEnd = weekStart.add(6, "day");
       const items = await merchantApi.listFieldJobs(selectedStoreId, {
         storeId: selectedStoreId,
         status,
         q: search.trim() || undefined,
         ...(viewMode === "calendar"
           ? {
-              from: monthStart.format("YYYY-MM-DD"),
-              to: monthEnd.format("YYYY-MM-DD"),
+              from: weekStart.format("YYYY-MM-DD"),
+              to: weekEnd.format("YYYY-MM-DD"),
               size: 200,
             }
           : {
@@ -126,7 +126,7 @@ export default function FieldJobs() {
     } finally {
       setLoading(false);
     }
-  }, [calendarMonth, labels.loadFailed, search, selectedStoreId, status, viewMode]);
+  }, [labels.loadFailed, search, selectedStoreId, status, viewMode, weekStart]);
 
   const loadEmployees = useCallback(async () => {
     if (!selectedStoreId) {
@@ -160,10 +160,15 @@ export default function FieldJobs() {
   const handleSelectedDateChange = useCallback((date: Dayjs) => {
     const nextDate = date.startOf("day");
     setSelectedDate(nextDate);
-    if (!nextDate.isSame(calendarMonth, "month")) {
-      setCalendarMonth(nextDate.startOf("month"));
+    const nextWeekStart = getWeekStart(nextDate);
+    if (!nextWeekStart.isSame(weekStart, "day")) {
+      setWeekStart(nextWeekStart);
     }
-  }, [calendarMonth]);
+  }, [weekStart]);
+
+  const handleWeekChange = useCallback((nextWeekStart: Dayjs) => {
+    setWeekStart(getWeekStart(nextWeekStart));
+  }, []);
 
   const handleCreate = () => {
     if (!selectedStoreId) {
@@ -397,14 +402,14 @@ export default function FieldJobs() {
           jobs={jobs}
           loading={loading}
           selectedDate={selectedDate}
-          calendarMonth={calendarMonth}
+          weekStart={weekStart}
           locale={locale}
           labels={labels as unknown as Record<string, unknown>}
           statusColors={STATUS_COLORS}
           statusLabel={statusLabel}
           serviceTypeLabel={serviceTypeLabel}
           onSelectedDateChange={handleSelectedDateChange}
-          onCalendarMonthChange={setCalendarMonth}
+          onWeekChange={handleWeekChange}
           onEdit={handleEdit}
           onAssign={handleAssign}
           onCancel={handleCancel}

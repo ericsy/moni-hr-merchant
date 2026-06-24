@@ -1,9 +1,21 @@
 import dayjs, { type Dayjs } from "dayjs";
+import isoWeek from "dayjs/plugin/isoWeek";
 import type { FieldServiceJob } from "../types/fieldService";
+
+dayjs.extend(isoWeek);
 
 export function getFieldJobDateKey(job: Pick<FieldServiceJob, "scheduledStart">) {
   const parsed = dayjs(job.scheduledStart);
   return parsed.isValid() ? parsed.format("YYYY-MM-DD") : "";
+}
+
+export function getWeekStart(date: Dayjs) {
+  return date.startOf("isoWeek");
+}
+
+export function getWeekDates(weekStart: Dayjs) {
+  const start = getWeekStart(weekStart);
+  return Array.from({ length: 7 }, (_, index) => start.add(index, "day"));
 }
 
 export function filterJobsOnDate(jobs: FieldServiceJob[], date: Dayjs) {
