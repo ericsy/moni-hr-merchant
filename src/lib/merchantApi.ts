@@ -1837,6 +1837,8 @@ function mapApiFieldJobAssignPreview(input: unknown): FieldJobAssignPreview {
 }
 
 function fieldJobToApiPayload(payload: Partial<FieldJobUpsertPayload>) {
+  const scheduledStart = payload.scheduledStart;
+  const scheduledEnd = payload.scheduledEnd;
   return compactDeep({
     storeId: payload.storeId,
     customerName: payload.customerName,
@@ -1845,9 +1847,12 @@ function fieldJobToApiPayload(payload: Partial<FieldJobUpsertPayload>) {
     latitude: payload.latitude,
     longitude: payload.longitude,
     geofenceRadius: payload.geofenceRadius,
-    scheduledStart: payload.scheduledStart,
-    scheduledEnd: payload.scheduledEnd,
+    scheduledStart,
+    scheduledEnd,
+    scheduled_start: scheduledStart,
+    scheduled_end: scheduledEnd,
     serviceType: payload.serviceType,
+    service_type: payload.serviceType,
     notes: payload.notes,
   });
 }

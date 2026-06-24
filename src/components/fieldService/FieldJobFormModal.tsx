@@ -16,8 +16,6 @@ export interface FieldJobFormValues {
   serviceAddress: string;
   serviceType: string;
   serviceDate: Dayjs;
-  startTime: string;
-  endTime: string;
   latitude: number;
   longitude: number;
   geofenceRadius: number;
@@ -65,6 +63,18 @@ function combineDateAndTime(serviceDate: Dayjs, time: Dayjs | string) {
     .millisecond(0);
 }
 
+function toLocalDateTimeString(value: Dayjs) {
+  return value.format("YYYY-MM-DDTHH:mm:ss");
+}
+
+function applyTimeChange(
+  time: Dayjs | Dayjs[] | null,
+  onChange: (next: string) => void,
+) {
+  if (!time || Array.isArray(time) || !time.isValid()) return;
+  onChange(time.format("HH:mm"));
+}
+
 export default function FieldJobFormModal({
   open,
   job,
@@ -74,6 +84,9 @@ export default function FieldJobFormModal({
 }: FieldJobFormModalProps) {
   const [form] = Form.useForm<FieldJobFormValues>();
   const [submitting, setSubmitting] = useState(false);
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("11:00");
+  const [timeError, setTimeError] = useState("");
   const [locateNow, setLocateNow] = useState(0);
   const [preservedGeocodeAddress, setPreservedGeocodeAddress] = useState("");
   const serviceAddress = Form.useWatch("serviceAddress", form);
@@ -95,13 +108,14 @@ export default function FieldJobFormModal({
         serviceAddress: job.serviceAddress,
         serviceType: job.serviceType || "cleaning",
         serviceDate: start.startOf("day"),
-        startTime: toTimeString(start),
-        endTime: toTimeString(end, 11, 0),
         latitude: job.latitude,
         longitude: job.longitude,
         geofenceRadius: job.geofenceRadius,
         notes: job.notes,
       });
+      setStartTime(toTimeString(start));
+      setEndTime(toTimeString(end, 11, 0));
+      setTimeError("");
       setGeo({
         latitude: job.latitude,
         longitude: job.longitude,
@@ -117,10 +131,11 @@ export default function FieldJobFormModal({
     form.setFieldsValue({
       serviceType: "cleaning",
       serviceDate: today,
-      startTime: "09:00",
-      endTime: "11:00",
       geofenceRadius: 100,
     });
+    setStartTime("09:00");
+    setEndTime("11:00");
+    setTimeError("");
     setGeo({ latitude: -36.8485, longitude: 174.7633, geofenceRadius: 100 });
     setPreservedGeocodeAddress("");
     setLocateNow(0);
@@ -158,18 +173,14 @@ export default function FieldJobFormModal({
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
-      const scheduledStart = combineDateAndTime(values.serviceDate, values.startTime);
-      const scheduledEnd = combineDateAndTime(values.serviceDate, values.endTime);
+      const scheduledStart = combineDateAndTime(values.serviceDate, startTime);
+      const scheduledEnd = combineDateAndTime(values.serviceDate, endTime);
 
       if (!scheduledEnd.isAfter(scheduledStart)) {
-        form.setFields([
-          {
-            name: "endTime",
-            errors: [String(labels.endTimeInvalid)],
-          },
-        ]);
+        setTimeError(String(labels.endTimeInvalid));
         return;
       }
+      setTimeError("");
 
       setSubmitting(true);
       await onSubmit({
@@ -180,8 +191,8 @@ export default function FieldJobFormModal({
         latitude: geo.latitude,
         longitude: geo.longitude,
         geofenceRadius: geo.geofenceRadius,
-        scheduledStart: scheduledStart.toISOString(),
-        scheduledEnd: scheduledEnd.toISOString(),
+        scheduledStart: toLocalDateTimeString(scheduledStart),
+        scheduledEnd: toLocalDateTimeString(scheduledEnd),
         serviceType: values.serviceType,
         notes: values.notes?.trim() || undefined,
       });
@@ -246,30 +257,35 @@ export default function FieldJobFormModal({
 
         <div className="grid gap-3 md:grid-cols-2">
           <Form.Item
-            name="startTime"
             label={String(labels.scheduledStart)}
-            rules={[{ required: true, message: String(labels.timeRequired) }]}
-            getValueProps={(value: string) => ({
-              value: timeValue(value, "09:00"),
-            })}
-            getValueFromEvent={(time: Dayjs | null) =>
-              time?.isValid() ? time.format("HH:mm") : ""
-            }
+            required
+            validateStatus={timeError ? "error" : undefined}
           >
-            <TimePicker className="w-full" format="HH:mm" minuteStep={5} needConfirm={false} />
+            <TimePicker
+              className="w-full"
+              format="HH:mm"
+              minuteStep={5}
+              value={timeValue(startTime, "09:00")}
+              onChange={(time) => applyTimeChange(time, setStartTime)}
+              onCalendarChange={(time) => applyTimeChange(time, setStartTime)}
+              onOk={(time) => applyTimeChange(time, setStartTime)}
+            />
           </Form.Item>
           <Form.Item
-            name="endTime"
             label={String(labels.scheduledEnd)}
-            rules={[{ required: true, message: String(labels.timeRequired) }]}
-            getValueProps={(value: string) => ({
-              value: timeValue(value, "11:00"),
-            })}
-            getValueFromEvent={(time: Dayjs | null) =>
-              time?.isValid() ? time.format("HH:mm") : ""
-            }
+            required
+            validateStatus={timeError ? "error" : undefined}
+            help={timeError || undefined}
           >
-            <TimePicker className="w-full" format="HH:mm" minuteStep={5} needConfirm={false} />
+            <TimePicker
+              className="w-full"
+              format="HH:mm"
+              minuteStep={5}
+              value={timeValue(endTime, "11:00")}
+              onChange={(time) => applyTimeChange(time, setEndTime)}
+              onCalendarChange={(time) => applyTimeChange(time, setEndTime)}
+              onOk={(time) => applyTimeChange(time, setEndTime)}
+            />
           </Form.Item>
         </div>
 
