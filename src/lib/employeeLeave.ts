@@ -1,6 +1,9 @@
 import dayjs, { type Dayjs } from "dayjs";
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "./merchantApi";
 import { intervalsOverlap } from "./fieldServiceAssign";
+import type { FieldServiceJob } from "../types/fieldService";
+
+export const FIELD_JOB_MIN_GAP_MINUTES = 60;
 
 function normalizeTime(value: string) {
   return (value || "").trim().slice(0, 5);
@@ -82,6 +85,58 @@ export function isEmployeeOnLeaveForWindow(
   return false;
 }
 
+function isActiveAssignedFieldJob(job: FieldServiceJob) {
+  if (job.status === "cancelled" || job.status === "completed") return false;
+  return Boolean(job.assignment?.merchantAdminId);
+}
+
+/** 两段时间重叠，或首尾间隔不足 minGapMinutes 分钟，视为冲突 */
+export function fieldJobTimeWindowsConflict(
+  startA: Dayjs,
+  endA: Dayjs,
+  startB: Dayjs,
+  endB: Dayjs,
+  minGapMinutes = FIELD_JOB_MIN_GAP_MINUTES,
+) {
+  if (intervalsOverlap(startA, endA, startB, endB)) return true;
+
+  if (startB.isAfter(endA) || startB.isSame(endA)) {
+    return startB.diff(endA, "minute", true) < minGapMinutes;
+  }
+  if (startA.isAfter(endB) || startA.isSame(endB)) {
+    return startA.diff(endB, "minute", true) < minGapMinutes;
+  }
+
+  return true;
+}
+
+export function isEmployeeConflictingWithFieldJobs(
+  employeeId: string,
+  windowStart: Dayjs,
+  windowEnd: Dayjs,
+  existingJobs: FieldServiceJob[],
+  options?: { excludeJobId?: string },
+) {
+  const empId = String(employeeId);
+  const excludeJobId = options?.excludeJobId;
+
+  for (const job of existingJobs) {
+    if (excludeJobId && job.id === excludeJobId) continue;
+    if (!isActiveAssignedFieldJob(job)) continue;
+    if (String(job.assignment?.merchantAdminId) !== empId) continue;
+
+    const jobStart = dayjs(job.scheduledStart);
+    const jobEnd = dayjs(job.scheduledEnd);
+    if (!jobStart.isValid() || !jobEnd.isValid()) continue;
+
+    if (fieldJobTimeWindowsConflict(windowStart, windowEnd, jobStart, jobEnd)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function filterLeavesForStore<T extends { storeId?: string | number | null }>(
   leaves: T[],
   storeId: string,
@@ -96,22 +151,45 @@ export function filterEmployeesAvailableForFieldJob(
   scheduledEnd: string,
   dateLeaves: EmployeeDateLeave[],
   shiftLeaves: EmployeeShiftLeave[],
-  options?: { includeEmployeeId?: string },
+  options?: {
+    includeEmployeeId?: string;
+    existingJobs?: FieldServiceJob[];
+    excludeJobId?: string;
+  },
 ) {
   const windowStart = dayjs(scheduledStart);
   const windowEnd = dayjs(scheduledEnd);
   if (!windowStart.isValid() || !windowEnd.isValid()) return employees;
 
-  const available = employees.filter(
-    (employee) =>
-      !isEmployeeOnLeaveForWindow(
+  const existingJobs = options?.existingJobs ?? [];
+
+  const available = employees.filter((employee) => {
+    if (
+      isEmployeeOnLeaveForWindow(
         employee.id,
         windowStart,
         windowEnd,
         dateLeaves,
         shiftLeaves,
-      ),
-  );
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      isEmployeeConflictingWithFieldJobs(
+        employee.id,
+        windowStart,
+        windowEnd,
+        existingJobs,
+        { excludeJobId: options?.excludeJobId },
+      )
+    ) {
+      return false;
+    }
+
+    return true;
+  });
 
   const includeId = options?.includeEmployeeId;
   if (!includeId || available.some((employee) => employee.id === includeId)) {

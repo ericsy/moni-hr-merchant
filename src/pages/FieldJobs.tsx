@@ -434,6 +434,7 @@ export default function FieldJobs() {
         employees={employees}
         dateLeaves={dateLeavesForStore}
         shiftLeaves={shiftLeavesForStore}
+        existingJobs={allJobs}
         locale={locale}
         labels={labels as unknown as Record<string, unknown>}
         onCancel={() => {
@@ -451,6 +452,7 @@ export default function FieldJobs() {
         employees={employees}
         dateLeaves={dateLeavesForStore}
         shiftLeaves={shiftLeavesForStore}
+        existingJobs={allJobs}
         scheduleShifts={scheduleShifts.filter((shift) => shift.storeId === selectedStoreId)}
         locale={locale}
         labels={labels as unknown as Record<string, unknown>}

@@ -31,6 +31,7 @@ interface FieldJobFormModalProps {
   employees: Array<{ id: string; name: string }>;
   dateLeaves: EmployeeDateLeave[];
   shiftLeaves: EmployeeShiftLeave[];
+  existingJobs: FieldServiceJob[];
   locale: "zh" | "en";
   labels: Record<string, unknown>;
   onCancel: () => void;
@@ -87,6 +88,7 @@ export default function FieldJobFormModal({
   employees,
   dateLeaves,
   shiftLeaves,
+  existingJobs,
   labels,
   onCancel,
   onSubmit,
@@ -127,9 +129,13 @@ export default function FieldJobFormModal({
       scheduledWindow.scheduledEnd,
       dateLeaves,
       shiftLeaves,
-      { includeEmployeeId: job?.assignment?.merchantAdminId },
+      {
+        includeEmployeeId: job?.assignment?.merchantAdminId,
+        existingJobs,
+        excludeJobId: job?.id,
+      },
     );
-  }, [dateLeaves, employees, job?.assignment?.merchantAdminId, scheduledWindow, shiftLeaves]);
+  }, [dateLeaves, employees, existingJobs, job?.assignment?.merchantAdminId, job?.id, scheduledWindow, shiftLeaves]);
 
   useEffect(() => {
     if (!open || !selectedEmployeeId) return;

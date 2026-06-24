@@ -197,3 +197,5 @@
 - 外勤工单新建/编辑表单支持选择服务人员：与派单一致，按服务时段过滤请假员工（不显示在下拉框）；编辑时已分配员工若请假仍保留显示。
 - 保存时若选择了员工，创建/更新后自动调用派单接口，工单状态变为「已分配」。
 - 涉及：`FieldJobFormModal.tsx`、`FieldJobs.tsx`、`employeeLeave.ts`（`includeEmployeeId`）、`fieldService.ts`（`FieldJobFormSubmitPayload`）、`locales.ts`。
+
+- 外勤员工筛选增加时间冲突规则：若员工已有外勤单与当前时段重叠，或首尾间隔不足 1 小时，则不显示在选择列表（派单与新建/编辑表单均生效）；编辑时排除当前工单自身。

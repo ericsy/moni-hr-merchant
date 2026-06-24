@@ -25,6 +25,7 @@ interface FieldJobAssignModalProps {
   employees: EmployeeOption[];
   dateLeaves: EmployeeDateLeave[];
   shiftLeaves: EmployeeShiftLeave[];
+  existingJobs: FieldServiceJob[];
   scheduleShifts: ScheduleShift[];
   locale: "zh" | "en";
   labels: Record<string, unknown>;
@@ -44,6 +45,7 @@ export default function FieldJobAssignModal({
   employees,
   dateLeaves,
   shiftLeaves,
+  existingJobs,
   scheduleShifts,
   locale,
   labels,
@@ -80,8 +82,9 @@ export default function FieldJobAssignModal({
       job.scheduledEnd,
       dateLeaves,
       shiftLeaves,
+      { existingJobs, excludeJobId: job.id },
     );
-  }, [dateLeaves, employees, job, shiftLeaves]);
+  }, [dateLeaves, employees, existingJobs, job, shiftLeaves]);
 
   useEffect(() => {
     if (!employeeId) return;
