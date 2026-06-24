@@ -34,3 +34,13 @@ export function countFieldJobsByDate(jobs: FieldServiceJob[]) {
   }
   return map;
 }
+
+export function filterJobsInWeek(jobs: FieldServiceJob[], weekStart: Dayjs) {
+  const start = getWeekStart(weekStart);
+  const end = start.add(6, "day");
+  return jobs.filter((job) => {
+    const date = dayjs(job.scheduledStart);
+    if (!date.isValid()) return false;
+    return !date.isBefore(start, "day") && !date.isAfter(end, "day");
+  });
+}

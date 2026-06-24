@@ -11,7 +11,7 @@ import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { filterLeavesForStore } from "../lib/employeeLeave";
-import { getWeekStart } from "../lib/fieldJobSchedule";
+import { filterJobsInWeek, getWeekStart } from "../lib/fieldJobSchedule";
 import { merchantApi } from "../lib/merchantApi";
 import type { FieldJobStatus, FieldJobUpsertPayload, FieldServiceJob } from "../types/fieldService";
 
@@ -40,7 +40,7 @@ export default function FieldJobs() {
     [employeeShiftLeaves, selectedStoreId],
   );
 
-  const [jobs, setJobs] = useState<FieldServiceJob[]>([]);
+  const [allJobs, setAllJobs] = useState<FieldServiceJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<FieldJobStatus | "">("");
@@ -94,39 +94,37 @@ export default function FieldJobs() {
     [labels.serviceTypes],
   );
 
+  const jobs = useMemo(() => {
+    if (viewMode === "calendar") {
+      return filterJobsInWeek(allJobs, weekStart);
+    }
+    return allJobs;
+  }, [allJobs, viewMode, weekStart]);
+
   const loadJobs = useCallback(async () => {
     if (!selectedStoreId) {
-      setJobs([]);
+      setAllJobs([]);
       return;
     }
 
     try {
       setLoading(true);
-      const weekEnd = weekStart.add(6, "day");
       const items = await merchantApi.listFieldJobs(selectedStoreId, {
         storeId: selectedStoreId,
         status,
         q: search.trim() || undefined,
-        ...(viewMode === "calendar"
-          ? {
-              from: weekStart.format("YYYY-MM-DD"),
-              to: weekEnd.format("YYYY-MM-DD"),
-              size: 200,
-            }
-          : {
-              page: 1,
-              size: 50,
-            }),
+        page: 1,
+        size: viewMode === "calendar" ? 200 : 50,
       });
-      setJobs(items);
+      setAllJobs(items);
     } catch (error) {
       console.log("[FieldJobs] load failed:", error);
       toast.error(labels.loadFailed);
-      setJobs([]);
+      setAllJobs([]);
     } finally {
       setLoading(false);
     }
-  }, [labels.loadFailed, search, selectedStoreId, status, viewMode, weekStart]);
+  }, [labels.loadFailed, search, selectedStoreId, status, viewMode]);
 
   const loadEmployees = useCallback(async () => {
     if (!selectedStoreId) {
