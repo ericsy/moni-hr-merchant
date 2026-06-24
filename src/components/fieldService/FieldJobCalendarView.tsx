@@ -78,13 +78,70 @@ export default function FieldJobCalendarView({
         className="rounded-xl border p-4"
         style={{ borderColor: "var(--border)", background: "var(--card)" }}
       >
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-            {weekRangeLabel}
+        <div className="mb-3 text-sm font-medium" style={{ color: "var(--foreground)" }}>
+          {weekRangeLabel}
+        </div>
+
+        <div className="flex items-stretch gap-3">
+          <div className="grid min-w-0 flex-1 grid-cols-7 gap-2">
+            {weekDates.map((date, index) => {
+              const dateKey = date.format("YYYY-MM-DD");
+              const count = jobCountByDate.get(dateKey) || 0;
+              const isSelected = date.isSame(selectedDate, "day");
+              const isToday = date.isSame(dayjs(), "day");
+
+              return (
+                <button
+                  key={dateKey}
+                  type="button"
+                  onClick={() => onSelectedDateChange(date.startOf("day"))}
+                  className="flex min-w-0 flex-col items-center rounded-xl border px-1 py-3 transition-colors"
+                  style={{
+                    borderColor: isSelected ? "var(--primary)" : "var(--border)",
+                    background: isSelected ? "var(--secondary)" : "var(--background)",
+                    color: "var(--foreground)",
+                  }}
+                >
+                  <span
+                    className="text-xs"
+                    style={{ color: isSelected ? "var(--primary)" : "var(--muted-foreground)" }}
+                  >
+                    {weekdayLabels[index]}
+                  </span>
+                  <span
+                    className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-base font-semibold"
+                    style={{
+                      background: isToday ? "var(--primary)" : "transparent",
+                      color: isToday ? "var(--primary-foreground)" : "var(--foreground)",
+                    }}
+                  >
+                    {date.date()}
+                  </span>
+                  <span
+                    className="mt-1 min-h-4 text-[11px] leading-4"
+                    style={{ color: isSelected ? "var(--primary)" : "var(--muted-foreground)" }}
+                  >
+                    {count > 0
+                      ? String(labels.calendarJobCount).replace("{count}", String(count))
+                      : " "}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Button size="small" icon={<ChevronLeft size={14} />} onClick={() => shiftWeek(-1)} />
+
+          <div
+            className="flex shrink-0 flex-col gap-2"
+            style={{ width: 72 }}
+          >
             <Button
+              block
+              size="small"
+              icon={<ChevronLeft size={14} />}
+              onClick={() => shiftWeek(-1)}
+            />
+            <Button
+              block
               size="small"
               onClick={() => {
                 const today = dayjs().startOf("day");
@@ -94,55 +151,13 @@ export default function FieldJobCalendarView({
             >
               {String(labels.today)}
             </Button>
-            <Button size="small" icon={<ChevronRight size={14} />} onClick={() => shiftWeek(1)} />
+            <Button
+              block
+              size="small"
+              icon={<ChevronRight size={14} />}
+              onClick={() => shiftWeek(1)}
+            />
           </div>
-        </div>
-
-        <div className="grid grid-cols-7 gap-2">
-          {weekDates.map((date, index) => {
-            const dateKey = date.format("YYYY-MM-DD");
-            const count = jobCountByDate.get(dateKey) || 0;
-            const isSelected = date.isSame(selectedDate, "day");
-            const isToday = date.isSame(dayjs(), "day");
-
-            return (
-              <button
-                key={dateKey}
-                type="button"
-                onClick={() => onSelectedDateChange(date.startOf("day"))}
-                className="flex min-w-0 flex-col items-center rounded-xl border px-1 py-3 transition-colors"
-                style={{
-                  borderColor: isSelected ? "var(--primary)" : "var(--border)",
-                  background: isSelected ? "var(--secondary)" : "var(--background)",
-                  color: "var(--foreground)",
-                }}
-              >
-                <span
-                  className="text-xs"
-                  style={{ color: isSelected ? "var(--primary)" : "var(--muted-foreground)" }}
-                >
-                  {weekdayLabels[index]}
-                </span>
-                <span
-                  className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-base font-semibold"
-                  style={{
-                    background: isToday ? "var(--primary)" : "transparent",
-                    color: isToday ? "var(--primary-foreground)" : "var(--foreground)",
-                  }}
-                >
-                  {date.date()}
-                </span>
-                <span
-                  className="mt-1 min-h-4 text-[11px] leading-4"
-                  style={{ color: isSelected ? "var(--primary)" : "var(--muted-foreground)" }}
-                >
-                  {count > 0
-                    ? String(labels.calendarJobCount).replace("{count}", String(count))
-                    : " "}
-                </span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
