@@ -13,6 +13,14 @@ import type {
     TimeSlot,
     WorkDayPattern,
 } from "../context/DataContext";
+import type {
+  FieldJobAssignPayload,
+  FieldJobAssignPreview,
+  FieldJobListParams,
+  FieldJobUpsertPayload,
+  FieldServiceJob,
+  FieldServiceJobAssignment,
+} from "../types/fieldService";
 import { apiRequest, apiRequestBlob } from "./apiClient";
 
 export interface MerchantLoginResult {
@@ -1754,6 +1762,96 @@ export function mapApiRosterTemplate(input: unknown): RosterTemplate {
   };
 }
 
+function mapApiFieldJobAssignment(input: unknown): FieldServiceJobAssignment | null {
+  const raw = asRecord(input);
+  if (!raw.id && !raw.jobId && !raw.merchantAdminId) return null;
+  return {
+    id: asString(raw.id) || undefined,
+    jobId: asString(raw.jobId || raw.job_id),
+    merchantAdminId: asString(raw.merchantAdminId || raw.merchant_admin_id),
+    employeeName: asString(raw.employeeName || raw.employee_name) || undefined,
+    linkedStoreShiftId: asString(raw.linkedStoreShiftId || raw.linked_store_shift_id) || null,
+    syncStoreClockIn: raw.syncStoreClockIn === true || raw.sync_store_clock_in === true,
+    syncStoreClockOut: raw.syncStoreClockOut === true || raw.sync_store_clock_out === true,
+    assignedAt: asString(raw.assignedAt || raw.assigned_at) || undefined,
+    assignedBy: asString(raw.assignedBy || raw.assigned_by) || undefined,
+  };
+}
+
+function mapApiFieldJob(input: unknown): FieldServiceJob {
+  const raw = asRecord(input);
+  const assignmentRaw = raw.assignment ?? raw.assignments;
+  const assignment = Array.isArray(assignmentRaw)
+    ? mapApiFieldJobAssignment(assignmentRaw[0])
+    : mapApiFieldJobAssignment(assignmentRaw);
+
+  return {
+    id: asString(raw.id),
+    merchantId: asString(raw.merchantId || raw.merchant_id) || undefined,
+    storeId: asString(raw.storeId || raw.store_id),
+    storeName: asString(raw.storeName || raw.store_name) || undefined,
+    customerName: asString(raw.customerName || raw.customer_name),
+    customerPhone: asString(raw.customerPhone || raw.customer_phone),
+    serviceAddress: asString(raw.serviceAddress || raw.service_address),
+    latitude: asNumber(raw.latitude),
+    longitude: asNumber(raw.longitude),
+    geofenceRadius: asNumber(raw.geofenceRadius ?? raw.geofence_radius, 100),
+    scheduledStart: asString(raw.scheduledStart || raw.scheduled_start),
+    scheduledEnd: asString(raw.scheduledEnd || raw.scheduled_end),
+    serviceType: asString(raw.serviceType || raw.service_type),
+    status: (asString(raw.status, "pending") as FieldServiceJob["status"]),
+    notes: asString(raw.notes) || undefined,
+    assignment,
+    createdAt: asString(raw.createdAt || raw.created_at) || undefined,
+    updatedAt: asString(raw.updatedAt || raw.updated_at) || undefined,
+  };
+}
+
+function mapApiFieldJobAssignPreview(input: unknown): FieldJobAssignPreview {
+  const raw = asRecord(input);
+  const shiftRaw = asRecord(raw.storeShift || raw.store_shift);
+  const hasStoreShift = raw.hasStoreShift === true || raw.has_store_shift === true || !!shiftRaw.id;
+  const storeShift = hasStoreShift && shiftRaw.id
+    ? {
+        id: asString(shiftRaw.id),
+        storeId: asString(shiftRaw.storeId || shiftRaw.store_id),
+        storeName: asString(shiftRaw.storeName || shiftRaw.store_name),
+        date: asString(shiftRaw.date),
+        start: asString(shiftRaw.start),
+        end: asString(shiftRaw.end),
+        startTime: asString(shiftRaw.startTime || shiftRaw.start_time),
+        endTime: asString(shiftRaw.endTime || shiftRaw.end_time),
+      }
+    : null;
+
+  return {
+    hasStoreShift,
+    storeShift,
+    overlap: raw.overlap === true,
+    suggestedSyncStoreClockIn:
+      raw.suggestedSyncStoreClockIn === true || raw.suggested_sync_store_clock_in === true,
+    suggestedSyncStoreClockOut:
+      raw.suggestedSyncStoreClockOut === true || raw.suggested_sync_store_clock_out === true,
+    validationWarnings: asArray(raw.validationWarnings || raw.validation_warnings).map((item) => asString(item)).filter(Boolean),
+  };
+}
+
+function fieldJobToApiPayload(payload: Partial<FieldJobUpsertPayload>) {
+  return compactDeep({
+    storeId: payload.storeId,
+    customerName: payload.customerName,
+    customerPhone: payload.customerPhone,
+    serviceAddress: payload.serviceAddress,
+    latitude: payload.latitude,
+    longitude: payload.longitude,
+    geofenceRadius: payload.geofenceRadius,
+    scheduledStart: payload.scheduledStart,
+    scheduledEnd: payload.scheduledEnd,
+    serviceType: payload.serviceType,
+    notes: payload.notes,
+  });
+}
+
 export const merchantApi = {
   login: (email: string, password: string) =>
     apiRequest<MerchantLoginResult>("/api/v1/merchant/auth/login", {
@@ -2203,6 +2301,70 @@ export const merchantApi = {
       body: clockQueryPayload(params),
     });
     return mapClockPunchesDay(data);
+  },
+  listFieldJobs: async (storeId: string | undefined, params: FieldJobListParams = {}) => {
+    const data = await apiRequest<{ items?: unknown[] }>(getMerchantEndpoint("fieldJobs"), {
+      storeId: storeId || undefined,
+      query: compactDeep({
+        storeId: params.storeId,
+        status: params.status || undefined,
+        from: params.from,
+        to: params.to,
+        q: params.q,
+        page: params.page || 1,
+        size: params.size || 50,
+      }),
+    });
+    return (data?.items || []).map(mapApiFieldJob);
+  },
+  createFieldJob: async (storeId: string, payload: FieldJobUpsertPayload) => {
+    const data = await apiRequest<unknown>(getMerchantEndpoint("fieldJobs"), {
+      method: "POST",
+      storeId,
+      body: fieldJobToApiPayload(payload),
+    });
+    return mapApiFieldJob(data);
+  },
+  updateFieldJob: async (storeId: string, id: string, payload: Partial<FieldJobUpsertPayload>) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("fieldJobs"), id), {
+      method: "PATCH",
+      storeId,
+      body: fieldJobToApiPayload(payload),
+    });
+    return mapApiFieldJob(data);
+  },
+  cancelFieldJob: async (storeId: string, id: string) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("fieldJobs"), id, "cancel"), {
+      method: "POST",
+      storeId,
+    });
+    return mapApiFieldJob(data);
+  },
+  getFieldJobAssignPreview: async (
+    storeId: string,
+    jobId: string,
+    merchantAdminId: string,
+  ) => {
+    const data = await apiRequest<unknown>(
+      appendEndpointPath(getMerchantEndpoint("fieldJobs"), "assign-preview"),
+      {
+        storeId,
+        query: { jobId, merchantAdminId },
+      },
+    );
+    return mapApiFieldJobAssignPreview(data);
+  },
+  assignFieldJob: async (storeId: string, jobId: string, payload: FieldJobAssignPayload) => {
+    const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("fieldJobs"), jobId, "assign"), {
+      method: "POST",
+      storeId,
+      body: {
+        merchantAdminId: payload.merchantAdminId,
+        syncStoreClockIn: payload.syncStoreClockIn,
+        syncStoreClockOut: payload.syncStoreClockOut,
+      },
+    });
+    return mapApiFieldJob(data);
   },
   uploadEmployeeContract: (file: File) =>
     uploadMerchantFile("/api/v1/merchant/uploads/employee-contract", file),

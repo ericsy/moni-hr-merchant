@@ -1,3 +1,7 @@
+## 2026-06-24
+
+- 更新 `src/lib/employeeApi.ts`：员工外勤接口路径从 `/api/v1/employee/today-work-summary`、`/api/v1/employee/punch` 对齐为 `/api/v1/app/today-work-summary`、`/api/v1/app/work/punch`，与后端 App 路由保持一致。
+
 ## 2026-05-27
 
 - 更新 `AttendanceRequests.tsx`：在考勤申请审核（特别是带替班的请假）提交成功后，触发排班数据刷新，使从考勤审核返回排班管理页面时能看到最新的替班排班数据，无需手动 F5 刷新。
@@ -156,3 +160,24 @@
 - 调整 `Landing.tsx`：首页 Logo 尺寸改为 64px，与页眉高度 `h-16` 对齐。
 
 - 调整 `Landing.tsx`：首页 Logo 尺寸改为 70px。
+
+## 2026-06-22
+
+- 新增 `docs/field-service-solution.md`：外勤（家政/上门服务）产品技术方案，含模块隔离、工单/派单模型、店班打卡同步配置、员工 App 状态机、API 与实施阶段。
+
+- 实现外勤工单模块（商家端 P0/P1）：
+  - 类型与工具：`src/types/fieldService.ts`、`fieldServiceAssign.ts`（派单预览/校验）、`fieldServicePunchState.ts`（打卡状态机）、`employeeApi.ts`（员工端今日聚合/打卡 API，路径 `/api/v1/app/*`）
+  - API：`merchantEndpoints.fieldJobs`、`merchantApi` 工单 CRUD / 派单 / 派单预览
+  - 页面：`FieldJobs.tsx`（列表、新建/编辑、派单弹窗含店班同步选项）
+  - 组件：`FieldJobFormModal`、`FieldJobAssignModal`
+  - 路由/菜单/i18n：`fieldJobs` 页面注册
+
+- 服务端 `moni-hr` 外勤模块：
+  - 数据库：`migrate-merchant_service_job.sql`、`migrate-merchant_employee_clock_punch-field_service.sql`
+  - 实体/服务：`MerchantFieldJobService`、`AppTodayWorkService`
+  - 接口：`/api/v1/merchant/field-jobs/*`、`GET /api/v1/app/today-work-summary`、`POST /api/v1/app/work/punch`
+  - 店班打卡 `AppClockPunchService` 补充 `refType/refId` 以兼容新唯一索引
+
+- 员工 App `moni-hr-app`：
+  - 新增「今日」Tab（`today.tsx`）、时间轴与单一打卡按钮
+  - API：`src/api/todayWork.ts`；默认入口改为 `/today`

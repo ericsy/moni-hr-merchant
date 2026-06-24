@@ -151,6 +151,7 @@ declare global {
   const UserCircle: typeof import('lucide-react').UserCircle
   const UserIcon: typeof import('lucide-react').UserIcon
   const UserMinus: typeof import('lucide-react').UserMinus
+  const UserPlus: typeof import('lucide-react').UserPlus
   const Users: typeof import('lucide-react').Users
   const UsersIcon: typeof import('lucide-react').UsersIcon
   const X: typeof import('lucide-react').X

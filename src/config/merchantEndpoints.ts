@@ -10,7 +10,8 @@ export type MerchantEndpointKey =
   | "countries"
   | "billing"
   | "attendance"
-  | "clock";
+  | "clock"
+  | "fieldJobs";
 
 export const DEFAULT_MERCHANT_ENDPOINTS: Record<MerchantEndpointKey, string> = {
   stores: "/api/v1/merchant/stores",
@@ -23,6 +24,7 @@ export const DEFAULT_MERCHANT_ENDPOINTS: Record<MerchantEndpointKey, string> = {
   billing: "/api/v1/merchant/billing",
   attendance: "/api/v1/merchant/attendance",
   clock: "/api/v1/merchant/clock",
+  fieldJobs: "/api/v1/merchant/field-jobs",
 };
 
 const endpointKeyAliases: Record<string, MerchantEndpointKey> = {
@@ -78,6 +80,11 @@ const endpointKeyAliases: Record<string, MerchantEndpointKey> = {
   anomalies: "clock",
   clockmanagement: "clock",
   attendanceclock: "clock",
+  fieldjobs: "fieldJobs",
+  fieldjob: "fieldJobs",
+  fieldservice: "fieldJobs",
+  servicejob: "fieldJobs",
+  servicejobs: "fieldJobs",
 };
 
 const endpointMapFields = ["requestUrls", "requestUrlMap", "apiUrls", "apiUrlMap", "endpoints", "apis"];

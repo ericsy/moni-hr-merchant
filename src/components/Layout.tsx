@@ -30,6 +30,7 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Route,
   Store,
   Users,
 } from "lucide-react";
@@ -168,6 +169,7 @@ export default function AppLayout({
         billing: <CreditCard size={18} />,
         attendanceRequests: <ClipboardList size={18} />,
         clockPunches: <Fingerprint size={18} />,
+        fieldJobs: <Route size={18} />,
       };
 
       const getNodeLabel = (

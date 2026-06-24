@@ -23,7 +23,8 @@ export type KnownPageKey =
   | "rosterTemplate"
   | "billing"
   | "attendanceRequests"
-  | "clockPunches";
+  | "clockPunches"
+  | "fieldJobs";
 
 export type PageKey = KnownPageKey | (string & {});
 
@@ -59,6 +60,7 @@ const pageModules = import.meta.glob<PageModule>([
   "../pages/Billing.tsx",
   "../pages/AttendanceRequests.tsx",
   "../pages/ClockPunches.tsx",
+  "../pages/FieldJobs.tsx",
 ]);
 const lazyPageComponents = new Map<string, React.LazyExoticComponent<React.ComponentType<Record<string, unknown>>>>();
 
@@ -207,6 +209,20 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
       "/api/v1/merchant/clock/anomalies/summary",
     ],
   },
+  {
+    pageKey: "fieldJobs",
+    path: "/field-jobs",
+    componentPath: "../pages/FieldJobs.tsx",
+    requestPath: "/api/v1/merchant/field-jobs",
+    endpointKey: "fieldJobs",
+    aliases: [
+      "/field-jobs",
+      "/field-job",
+      "/field-service",
+      "/service-jobs",
+      "/api/v1/merchant/field-jobs",
+    ],
+  },
 ];
 
 export const merchantRoutes = merchantRouteTemplates;
@@ -223,6 +239,7 @@ const routeTemplateByEndpointKey: Partial<Record<MerchantEndpointKey, MerchantRo
   billing: routeTemplateByPageKey.get("billing"),
   attendance: routeTemplateByPageKey.get("attendanceRequests"),
   clock: routeTemplateByPageKey.get("clockPunches"),
+  fieldJobs: routeTemplateByPageKey.get("fieldJobs"),
 };
 
 const pageKeyAliases: Record<string, KnownPageKey> = {
@@ -282,6 +299,11 @@ const pageKeyAliases: Record<string, KnownPageKey> = {
   attendanceclock: "clockPunches",
   punches: "clockPunches",
   anomalies: "clockPunches",
+  fieldjobs: "fieldJobs",
+  fieldjob: "fieldJobs",
+  fieldservice: "fieldJobs",
+  servicejob: "fieldJobs",
+  servicejobs: "fieldJobs",
 };
 
 const componentPathFields = ["componentPath", "component", "viewPath", "componentUrl", "componentName"];
