@@ -8,14 +8,16 @@ import type { FieldJobUpsertPayload, FieldServiceJob } from "../../types/fieldSe
 
 const { TextArea } = Input;
 
+const TIME_ONLY_DATE = "2000-01-01";
+
 export interface FieldJobFormValues {
   customerName: string;
   customerPhone: string;
   serviceAddress: string;
   serviceType: string;
   serviceDate: Dayjs;
-  startTime: Dayjs;
-  endTime: Dayjs;
+  startTime: string;
+  endTime: string;
   latitude: number;
   longitude: number;
   geofenceRadius: number;
@@ -36,18 +38,29 @@ function getServiceTypeOptions(labels: Record<string, unknown>) {
   return Object.entries(types).map(([value, label]) => ({ value, label }));
 }
 
-function toTimeValue(source?: Dayjs | string, fallbackHour = 9, fallbackMinute = 0) {
-  const parsed = source ? dayjs(source) : null;
-  if (!parsed?.isValid()) {
-    return dayjs().hour(fallbackHour).minute(fallbackMinute).second(0).millisecond(0);
+function timeValue(value?: Dayjs | string | null, fallback = "09:00") {
+  if (dayjs.isDayjs(value) && value.isValid()) {
+    return dayjs(`${TIME_ONLY_DATE} ${value.format("HH:mm")}`, "YYYY-MM-DD HH:mm");
   }
-  return dayjs().hour(parsed.hour()).minute(parsed.minute()).second(0).millisecond(0);
+  const text = typeof value === "string" && /^\d{1,2}:\d{2}$/.test(value) ? value : fallback;
+  return dayjs(`${TIME_ONLY_DATE} ${text}`, "YYYY-MM-DD HH:mm");
 }
 
-function combineDateAndTime(serviceDate: Dayjs, time: Dayjs) {
+function toTimeString(source?: Dayjs | string, fallbackHour = 9, fallbackMinute = 0) {
+  const fallback = `${String(fallbackHour).padStart(2, "0")}:${String(fallbackMinute).padStart(2, "0")}`;
+  if (typeof source === "string" && /^\d{1,2}:\d{2}$/.test(source)) {
+    return source;
+  }
+  const parsed = source ? dayjs(source) : null;
+  if (!parsed?.isValid()) return fallback;
+  return parsed.format("HH:mm");
+}
+
+function combineDateAndTime(serviceDate: Dayjs, time: Dayjs | string) {
+  const timeObj = timeValue(time);
   return serviceDate
-    .hour(time.hour())
-    .minute(time.minute())
+    .hour(timeObj.hour())
+    .minute(timeObj.minute())
     .second(0)
     .millisecond(0);
 }
@@ -82,8 +95,8 @@ export default function FieldJobFormModal({
         serviceAddress: job.serviceAddress,
         serviceType: job.serviceType || "cleaning",
         serviceDate: start.startOf("day"),
-        startTime: toTimeValue(start),
-        endTime: toTimeValue(end, 11, 0),
+        startTime: toTimeString(start),
+        endTime: toTimeString(end, 11, 0),
         latitude: job.latitude,
         longitude: job.longitude,
         geofenceRadius: job.geofenceRadius,
@@ -104,8 +117,8 @@ export default function FieldJobFormModal({
     form.setFieldsValue({
       serviceType: "cleaning",
       serviceDate: today,
-      startTime: toTimeValue(undefined, 9, 0),
-      endTime: toTimeValue(undefined, 11, 0),
+      startTime: "09:00",
+      endTime: "11:00",
       geofenceRadius: 100,
     });
     setGeo({ latitude: -36.8485, longitude: 174.7633, geofenceRadius: 100 });
@@ -236,6 +249,12 @@ export default function FieldJobFormModal({
             name="startTime"
             label={String(labels.scheduledStart)}
             rules={[{ required: true, message: String(labels.timeRequired) }]}
+            getValueProps={(value: string) => ({
+              value: timeValue(value, "09:00"),
+            })}
+            getValueFromEvent={(time: Dayjs | null) =>
+              time?.isValid() ? time.format("HH:mm") : ""
+            }
           >
             <TimePicker className="w-full" format="HH:mm" minuteStep={5} needConfirm={false} />
           </Form.Item>
@@ -243,6 +262,12 @@ export default function FieldJobFormModal({
             name="endTime"
             label={String(labels.scheduledEnd)}
             rules={[{ required: true, message: String(labels.timeRequired) }]}
+            getValueProps={(value: string) => ({
+              value: timeValue(value, "11:00"),
+            })}
+            getValueFromEvent={(time: Dayjs | null) =>
+              time?.isValid() ? time.format("HH:mm") : ""
+            }
           >
             <TimePicker className="w-full" format="HH:mm" minuteStep={5} needConfirm={false} />
           </Form.Item>

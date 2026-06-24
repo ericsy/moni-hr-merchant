@@ -187,3 +187,4 @@
 - 优化外勤工单地址：服务地址改用 `GoogleAddressAutocompleteInput`（输入联想）；粘贴/失焦立即定位；修复默认坐标误判为已定位导致粘贴不更新地图的问题。
 - 外勤派单过滤请假员工：按天请假、整班次请假、班次内时段请假（晚到/早退）与外勤时段重叠时，不显示在选择列表中；新增 `employeeLeave.ts`。
 - 外勤工单页去掉页面内重复标题与说明，与考勤/打卡等页面统一，仅保留 Layout 顶栏标题。
+- 修复外勤工单表单开始/结束时间选择不生效：TimePicker 改用 `HH:mm` 字符串存储，并配合 `getValueProps` / `getValueFromEvent` 与 Form 同步。
