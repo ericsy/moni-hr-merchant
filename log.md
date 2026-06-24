@@ -184,4 +184,4 @@
 
 - 修复 `FieldJobFormModal`：外勤时间改为「服务日期 + 开始/结束时间」同日选择；修复 RangePicker 修改时间后未写入表单导致提交不传 `scheduledStart/End` 的问题。
 
-- 优化外勤工单地址：移除地图内重复搜索框，使用「服务地址 + 定位」设置围栏；`GeoFenceMapPicker` 支持 `hideSearch` / `addressQuery`。
+- 优化外勤工单地址：移除地图内重复搜索框，服务地址输入完成后自动定位围栏（约 700ms 防抖）。

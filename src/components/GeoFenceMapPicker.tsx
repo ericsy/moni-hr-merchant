@@ -76,10 +76,8 @@ interface GeoFenceMapPickerProps {
   onChange?: (val: GeoFenceValue) => void;
   storeName?: string;
   defaultLocationQuery?: string;
-  /** 外部地址（如服务地址），配合 locateRequestId 触发定位 */
+  /** 外部地址（如服务地址），hideSearch 时输入完成后自动定位 */
   addressQuery?: string;
-  /** 递增以根据 addressQuery 在地图上定位 */
-  locateRequestId?: number;
   /** 隐藏地图上方独立搜索框（使用外部地址输入） */
   hideSearch?: boolean;
   /** 覆盖默认围栏说明文案 */
@@ -92,7 +90,6 @@ export default function GeoFenceMapPicker({
   storeName = "",
   defaultLocationQuery = "",
   addressQuery = "",
-  locateRequestId = 0,
   hideSearch = false,
   geofenceDesc,
 }: GeoFenceMapPickerProps) {
@@ -325,15 +322,44 @@ export default function GeoFenceMapPicker({
   }, [defaultLocationQuery, geocodeAddress, mapsReady, value?.latitude, value?.longitude]);
 
   useEffect(() => {
-    if (!hideSearch || !mapsReady || locateRequestId <= 0) return;
+    if (!hideSearch) return;
     const query = addressQuery.trim();
-    if (!query) {
-      toast.error("请先填写服务地址");
-      return;
+    if (!query) return;
+    if (lastAutoGeocodedQueryRef.current && query !== lastAutoGeocodedQueryRef.current) {
+      userSelectedLocationRef.current = false;
     }
-    userSelectedLocationRef.current = false;
-    geocodeAddress(query);
-  }, [addressQuery, geocodeAddress, hideSearch, locateRequestId, mapsReady]);
+  }, [addressQuery, hideSearch]);
+
+  useEffect(() => {
+    if (!hideSearch || !mapsReady) return;
+    const query = addressQuery.trim();
+    if (query.length < 4) return;
+    if (userSelectedLocationRef.current) return;
+    if (lastAutoGeocodedQueryRef.current === query) return;
+
+    const timer = window.setTimeout(() => {
+      const latest = addressQuery.trim();
+      if (latest.length < 4 || userSelectedLocationRef.current) return;
+      if (lastAutoGeocodedQueryRef.current === latest) return;
+      lastAutoGeocodedQueryRef.current = latest;
+      geocodeAddress(latest, false);
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [addressQuery, geocodeAddress, hideSearch, mapsReady]);
+
+  useEffect(() => {
+    if (!hideSearch) return;
+    const query = addressQuery.trim();
+    if (!query) return;
+    if (
+      value?.latitude !== undefined &&
+      value?.longitude !== undefined &&
+      !lastAutoGeocodedQueryRef.current
+    ) {
+      lastAutoGeocodedQueryRef.current = query;
+    }
+  }, [addressQuery, hideSearch, value?.latitude, value?.longitude]);
 
   // Radius change → update circle
   const handleRadiusChange = (val: number) => {
