@@ -78,6 +78,10 @@ interface GeoFenceMapPickerProps {
   defaultLocationQuery?: string;
   /** 外部地址（如服务地址），hideSearch 时输入完成后自动定位 */
   addressQuery?: string;
+  /** 已有坐标的地址，避免编辑工单时重复地理编码 */
+  preservedGeocodeAddress?: string;
+  /** 递增后立刻对 addressQuery 地理编码（粘贴/失焦） */
+  locateNow?: number;
   /** 隐藏地图上方独立搜索框（使用外部地址输入） */
   hideSearch?: boolean;
   /** 覆盖默认围栏说明文案 */
@@ -90,6 +94,8 @@ export default function GeoFenceMapPicker({
   storeName = "",
   defaultLocationQuery = "",
   addressQuery = "",
+  preservedGeocodeAddress = "",
+  locateNow = 0,
   hideSearch = false,
   geofenceDesc,
 }: GeoFenceMapPickerProps) {
@@ -350,16 +356,21 @@ export default function GeoFenceMapPicker({
 
   useEffect(() => {
     if (!hideSearch) return;
+    const preserved = preservedGeocodeAddress.trim();
+    if (!preserved) return;
+    lastAutoGeocodedQueryRef.current = preserved;
+  }, [hideSearch, preservedGeocodeAddress]);
+
+  useEffect(() => {
+    if (!hideSearch || !mapsReady || locateNow <= 0) return;
     const query = addressQuery.trim();
-    if (!query) return;
-    if (
-      value?.latitude !== undefined &&
-      value?.longitude !== undefined &&
-      !lastAutoGeocodedQueryRef.current
-    ) {
-      lastAutoGeocodedQueryRef.current = query;
-    }
-  }, [addressQuery, hideSearch, value?.latitude, value?.longitude]);
+    if (query.length < 4) return;
+
+    userSelectedLocationRef.current = false;
+    lastAutoGeocodedQueryRef.current = "";
+    geocodeAddress(query, false);
+    lastAutoGeocodedQueryRef.current = query;
+  }, [addressQuery, geocodeAddress, hideSearch, locateNow, mapsReady]);
 
   // Radius change → update circle
   const handleRadiusChange = (val: number) => {

@@ -2,6 +2,8 @@ import { DatePicker, Form, Input, Modal, Select, TimePicker } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useState } from "react";
 import GeoFenceMapPicker from "../GeoFenceMapPicker";
+import GoogleAddressAutocompleteInput from "../GoogleAddressAutocompleteInput";
+import type { GooglePlaceSummary } from "../../lib/googleMaps";
 import type { FieldJobUpsertPayload, FieldServiceJob } from "../../types/fieldService";
 
 const { TextArea } = Input;
@@ -59,6 +61,8 @@ export default function FieldJobFormModal({
 }: FieldJobFormModalProps) {
   const [form] = Form.useForm<FieldJobFormValues>();
   const [submitting, setSubmitting] = useState(false);
+  const [locateNow, setLocateNow] = useState(0);
+  const [preservedGeocodeAddress, setPreservedGeocodeAddress] = useState("");
   const serviceAddress = Form.useWatch("serviceAddress", form);
   const [geo, setGeo] = useState({
     latitude: job?.latitude ?? -36.8485,
@@ -90,6 +94,8 @@ export default function FieldJobFormModal({
         longitude: job.longitude,
         geofenceRadius: job.geofenceRadius,
       });
+      setPreservedGeocodeAddress(job.serviceAddress.trim());
+      setLocateNow(0);
       return;
     }
 
@@ -103,7 +109,38 @@ export default function FieldJobFormModal({
       geofenceRadius: 100,
     });
     setGeo({ latitude: -36.8485, longitude: 174.7633, geofenceRadius: 100 });
+    setPreservedGeocodeAddress("");
+    setLocateNow(0);
   }, [form, job, open]);
+
+  const applyGeoFromPlace = (place: GooglePlaceSummary) => {
+    if (typeof place.latitude !== "number" || typeof place.longitude !== "number") {
+      return;
+    }
+
+    setGeo((prev) => {
+      const next = {
+        latitude: place.latitude as number,
+        longitude: place.longitude as number,
+        geofenceRadius: prev.geofenceRadius,
+      };
+      form.setFieldsValue({
+        latitude: next.latitude,
+        longitude: next.longitude,
+        geofenceRadius: next.geofenceRadius,
+      });
+      return next;
+    });
+    setPreservedGeocodeAddress(place.formattedAddress.trim());
+  };
+
+  const handleAddressInputComplete = (address: string) => {
+    const trimmed = address.trim();
+    if (trimmed.length < 4) return;
+    if (trimmed === preservedGeocodeAddress) return;
+    setPreservedGeocodeAddress("");
+    setLocateNow((tick) => tick + 1);
+  };
 
   const handleOk = async () => {
     try {
@@ -174,7 +211,11 @@ export default function FieldJobFormModal({
             </span>
           }
         >
-          <Input placeholder={String(labels.serviceAddressPlaceholder)} />
+          <GoogleAddressAutocompleteInput
+            placeholder={String(labels.serviceAddressPlaceholder)}
+            onPlaceSelected={applyGeoFromPlace}
+            onInputComplete={handleAddressInputComplete}
+          />
         </Form.Item>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -212,6 +253,8 @@ export default function FieldJobFormModal({
             value={geo}
             hideSearch
             addressQuery={serviceAddress || ""}
+            preservedGeocodeAddress={preservedGeocodeAddress}
+            locateNow={locateNow}
             geofenceDesc={String(labels.geofenceDesc)}
             onChange={(next) => {
               setGeo(next);

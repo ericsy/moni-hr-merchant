@@ -12,6 +12,8 @@ interface GoogleAddressAutocompleteInputProps {
   value?: string;
   onChange?: (value: string) => void;
   onPlaceSelected?: (place: GooglePlaceSummary) => void;
+  /** 粘贴或失焦时触发，用于对完整地址做地理编码 */
+  onInputComplete?: (value: string) => void;
   placeholder?: string;
   country?: string;
   disabled?: boolean;
@@ -22,6 +24,7 @@ export default function GoogleAddressAutocompleteInput({
   value = "",
   onChange = () => {},
   onPlaceSelected = () => {},
+  onInputComplete = () => {},
   placeholder = "",
   country = "",
   disabled = false,
@@ -29,9 +32,11 @@ export default function GoogleAddressAutocompleteInput({
 }: GoogleAddressAutocompleteInputProps) {
   const inputRef = useRef<InputRef>(null);
   const autocompleteRef = useRef<any>(null);
+  const skipNextInputCompleteRef = useRef(false);
   const latestValueRef = useRef(value);
   const latestOnChangeRef = useRef(onChange);
   const latestOnPlaceSelectedRef = useRef(onPlaceSelected);
+  const latestOnInputCompleteRef = useRef(onInputComplete);
   const [mapsReady, setMapsReady] = useState<boolean>(
     Boolean(getGoogleMapsWindow().google?.maps?.places),
   );
@@ -52,6 +57,20 @@ export default function GoogleAddressAutocompleteInput({
   useEffect(() => {
     latestOnPlaceSelectedRef.current = onPlaceSelected;
   }, [onPlaceSelected]);
+
+  useEffect(() => {
+    latestOnInputCompleteRef.current = onInputComplete;
+  }, [onInputComplete]);
+
+  const emitInputComplete = () => {
+    window.setTimeout(() => {
+      if (skipNextInputCompleteRef.current) return;
+      const nextValue = (inputRef.current?.input?.value ?? latestValueRef.current).trim();
+      if (nextValue) {
+        latestOnInputCompleteRef.current(nextValue);
+      }
+    }, 120);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +131,11 @@ export default function GoogleAddressAutocompleteInput({
         latestValueRef.current ||
         "";
 
+      skipNextInputCompleteRef.current = true;
+      window.setTimeout(() => {
+        skipNextInputCompleteRef.current = false;
+      }, 400);
+
       latestOnChangeRef.current(nextValue);
       latestOnPlaceSelectedRef.current({
         ...summary,
@@ -138,6 +162,8 @@ export default function GoogleAddressAutocompleteInput({
       autoComplete="new-password"
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}
+      onBlur={emitInputComplete}
+      onPaste={emitInputComplete}
     />
   );
 }
