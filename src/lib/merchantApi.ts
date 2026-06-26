@@ -66,6 +66,17 @@ export interface MerchantPrincipal {
   admin?: boolean | number | string | null;
   role?: string | null;
   roleKey?: string | null;
+  portalRole?: string | null;
+  managedStores?: ManagedStoreBrief[];
+  storeManagerStores?: ManagedStoreBrief[];
+  deputyManagerStores?: ManagedStoreBrief[];
+}
+
+export interface ManagedStoreBrief {
+  id: string;
+  name: string;
+  merchantId?: string;
+  merchantName?: string;
 }
 
 function normalizeFlag(value: unknown) {
@@ -81,6 +92,44 @@ function normalizeFlag(value: unknown) {
   if (["true", "1", "yes", "y", "admin", "owner", "super_admin", "merchant_admin"].includes(normalized)) return true;
   if (["false", "0", "no", "n", "employee", "staff", "member"].includes(normalized)) return false;
   return null;
+}
+
+function mapManagedStoreBrief(input: unknown): ManagedStoreBrief | null {
+  const raw = asRecord(input);
+  const id = asString(raw.id);
+  if (!id) return null;
+  const merchantName = asString(raw.merchantName || raw.merchant_name);
+  const name = asString(raw.name || raw.storeName);
+  const label = merchantName ? `${merchantName} / ${name}` : name;
+  return {
+    id,
+    name: label,
+    merchantId: asString(raw.merchantId || raw.merchant_id) || undefined,
+    merchantName: merchantName || undefined,
+  };
+}
+
+export function mapMerchantPrincipal(input: unknown): MerchantPrincipal {
+  const raw = asRecord(input);
+  const managedStores = asArray(raw.managedStores || raw.managed_stores)
+    .map(mapManagedStoreBrief)
+    .filter((item): item is ManagedStoreBrief => !!item);
+  return {
+    merchantAdminId: (raw.merchantAdminId ?? raw.merchant_admin_id) as MerchantPrincipal["merchantAdminId"],
+    merchantId: (raw.merchantId ?? raw.merchant_id) as MerchantPrincipal["merchantId"],
+    adminName: asString(raw.adminName || raw.admin_name),
+    lastStoreId: (raw.lastStoreId ?? raw.last_store_id) as MerchantPrincipal["lastStoreId"],
+    merchantAdmin: raw.merchantAdmin as MerchantAdminPrincipal | boolean | undefined,
+    adminType: (raw.adminType ?? raw.admin_type) as MerchantPrincipal["adminType"],
+    portalRole: asString(raw.portalRole || raw.portal_role),
+    managedStores,
+    storeManagerStores: asArray(raw.storeManagerStores || raw.store_manager_stores)
+      .map(mapManagedStoreBrief)
+      .filter((item): item is ManagedStoreBrief => !!item),
+    deputyManagerStores: asArray(raw.deputyManagerStores || raw.deputy_manager_stores)
+      .map(mapManagedStoreBrief)
+      .filter((item): item is ManagedStoreBrief => !!item),
+  };
 }
 
 function normalizePrincipalType(value: unknown) {
@@ -1457,9 +1506,11 @@ export function mapApiEmployee(input: unknown): Employee {
   const storeDetails = asArray(raw.storeDetails)
     .map((item) => {
       const record = asRecord(item);
+      const merchantName = asString(record.merchantName || record.merchant_name);
+      const storeName = asString(record.name || record.storeName);
       return {
         id: asString(record.id),
-        name: asString(record.name || record.storeName),
+        name: merchantName ? `${merchantName} / ${storeName}` : storeName,
       };
     })
     .filter((item) => item.id);
@@ -1906,8 +1957,8 @@ export const merchantApi = {
       auth: false,
       body: { token, newPassword },
     }),
-  merchantMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/me"),
-  authMe: () => apiRequest<MerchantPrincipal>("/api/v1/merchant/auth/me"),
+  merchantMe: async () => mapMerchantPrincipal(await apiRequest<unknown>("/api/v1/merchant/me")),
+  authMe: async () => mapMerchantPrincipal(await apiRequest<unknown>("/api/v1/merchant/auth/me")),
   getDashboardStatistics: async (storeId: string) => {
     const data = await apiRequest<unknown>("/api/v1/merchant/dashboard/statistics", {
       storeId,
