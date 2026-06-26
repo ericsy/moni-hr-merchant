@@ -1,3 +1,9 @@
+## 2026-06-24
+
+- **跨商户兼职（方案 A）**：店长/副店长登录后 **`GET /merchant/me`** 返回跨商户 **`managedStores`**；门店下拉显示 **`商户名 / 门店名`**，切换门店时请求带 **`X-Store-Id`**（店主逻辑不变）。
+  - **`src/lib/merchantApi.ts`**：新增 **`ManagedStoreBrief`**、**`mapMerchantPrincipal`**；**`merchantMe`/`authMe`** 走 mapper；员工 **`storeDetails`** 显示商户名。
+  - **`src/context/DataContext.tsx`**：店长用 **`managedStores`** 构建门店切换列表（**`buildStoresForSwitcher`**）；**`Store`** 增加 **`merchantName`/`merchantId`**。
+
 ## 2026-05-27
 
 - 更新 `AttendanceRequests.tsx`：在考勤申请审核（特别是带替班的请假）提交成功后，触发排班数据刷新，使从考勤审核返回排班管理页面时能看到最新的替班排班数据，无需手动 F5 刷新。

@@ -5,6 +5,7 @@ import {
   merchantApi,
   type EmployeeDateLeave,
   type EmployeeShiftLeave,
+  type ManagedStoreBrief,
   type MerchantPrincipal,
   type MerchantSchedulePublishResult,
 } from "../lib/merchantApi";
@@ -108,6 +109,8 @@ export interface Employee {
 export interface Store {
   id: string;
   name: string;
+  merchantName?: string;
+  merchantId?: string;
   code: string;
   address: string;
   city: string;
@@ -387,6 +390,38 @@ const resolveStoreContext = (requestedStoreId: string, storeItems: Store[], last
   return storeItems[0]?.id || "";
 };
 
+function buildStoresForSwitcher(managed: ManagedStoreBrief[], listed: Store[]): Store[] {
+  if (managed.length === 0) return listed;
+  const listedById = new Map(listed.map((store) => [store.id, store]));
+  return managed.map((item) => {
+    const full = listedById.get(item.id);
+    if (full) {
+      return {
+        ...full,
+        name: item.name,
+        merchantId: item.merchantId,
+        merchantName: item.merchantName,
+      };
+    }
+    return {
+      id: item.id,
+      name: item.name,
+      merchantId: item.merchantId,
+      merchantName: item.merchantName,
+      code: "",
+      address: "",
+      city: "",
+      country: "",
+      phone: "",
+      email: "",
+      manager: "",
+      openTime: "09:00",
+      closeTime: "18:00",
+      timezone: "",
+    };
+  });
+}
+
 async function loadByStoreContext<T extends { id: string }>(
   selectedStoreId: string,
   storeItems: Store[],
@@ -571,7 +606,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       const [
         nextCountries,
-        nextStores,
+        listedStores,
       ] = await Promise.all([
         merchantApi.listCountries().catch((countryError) => {
           console.warn("[DataContext] failed to load country options:", countryError);
@@ -583,6 +618,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         console.warn("[DataContext] failed to load merchant me:", meError);
         return null;
       });
+      const nextStores =
+        principal?.managedStores?.length && !isMerchantAdminPrincipal(principal)
+          ? buildStoresForSwitcher(principal.managedStores, listedStores)
+          : listedStores;
       const nextLastStoreId = principal?.lastStoreId === null || principal?.lastStoreId === undefined
         ? ""
         : String(principal.lastStoreId);
