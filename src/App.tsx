@@ -29,6 +29,7 @@ import Home from "./pages/Home";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import ResetPassword from "./pages/ResetPassword";
 
 class ErrorBoundary extends React.Component<
@@ -136,6 +137,8 @@ function UnauthenticatedRoutes() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -149,6 +152,10 @@ function AuthGate() {
 
   if (normalizedPathname === "/activate") {
     return <Activate />;
+  }
+
+  if (normalizedPathname === "/privacy" || normalizedPathname === "/privacy-policy") {
+    return <PrivacyPolicy />;
   }
 
   if (normalizedPathname === "/reset-password") {

@@ -162,3 +162,7 @@
 - 调整 `Landing.tsx`：首页 Logo 尺寸改为 64px，与页眉高度 `h-16` 对齐。
 
 - 调整 `Landing.tsx`：首页 Logo 尺寸改为 70px。
+
+## 2026-06-22
+
+- 新增 Moni HR 员工 App 隐私政策页（App Store 提交用）：React 页面 `/privacy`、`/privacy-policy`（中英文切换）；静态备用 `public/privacy/index.html`；激活/重置密码页隐私链接指向该页；联系邮箱 `Jerry.d@gpos.co.nz`。
