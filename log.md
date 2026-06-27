@@ -166,3 +166,5 @@
 ## 2026-06-22
 
 - 新增 Moni HR 员工 App 隐私政策页（App Store 提交用）：React 页面 `/privacy`、`/privacy-policy`（中英文切换）；静态备用 `public/privacy/index.html`；激活/重置密码页隐私链接指向该页；联系邮箱 `Jerry.d@gpos.co.nz`。
+
+- 商家端登录：未激活账户不再跳转激活页，在登录页显示「账户尚未激活」提示；激活仍通过邮件链接 `/activate?token=...` 完成。
