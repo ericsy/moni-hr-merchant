@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   CalendarDays,
@@ -623,7 +623,9 @@ export default function Activate() {
           {t.terms}&nbsp;
           <span className="font-medium" style={{ color: "var(--primary)" }}>{t.termsLink}</span>
           &nbsp;{t.and}&nbsp;
-          <span className="font-medium" style={{ color: "var(--primary)" }}>{t.privacyLink}</span>
+          <Link to="/privacy" className="font-medium" style={{ color: "var(--primary)" }}>
+            {t.privacyLink}
+          </Link>
         </p>
       </div>
     </div>

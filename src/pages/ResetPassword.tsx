@@ -10,7 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { MoniHrLogo } from "../components/MoniHrLogo";
 import { useLocale } from "../context/LocaleContext";
@@ -764,9 +764,9 @@ export default function ResetPassword() {
             {t.termsLink}
           </span>
           &nbsp;{t.and}&nbsp;
-          <span className="font-medium" style={{ color: "var(--primary)" }}>
+          <Link to="/privacy" className="font-medium" style={{ color: "var(--primary)" }}>
             {t.privacyLink}
-          </span>
+          </Link>
         </p>
       </div>
     </div>

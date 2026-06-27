@@ -213,3 +213,7 @@
 - 服务端 `moni-hr` 新增外勤改派：`POST /api/v1/merchant/field-jobs/{id}/reassign`，更新 `merchant_service_job_assignment` 的员工与店班同步配置；进行中/已完成/已取消工单不允许改派。
 
 - 外勤工单支持多人执行：数据库去掉「一单一员工」唯一约束，改为 `(job_id, merchant_admin_id)` 唯一；API 返回 `assignments` 列表；新增 `POST /field-jobs/{id}/assignments/sync` 同步派单名单。商家端表单/派单弹窗改为多选员工，列表与日历展示多名员工。
+
+## 2026-06-22
+
+- 新增 Moni HR 员工 App 隐私政策页（App Store 提交用）：React 页面 `/privacy`、`/privacy-policy`（中英文切换）；静态备用 `public/privacy/index.html`；激活/重置密码页隐私链接指向该页；联系邮箱 `Jerry.d@gpos.co.nz`。
