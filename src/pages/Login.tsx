@@ -1,3 +1,4 @@
+import { Alert } from "antd";
 import {
   ArrowLeft,
   Eye,
@@ -37,6 +38,8 @@ const T = {
     submitBtn: "Sign In",
     signingIn: "Signing in...",
     toastError: "Sign in failed",
+    errAccountNotActivated:
+      "Your account is not activated yet. Please open the activation link in your email to set your password, then sign in again.",
     errEmailRequired: "Please enter your email address",
     errEmailInvalid: "Please enter a valid email address",
     errPasswordRequired: "Please enter your password",
@@ -64,6 +67,7 @@ const T = {
     submitBtn: "登录",
     signingIn: "登录中...",
     toastError: "登录失败",
+    errAccountNotActivated: "账户尚未激活，请查收邮件中的激活链接完成激活后再登录。",
     errEmailRequired: "请输入邮箱地址",
     errEmailInvalid: "请输入有效的邮箱地址",
     errPasswordRequired: "请输入密码",
@@ -119,6 +123,7 @@ export default function Login() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>(
     {},
   );
+  const [accountError, setAccountError] = useState("");
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
@@ -163,10 +168,15 @@ export default function Login() {
       return;
     }
     setErrors({});
+    setAccountError("");
     setLoading(true);
     try {
       const result = await login(email.trim(), password, rememberMe);
       if (!result.success) {
+        if (result.needsActivation) {
+          setAccountError(t.errAccountNotActivated);
+          return;
+        }
         toast.error(result.message ?? t.toastError);
       } else {
         writeRememberMePreference(rememberMe);
@@ -325,6 +335,9 @@ export default function Login() {
           </div>
 
           {/* Form */}
+          {accountError ? (
+            <Alert type="warning" showIcon message={accountError} className="mb-1" />
+          ) : null}
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {/* Email */}
             <div className="flex flex-col gap-1.5">
@@ -345,6 +358,7 @@ export default function Login() {
                     setEmail(e.target.value);
                     if (errors.email)
                       setErrors((prev) => ({ ...prev, email: undefined }));
+                    if (accountError) setAccountError("");
                   }}
                   placeholder={t.emailPlaceholder}
                   autoComplete="email"
@@ -395,6 +409,7 @@ export default function Login() {
                     setPassword(e.target.value);
                     if (errors.password)
                       setErrors((prev) => ({ ...prev, password: undefined }));
+                    if (accountError) setAccountError("");
                   }}
                   placeholder={t.passwordPlaceholder}
                   autoComplete="current-password"

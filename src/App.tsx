@@ -174,10 +174,6 @@ function AuthGate() {
     return <UnauthenticatedRoutes />;
   }
 
-  if (status === "needs_activation") {
-    return <Activate />;
-  }
-
   // authenticated
   return <AuthenticatedRoutes />;
 }

@@ -19,7 +19,11 @@ interface AuthUser {
 interface AuthContextType {
   status: AuthStatus;
   user: AuthUser | null;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; message?: string }>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<{
+    success: boolean;
+    message?: string;
+    needsActivation?: boolean;
+  }>;
   activate: (token: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
 }
@@ -59,9 +63,7 @@ function readStoredSession(): StoredSessionState {
 
       const parsed = JSON.parse(raw) as { status?: AuthStatus; user?: AuthUser | null; activationToken?: string };
       const validStatus =
-        parsed.status === "authenticated" || parsed.status === "needs_activation"
-          ? parsed.status
-          : "unauthenticated";
+        parsed.status === "authenticated" ? parsed.status : "unauthenticated";
       const validUser =
         parsed.user && typeof parsed.user.email === "string" && typeof parsed.user.name === "string"
           ? parsed.user
@@ -188,28 +190,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     rememberMe = false
-  ): Promise<{ success: boolean; message?: string }> => {
+  ): Promise<{ success: boolean; message?: string; needsActivation?: boolean }> => {
     console.log("[AuthProvider] login attempt:", email);
     try {
       const result = await merchantApi.login(email, password);
-      const nextStorageScope: TokenStorageScope = rememberMe ? "local" : "session";
-      const nextUser = {
-        email: result?.user?.email || email,
-        name: result?.user?.name || email,
-      };
 
       if (result?.status === "needs_activation") {
         clearStoredAccessToken();
-        setStorageScope(nextStorageScope);
-        setUser(nextUser);
-        setActivationToken(result.accessToken || "");
-        setStatus("needs_activation");
-        return { success: true };
+        removeStoredAuthSessions();
+        setStorageScope("session");
+        setUser(null);
+        setActivationToken("");
+        setStatus("unauthenticated");
+        return {
+          success: false,
+          needsActivation: true,
+        };
       }
 
       if (!result?.accessToken) {
         return { success: false, message: "登录响应缺少访问令牌" };
       }
+
+      const nextStorageScope: TokenStorageScope = rememberMe ? "local" : "session";
+      const nextUser = {
+        email: result?.user?.email || email,
+        name: result?.user?.name || email,
+      };
 
       setStoredAccessToken(result.accessToken, nextStorageScope);
       setStorageScope(nextStorageScope);
