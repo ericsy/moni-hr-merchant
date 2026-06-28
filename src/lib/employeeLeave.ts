@@ -4,8 +4,6 @@ import { intervalsOverlap } from "./fieldServiceAssign";
 import type { FieldServiceJob } from "../types/fieldService";
 import { getFieldJobAssignmentEmployeeIds } from "./fieldJobEmployees";
 
-export const FIELD_JOB_MIN_GAP_MINUTES = 60;
-
 function normalizeTime(value: string) {
   return (value || "").trim().slice(0, 5);
 }
@@ -91,24 +89,14 @@ function isActiveAssignedFieldJob(job: FieldServiceJob) {
   return getFieldJobAssignmentEmployeeIds(job).length > 0;
 }
 
-/** 两段时间重叠，或首尾间隔不足 minGapMinutes 分钟，视为冲突 */
+/** 两段时间重叠视为冲突（不要求首尾间隔） */
 export function fieldJobTimeWindowsConflict(
   startA: Dayjs,
   endA: Dayjs,
   startB: Dayjs,
   endB: Dayjs,
-  minGapMinutes = FIELD_JOB_MIN_GAP_MINUTES,
 ) {
-  if (intervalsOverlap(startA, endA, startB, endB)) return true;
-
-  if (startB.isAfter(endA) || startB.isSame(endA)) {
-    return startB.diff(endA, "minute", true) < minGapMinutes;
-  }
-  if (startA.isAfter(endB) || startA.isSame(endB)) {
-    return startA.diff(endB, "minute", true) < minGapMinutes;
-  }
-
-  return true;
+  return intervalsOverlap(startA, endA, startB, endB);
 }
 
 export function isEmployeeConflictingWithFieldJobs(

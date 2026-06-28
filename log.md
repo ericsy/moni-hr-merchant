@@ -1,3 +1,9 @@
+## 2026-06-26
+
+- **排班编辑按环境区分当日是否可改**：**`src/lib/scheduleLock.ts`** + **`src/lib/appEnv.ts`**；**dev**（`VITE_APP_ENV=dev` 或 `pnpm dev`）允许编辑**当日**排班，**test/pro** 仍为仅明日及以后可编辑。环境变量见 **`.env.dev` / `.env.test` / `.env.production` / `.env.development`**。
+
+- **外勤工单取消 1 小时间隔限制**：**`src/lib/employeeLeave.ts`** 中 **`fieldJobTimeWindowsConflict`** 仅检测时段重叠，不再要求同一员工相邻两单首尾间隔 ≥1 小时；**`locales.ts`** 相关提示文案已同步。
+
 ## 2026-06-24
 
 - 更新 `src/lib/employeeApi.ts`：员工外勤接口路径从 `/api/v1/employee/today-work-summary`、`/api/v1/employee/punch` 对齐为 `/api/v1/app/today-work-summary`、`/api/v1/app/work/punch`，与后端 App 路由保持一致。

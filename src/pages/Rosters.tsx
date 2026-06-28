@@ -54,7 +54,7 @@ import {
   getEmployeeInitials,
 } from "../lib/employeeAvatar";
 import { calcShiftHours, datedShiftsOverlap } from "../lib/shift";
-import { isScheduleDateEditable } from "../lib/scheduleLock";
+import { isScheduleDateEditable, getScheduleReadonlyMessage } from "../lib/scheduleLock";
 import {
   filterShiftsForEmployeeOnDate,
   filterUnassignedShiftsOnDate,
@@ -1471,9 +1471,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const isReadonlyWeek = weekDates.every((date) =>
     !isScheduleDateEditable(date),
   );
-  const readonlyRosterMessage = isZh
-    ? "当前日期及之前的排班只能查看，不能修改"
-    : "Rosters for today and earlier are read-only";
+  const readonlyRosterMessage = getScheduleReadonlyMessage(isZh);
   const todayStr = dayjs().format("YYYY-MM-DD");
   const selectedStore =
     stores.find((store) => store.id === selectedStoreId) || stores[0];
