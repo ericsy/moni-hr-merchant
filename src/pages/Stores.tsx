@@ -12,6 +12,7 @@ import {
   Switch,
   InputNumber,
   Tooltip,
+  type TimePickerProps,
 } from "antd";
 import {
   Plus,
@@ -1197,6 +1198,28 @@ function StoreModal({
   );
 }
 
+function AutoCloseTimePicker({ onChange, onOpenChange, ...rest }: TimePickerProps) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <TimePicker
+      {...rest}
+      open={open}
+      needConfirm={false}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        onOpenChange?.(nextOpen);
+      }}
+      onChange={(value, dateString) => {
+        onChange?.(value, dateString);
+        if (value) {
+          setOpen(false);
+        }
+      }}
+    />
+  );
+}
+
 function WeeklyHoursRow({
   fieldName,
   weekDayLabel,
@@ -1239,7 +1262,7 @@ function WeeklyHoursRow({
         style={{ marginBottom: 0 }}
         rules={[{ required: !closed, message: st.openTimeRequired }]}
       >
-        <TimePicker
+        <AutoCloseTimePicker
           disabled={closed}
           format="HH:mm"
           placeholder={st.openTime}
@@ -1251,7 +1274,7 @@ function WeeklyHoursRow({
         style={{ marginBottom: 0 }}
         rules={[{ required: !closed, message: st.closeTimeRequired }]}
       >
-        <TimePicker
+        <AutoCloseTimePicker
           disabled={closed}
           format="HH:mm"
           placeholder={st.closeTime}
