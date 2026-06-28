@@ -39,7 +39,7 @@ import {
   Upload as UploadIcon,
   User,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ColorSwatchPicker,
@@ -49,6 +49,7 @@ import TimelineSlotPicker from "../components/TimelineSlotPicker";
 import {
   useData,
   type Employee,
+  type Store,
   type TimeSlot,
   type WorkDayPattern,
 } from "../context/DataContext";
@@ -60,6 +61,11 @@ import {
   getCountryDateFormat,
 } from "../lib/dateFormat";
 import { extractUploadKey, merchantApi } from "../lib/merchantApi";
+import {
+  getDefaultWorkDayPatternForStores,
+  getPrimaryPaidHoursFromWorkDayPattern,
+  workDayPatternFromStore,
+} from "../lib/storeHours";
 
 const { Option } = Select;
 
@@ -106,53 +112,67 @@ const cloneWorkDayPattern = (
     timeSlots: (day.timeSlots || []).map((slot) => ({ ...slot })),
   }));
 
-const getEmptyEmployeeFormValues = (defaultStoreIds: string[]) => ({
-  firstName: "",
-  lastName: "",
-  employeeId: "",
-  role: "staff",
-  phone: "",
-  email: "",
-  startDate: undefined,
-  dateOfBirth: undefined,
-  address: "",
-  emergencyContact: "",
-  emergencyContactPhone: "",
-  status: "active",
-  storeIds: [...defaultStoreIds],
-  avatar: "",
-  employeeColor: DEFAULT_COLOR_VALUE,
-  notes: "",
-  gender: undefined,
-  maritalStatus: undefined,
-  identityDocumentType: undefined,
-  identityDocumentNumber: "",
-  idDocumentFrontKey: "",
-  idDocumentBackKey: "",
-  visaDocumentKey: "",
-  passportDocumentKey: "",
-  visaType: undefined,
-  visaExpiryDate: undefined,
-  irdNumber: "",
-  taxCode: "",
-  kiwiSaverStatus: "Enrolled",
-  employeeContributionRate: "3%",
-  employerContributionRate: "3",
-  esctRate: undefined,
-  bankAccountNumber: "",
-  payrollEmployeeId: "",
-  ks1DocumentKey: "",
-  ir330DocumentKey: "",
-  positionIds: [],
-  paidHoursPerDay: 8,
-  workDayPattern: cloneWorkDayPattern(defaultWorkDayPattern),
-  contractType: "permanent",
-  endDate: undefined,
-  contractedHours: undefined,
-  annualSalary: undefined,
-  defaultHourlyRate: undefined,
-  contractDocumentKey: "",
-});
+const getEmptyEmployeeFormValues = (
+  defaultStoreIds: string[],
+  stores: Pick<Store, "id" | "weeklyHours" | "openTime" | "closeTime">[] = [],
+) => {
+  const workDayPattern = cloneWorkDayPattern(
+    getDefaultWorkDayPatternForStores(
+      defaultStoreIds,
+      stores,
+      defaultWorkDayPattern,
+    ),
+  );
+  const paidHoursPerDay = getPrimaryPaidHoursFromWorkDayPattern(workDayPattern);
+
+  return {
+    firstName: "",
+    lastName: "",
+    employeeId: "",
+    role: "staff",
+    phone: "",
+    email: "",
+    startDate: undefined,
+    dateOfBirth: undefined,
+    address: "",
+    emergencyContact: "",
+    emergencyContactPhone: "",
+    status: "active",
+    storeIds: [...defaultStoreIds],
+    avatar: "",
+    employeeColor: DEFAULT_COLOR_VALUE,
+    notes: "",
+    gender: undefined,
+    maritalStatus: undefined,
+    identityDocumentType: undefined,
+    identityDocumentNumber: "",
+    idDocumentFrontKey: "",
+    idDocumentBackKey: "",
+    visaDocumentKey: "",
+    passportDocumentKey: "",
+    visaType: undefined,
+    visaExpiryDate: undefined,
+    irdNumber: "",
+    taxCode: "",
+    kiwiSaverStatus: "Enrolled",
+    employeeContributionRate: "3%",
+    employerContributionRate: "3",
+    esctRate: undefined,
+    bankAccountNumber: "",
+    payrollEmployeeId: "",
+    ks1DocumentKey: "",
+    ir330DocumentKey: "",
+    positionIds: [],
+    paidHoursPerDay,
+    workDayPattern,
+    contractType: "permanent",
+    endDate: undefined,
+    contractedHours: undefined,
+    annualSalary: undefined,
+    defaultHourlyRate: undefined,
+    contractDocumentKey: "",
+  };
+};
 
 function getInitials(firstName = "", lastName = "") {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
@@ -358,6 +378,27 @@ function normalizeWorkDayPattern(
       hours: state === "on" ? hours : 0,
       timeSlots: state === "on" ? timeSlots : [],
     };
+  });
+}
+
+function areWorkDayPatternsEqual(
+  a: WorkDayPattern[] = defaultWorkDayPattern,
+  b: WorkDayPattern[] = defaultWorkDayPattern,
+): boolean {
+  const left = normalizeWorkDayPattern(a);
+  const right = normalizeWorkDayPattern(b);
+  return left.every((day, index) => {
+    const other = right[index];
+    if (!other) return false;
+    if (day.state !== other.state || day.hours !== other.hours) return false;
+    const slots = day.timeSlots ?? [];
+    const otherSlots = other.timeSlots ?? [];
+    if (slots.length !== otherSlots.length) return false;
+    return slots.every(
+      (slot, slotIndex) =>
+        slot.start === otherSlots[slotIndex]?.start &&
+        slot.end === otherSlots[slotIndex]?.end,
+    );
   });
 }
 
@@ -830,7 +871,10 @@ export function EmployeeModal({
 }: {
   open?: boolean;
   employee?: Employee | null;
-  stores?: { id: string; name: string; country?: string }[];
+  stores?: Pick<
+    Store,
+    "id" | "name" | "country" | "weeklyHours" | "openTime" | "closeTime"
+  >[];
   defaultStoreIds?: string[];
   onSave?: (emp: Employee) => void | Promise<void>;
   onCancel?: () => void;
@@ -857,12 +901,15 @@ export function EmployeeModal({
   });
   const identityDocumentType = Form.useWatch("identityDocumentType", form);
   const kiwiSaverStatus = Form.useWatch("kiwiSaverStatus", form);
+  const selectedStoreIds = Form.useWatch("storeIds", form) as
+    | string[]
+    | undefined;
   const showKiwiSaverFields = kiwiSaverStatus === "Enrolled";
   const visibleDocumentFields =
     getEmployeeDocumentFieldsByType(identityDocumentType);
   const formInitialValues = employee
     ? {
-        ...getEmptyEmployeeFormValues(defaultStoreIds),
+        ...getEmptyEmployeeFormValues(defaultStoreIds, stores),
         ...employee,
         startDate: employee.startDate ? dayjs(employee.startDate) : undefined,
         dateOfBirth: employee.dateOfBirth
@@ -891,7 +938,7 @@ export function EmployeeModal({
         ir330DocumentKey:
           employee.ir330DocumentKey || employee.ir330DocumentUrl || "",
       }
-    : getEmptyEmployeeFormValues(defaultStoreIds);
+    : getEmptyEmployeeFormValues(defaultStoreIds, stores);
   const formInstanceKey = employee
     ? `edit-${employee.id}`
     : `new-${defaultStoreIds.join("|") || "none"}`;
@@ -958,11 +1005,29 @@ export function EmployeeModal({
     ks1Document: buildDocumentFileList(employee, "ks1Document"),
     ir330Document: buildDocumentFileList(employee, "ir330Document"),
   }));
+  const autoFirstStoreIdRef = useRef("");
+  const autoWorkDayPatternRef = useRef<WorkDayPattern[]>(
+    cloneWorkDayPattern(defaultWorkDayPattern),
+  );
 
   useEffect(() => {
     if (!open) return;
-    form.setFieldsValue(getEmptyEmployeeFormValues(defaultStoreIds));
+    form.setFieldsValue(getEmptyEmployeeFormValues(defaultStoreIds, stores));
     form.setFieldsValue(formInitialValues);
+    if (!employee) {
+      const initialStoreIds = defaultStoreIds;
+      const firstStoreId = initialStoreIds[0] || "";
+      const store = stores.find((item) => item.id === firstStoreId);
+      const autoPattern =
+        firstStoreId && store
+          ? cloneWorkDayPattern(workDayPatternFromStore(store))
+          : cloneWorkDayPattern(defaultWorkDayPattern);
+      autoFirstStoreIdRef.current = firstStoreId;
+      autoWorkDayPatternRef.current = autoPattern;
+    } else {
+      autoFirstStoreIdRef.current = "";
+      autoWorkDayPatternRef.current = cloneWorkDayPattern(defaultWorkDayPattern);
+    }
     queueMicrotask(() => {
       setContractFileList(buildContractFileList(employee));
       setDocumentFileLists({
@@ -986,6 +1051,46 @@ export function EmployeeModal({
       setActiveTabKey("general");
     });
   }, [open, employee?.id, defaultStoreIds.join("|")]);
+
+  useEffect(() => {
+    if (!open || isEdit) return;
+    const storeIds = selectedStoreIds?.length
+      ? selectedStoreIds
+      : defaultStoreIds;
+    const firstStoreId = storeIds[0] || "";
+    if (!firstStoreId || firstStoreId === autoFirstStoreIdRef.current) return;
+
+    const store = stores.find((item) => item.id === firstStoreId);
+    if (!store) return;
+
+    const nextAutoPattern = cloneWorkDayPattern(workDayPatternFromStore(store));
+    const currentPattern = normalizeWorkDayPattern(
+      form.getFieldValue("workDayPattern") ?? autoWorkDayPatternRef.current,
+    );
+    const previousAutoPattern = normalizeWorkDayPattern(
+      autoWorkDayPatternRef.current,
+    );
+    const userEdited = !areWorkDayPatternsEqual(
+      currentPattern,
+      previousAutoPattern,
+    );
+
+    autoFirstStoreIdRef.current = firstStoreId;
+    autoWorkDayPatternRef.current = nextAutoPattern;
+
+    if (!userEdited) {
+      form.setFieldsValue({
+        workDayPattern: nextAutoPattern,
+        paidHoursPerDay: getPrimaryPaidHoursFromWorkDayPattern(nextAutoPattern),
+      });
+    }
+  }, [
+    open,
+    isEdit,
+    selectedStoreIds?.join("|"),
+    defaultStoreIds.join("|"),
+    stores.map((item) => item.id).join("|"),
+  ]);
 
   const buildAvatarFileList = (
     targetEmployee: Employee | null,

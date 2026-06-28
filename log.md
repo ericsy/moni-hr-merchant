@@ -1,3 +1,12 @@
+## 2026-06-29
+
+- **店铺管理 · 营业时间选择器**：选择具体时间后自动关闭弹层并写入表单，无需再点确认或点击外部关闭。
+  - **`src/pages/Stores.tsx`**：新增 **`AutoCloseTimePicker`**（`needConfirm={false}` + 选值后关闭）。
+
+- **员工管理 · 添加员工工作日默认与店铺营业时间一致**：新增员工时，工作日模式默认取自所选店铺（多选时取第一个）的每周营业时间；切换所属店铺时同步更新默认工作日与每日付薪工时。
+  - **`src/lib/storeHours.ts`**：新增 **`workDayPatternFromStore`**、**`getDefaultWorkDayPatternForStores`**、**`getPrimaryPaidHoursFromWorkDayPattern`** 等工具函数。
+  - **`src/pages/Employees.tsx`**：**`getEmptyEmployeeFormValues`** 与 **`EmployeeModal`** 新建流程接入上述逻辑；切换第一个所属店铺时，若用户未修改默认工作时间则跟随新店铺营业时间，已手动编辑则保留。
+
 ## 2026-06-24
 
 - **跨商户兼职（方案 A）**：店长/副店长登录后 **`GET /merchant/me`** 返回跨商户 **`managedStores`**；门店下拉显示 **`商户名 / 门店名`**，切换门店时请求带 **`X-Store-Id`**（店主逻辑不变）。
