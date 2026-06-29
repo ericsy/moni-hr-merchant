@@ -243,7 +243,7 @@ export default function FieldJobs() {
       return;
     }
 
-    const { merchantAdminIds = [], ...upsert } = payload;
+    const { merchantAdminIds = [], syncStoreClockIn, syncStoreClockOut, ...upsert } = payload;
 
     for (const employeeId of merchantAdminIds) {
       const blockMessage = getEmployeeBlockMessage(
@@ -274,7 +274,10 @@ export default function FieldJobs() {
       }
 
       if (jobId) {
-        const assignments = buildFieldJobAssignmentPayloads(editingJob, merchantAdminIds);
+        const assignments = buildFieldJobAssignmentPayloads(editingJob, merchantAdminIds, {
+          syncStoreClockIn: merchantAdminIds.length === 1 ? !!syncStoreClockIn : false,
+          syncStoreClockOut: merchantAdminIds.length === 1 ? !!syncStoreClockOut : false,
+        });
         await applyFieldJobAssignments(selectedStoreId, jobId, editingJob, assignments);
       }
 
@@ -504,6 +507,9 @@ export default function FieldJobs() {
       <FieldJobFormModal
         open={formOpen}
         job={editingJob}
+        storeId={selectedStoreId}
+        storeNameById={storeNameById}
+        scheduleShifts={scheduleShifts.filter((shift) => shift.storeId === selectedStoreId)}
         employees={employees}
         dateLeaves={dateLeavesForStore}
         shiftLeaves={shiftLeavesForStore}

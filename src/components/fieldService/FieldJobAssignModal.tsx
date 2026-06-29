@@ -1,21 +1,24 @@
-import { Alert, Checkbox, Modal, Select, Spin } from "antd";
+import { Alert, Modal, Select } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  buildAssignPreview,
-  findEmployeeStoreShiftOnDate,
-  validateAssignSyncOptions,
-} from "../../lib/fieldServiceAssign";
+import { validateAssignSyncOptions } from "../../lib/fieldServiceAssign";
 import { filterEmployeesAvailableForFieldJob } from "../../lib/employeeLeave";
 import {
   buildFieldJobAssignmentPayloads,
   getFieldJobAssignmentEmployeeIds,
+  getFieldJobAssignments,
   isFieldJobAssigned,
 } from "../../lib/fieldJobEmployees";
-import { merchantApi } from "../../lib/merchantApi";
-import type { FieldJobAssignPayload, FieldJobAssignPreview, FieldServiceJob } from "../../types/fieldService";
+import type { FieldJobAssignPayload, FieldServiceJob } from "../../types/fieldService";
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantApi";
 import type { ScheduleShift } from "../../context/DataContext";
+import {
+  applyFieldJobStoreSyncForPreview,
+  FieldJobStoreSyncFields,
+  resolveFieldJobStoreSyncValue,
+  useFieldJobStoreSyncPreview,
+  type FieldJobStoreSyncValue,
+} from "./FieldJobStoreSyncSection";
 
 interface EmployeeOption {
   id: string;
@@ -54,24 +57,28 @@ export default function FieldJobAssignModal({
   onSubmit,
 }: FieldJobAssignModalProps) {
   const [employeeIds, setEmployeeIds] = useState<string[]>([]);
-  const [syncStoreClockIn, setSyncStoreClockIn] = useState(false);
-  const [syncStoreClockOut, setSyncStoreClockOut] = useState(false);
-  const [preview, setPreview] = useState<FieldJobAssignPreview | null>(null);
-  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [syncValue, setSyncValue] = useState<FieldJobStoreSyncValue>({
+    syncStoreClockIn: false,
+    syncStoreClockOut: false,
+  });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
   const resetState = useCallback(() => {
     setEmployeeIds([]);
-    setSyncStoreClockIn(false);
-    setSyncStoreClockOut(false);
-    setPreview(null);
+    setSyncValue({ syncStoreClockIn: false, syncStoreClockOut: false });
     setErrors([]);
   }, []);
 
   const isReassign = isFieldJobAssigned(job);
   const singleEmployeeMode = employeeIds.length === 1;
   const previewEmployeeId = singleEmployeeMode ? employeeIds[0] : "";
+  const existingAssignment = useMemo(() => {
+    if (!job || !previewEmployeeId) return null;
+    return getFieldJobAssignments(job).find(
+      (assignment) => String(assignment.merchantAdminId) === String(previewEmployeeId),
+    ) ?? null;
+  }, [job, previewEmployeeId]);
 
   useEffect(() => {
     if (!open) {
@@ -108,45 +115,21 @@ export default function FieldJobAssignModal({
     );
   }, [availableEmployees, open]);
 
-  const loadPreview = useCallback(
-    async (nextEmployeeId: string) => {
-      if (!job || !nextEmployeeId) {
-        setPreview(null);
-        return;
-      }
-
-      setLoadingPreview(true);
-      try {
-        const apiPreview = await merchantApi.getFieldJobAssignPreview(storeId, job.id, nextEmployeeId);
-        setPreview(apiPreview);
-        setSyncStoreClockIn(apiPreview.suggestedSyncStoreClockIn);
-        setSyncStoreClockOut(apiPreview.suggestedSyncStoreClockOut);
-      } catch {
-        const jobDate = dayjs(job.scheduledStart).format("YYYY-MM-DD");
-        const storeShift = findEmployeeStoreShiftOnDate(
-          scheduleShifts,
-          nextEmployeeId,
-          jobDate,
-          storeNameById,
-        );
-        const localPreview = buildAssignPreview(job, storeShift, locale);
-        setPreview(localPreview);
-        setSyncStoreClockIn(localPreview.suggestedSyncStoreClockIn);
-        setSyncStoreClockOut(localPreview.suggestedSyncStoreClockOut);
-      } finally {
-        setLoadingPreview(false);
-      }
-    },
-    [job, locale, scheduleShifts, storeId, storeNameById],
-  );
+  const { preview, loading: loadingPreview } = useFieldJobStoreSyncPreview({
+    jobId: open && singleEmployeeMode ? job?.id : undefined,
+    scheduledStart: job?.scheduledStart || "",
+    scheduledEnd: job?.scheduledEnd || "",
+    employeeId: open && singleEmployeeMode ? previewEmployeeId : "",
+    storeId,
+    storeNameById,
+    scheduleShifts,
+    locale,
+  });
 
   useEffect(() => {
-    if (!open || !previewEmployeeId) {
-      setPreview(null);
-      return;
-    }
-    void loadPreview(previewEmployeeId);
-  }, [loadPreview, open, previewEmployeeId]);
+    if (!open || !singleEmployeeMode || !preview) return;
+    setSyncValue(resolveFieldJobStoreSyncValue(preview, existingAssignment));
+  }, [existingAssignment, open, preview, singleEmployeeMode]);
 
   const validation = useMemo(() => {
     if (!singleEmployeeMode) {
@@ -156,19 +139,17 @@ export default function FieldJobAssignModal({
         errors: employeeIds.length > 0 ? [] : [String(labels.employeeRequired)],
       };
     }
-    if (!job || !preview?.storeShift) {
+    if (!job || !previewEmployeeId) {
       return {
-        valid: !!previewEmployeeId,
+        valid: false,
         warnings: [],
-        errors: previewEmployeeId ? [] : [String(labels.employeeRequired)],
+        errors: [String(labels.employeeRequired)],
       };
     }
-    return validateAssignSyncOptions(
-      job,
-      preview.storeShift,
-      { syncStoreClockIn, syncStoreClockOut },
-      locale,
-    );
+    if (!preview?.storeShift) {
+      return { valid: true, warnings: [], errors: [] as string[] };
+    }
+    return validateAssignSyncOptions(job, preview.storeShift, syncValue, locale);
   }, [
     employeeIds.length,
     job,
@@ -177,8 +158,7 @@ export default function FieldJobAssignModal({
     preview?.storeShift,
     previewEmployeeId,
     singleEmployeeMode,
-    syncStoreClockIn,
-    syncStoreClockOut,
+    syncValue,
   ]);
 
   const handleOk = async () => {
@@ -191,9 +171,10 @@ export default function FieldJobAssignModal({
       return;
     }
 
+    const appliedSync = applyFieldJobStoreSyncForPreview(preview, syncValue);
     const assignments = buildFieldJobAssignmentPayloads(job, employeeIds, {
-      syncStoreClockIn: singleEmployeeMode && preview?.overlap ? syncStoreClockIn : false,
-      syncStoreClockOut: singleEmployeeMode && preview?.overlap ? syncStoreClockOut : false,
+      syncStoreClockIn: singleEmployeeMode ? appliedSync.syncStoreClockIn : false,
+      syncStoreClockOut: singleEmployeeMode ? appliedSync.syncStoreClockOut : false,
     });
 
     try {
@@ -247,46 +228,15 @@ export default function FieldJobAssignModal({
           )}
         </div>
 
-        {singleEmployeeMode && loadingPreview ? (
-          <div className="flex justify-center py-4">
-            <Spin />
-          </div>
-        ) : null}
-
-        {singleEmployeeMode && preview && previewEmployeeId ? (
-          <div className="flex flex-col gap-3">
-            <Alert
-              type={preview.hasStoreShift ? "info" : "success"}
-              showIcon
-              message={
-                preview.hasStoreShift && preview.storeShift
-                  ? `${String(labels.storeShiftDetected)}：${preview.storeShift.startTime}–${preview.storeShift.endTime}（${preview.storeShift.storeName}）`
-                  : String(labels.storeShiftNone)
-              }
-            />
-
-            {preview.overlap ? (
-              <div className="rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
-                <div className="mb-2 text-sm font-medium">{String(labels.syncHint)}</div>
-                <div className="flex flex-col gap-2">
-                  <Checkbox
-                    checked={syncStoreClockIn}
-                    onChange={(event) => setSyncStoreClockIn(event.target.checked)}
-                  >
-                    {String(labels.syncStoreClockIn)}
-                  </Checkbox>
-                  <Checkbox
-                    checked={syncStoreClockOut}
-                    onChange={(event) => setSyncStoreClockOut(event.target.checked)}
-                  >
-                    {String(labels.syncStoreClockOut)}
-                  </Checkbox>
-                </div>
-              </div>
-            ) : preview.hasStoreShift ? (
-              <Alert type="warning" showIcon message={String(labels.overlapRequired)} />
-            ) : null}
-          </div>
+        {singleEmployeeMode && previewEmployeeId ? (
+          <FieldJobStoreSyncFields
+            preview={preview}
+            loading={loadingPreview}
+            labels={labels}
+            value={syncValue}
+            onChange={setSyncValue}
+            validationErrors={validation.errors}
+          />
         ) : employeeIds.length > 1 ? (
           <Alert type="info" showIcon message={String(labels.multiEmployeeAssignHint)} />
         ) : null}

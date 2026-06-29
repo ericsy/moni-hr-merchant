@@ -29,21 +29,57 @@ export function findEmployeeStoreShiftOnDate(
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   if (matched.length === 0) return null;
+  return toStoreShiftBrief(matched[0], storeNameById);
+}
 
-  const primary = matched[0];
-  const start = combineDateAndTime(primary.date, primary.startTime);
-  const end = combineDateAndTime(primary.date, primary.endTime);
-  const cellId = primary.id.startsWith("schedule-") ? primary.id.replace(/^schedule-/, "") : primary.id;
+export function findBestOverlappingStoreShiftForEmployee(
+  shifts: ScheduleShift[],
+  employeeId: string,
+  scheduledStart: string,
+  scheduledEnd: string,
+  storeNameById: Record<string, string>,
+): FieldJobStoreShiftBrief | null {
+  const jobStart = dayjs(scheduledStart);
+  const jobEnd = dayjs(scheduledEnd);
+  if (!jobStart.isValid() || !jobEnd.isValid() || !jobEnd.isAfter(jobStart)) {
+    return null;
+  }
+
+  const matched = shifts
+    .filter((shift) => {
+      const ids = shift.employeeIds?.length ? shift.employeeIds : shift.employeeId ? [shift.employeeId] : [];
+      if (!ids.map(String).includes(String(employeeId))) return false;
+      const shiftStart = combineDateAndTime(shift.date, shift.startTime);
+      let shiftEnd = combineDateAndTime(shift.date, shift.endTime);
+      if (!shiftEnd.isAfter(shiftStart)) {
+        shiftEnd = shiftEnd.add(1, "day");
+      }
+      return intervalsOverlap(jobStart, jobEnd, shiftStart, shiftEnd);
+    })
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  if (matched.length === 0) return null;
+  return toStoreShiftBrief(matched[0], storeNameById);
+}
+
+function toStoreShiftBrief(shift: ScheduleShift, storeNameById: Record<string, string>) {
+  const targetDate = dayjs(shift.date).format("YYYY-MM-DD");
+  const start = combineDateAndTime(shift.date, shift.startTime);
+  let end = combineDateAndTime(shift.date, shift.endTime);
+  if (!end.isAfter(start)) {
+    end = end.add(1, "day");
+  }
+  const cellId = shift.id.startsWith("schedule-") ? shift.id.replace(/^schedule-/, "") : shift.id;
 
   return {
     id: cellId,
-    storeId: primary.storeId,
-    storeName: storeNameById[primary.storeId] || primary.storeId,
+    storeId: shift.storeId,
+    storeName: storeNameById[shift.storeId] || shift.storeId,
     date: targetDate,
     start: start.toISOString(),
     end: end.toISOString(),
-    startTime: primary.startTime,
-    endTime: primary.endTime,
+    startTime: shift.startTime,
+    endTime: shift.endTime,
   };
 }
 

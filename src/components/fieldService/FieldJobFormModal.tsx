@@ -11,6 +11,15 @@ import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantAp
 import type { GooglePlaceSummary } from "../../lib/googleMaps";
 import type { FieldJobFormSubmitPayload, FieldServiceJob } from "../../types/fieldService";
 import { getFieldJobAssignmentEmployeeIds, getFieldJobAssignments } from "../../lib/fieldJobEmployees";
+import type { ScheduleShift } from "../../context/DataContext";
+import {
+  applyFieldJobStoreSyncForPreview,
+  FieldJobStoreSyncFields,
+  resolveFieldJobStoreSyncValue,
+  useFieldJobStoreSyncPreview,
+  type FieldJobStoreSyncValue,
+} from "./FieldJobStoreSyncSection";
+import { validateAssignSyncOptions } from "../../lib/fieldServiceAssign";
 
 const { TextArea } = Input;
 
@@ -32,6 +41,9 @@ export interface FieldJobFormValues {
 interface FieldJobFormModalProps {
   open: boolean;
   job?: FieldServiceJob | null;
+  storeId: string;
+  storeNameById: Record<string, string>;
+  scheduleShifts: ScheduleShift[];
   employees: Array<{ id: string; name: string }>;
   dateLeaves: EmployeeDateLeave[];
   shiftLeaves: EmployeeShiftLeave[];
@@ -109,10 +121,14 @@ function applyTimeChange(
 export default function FieldJobFormModal({
   open,
   job,
+  storeId,
+  storeNameById,
+  scheduleShifts,
   employees,
   dateLeaves,
   shiftLeaves,
   existingJobs,
+  locale,
   labels,
   onCancel,
   onSubmit,
@@ -123,11 +139,17 @@ export default function FieldJobFormModal({
   const [endTime, setEndTime] = useState("11:00");
   const [timeError, setTimeError] = useState("");
   const [employeeError, setEmployeeError] = useState("");
+  const [syncValue, setSyncValue] = useState<FieldJobStoreSyncValue>({
+    syncStoreClockIn: false,
+    syncStoreClockOut: false,
+  });
+  const [syncErrors, setSyncErrors] = useState<string[]>([]);
   const [locateNow, setLocateNow] = useState(0);
   const [preservedGeocodeAddress, setPreservedGeocodeAddress] = useState("");
   const serviceAddress = Form.useWatch("serviceAddress", form);
   const serviceDate = Form.useWatch("serviceDate", form);
   const selectedEmployeeIds = (Form.useWatch("merchantAdminIds", form) || []) as string[];
+  const singleSelectedEmployeeId = selectedEmployeeIds.length === 1 ? selectedEmployeeIds[0] : "";
   const [geo, setGeo] = useState({
     latitude: job?.latitude ?? -36.8485,
     longitude: job?.longitude ?? 174.7633,
@@ -145,6 +167,48 @@ export default function FieldJobFormModal({
       scheduledEnd: toLocalDateTimeString(end),
     };
   }, [endTime, serviceDate, startTime]);
+
+  const existingAssignment = useMemo(() => {
+    if (!job || !singleSelectedEmployeeId) return null;
+    return getFieldJobAssignments(job).find(
+      (assignment) => String(assignment.merchantAdminId) === String(singleSelectedEmployeeId),
+    ) ?? null;
+  }, [job, singleSelectedEmployeeId]);
+
+  const { preview: syncPreview, loading: loadingSyncPreview } = useFieldJobStoreSyncPreview({
+    jobId: open ? job?.id : undefined,
+    scheduledStart: scheduledWindow?.scheduledStart || "",
+    scheduledEnd: scheduledWindow?.scheduledEnd || "",
+    employeeId: open && singleSelectedEmployeeId ? singleSelectedEmployeeId : "",
+    storeId,
+    storeNameById,
+    scheduleShifts,
+    locale,
+  });
+
+  useEffect(() => {
+    if (!open || !singleSelectedEmployeeId || !syncPreview) return;
+    setSyncValue(resolveFieldJobStoreSyncValue(syncPreview, existingAssignment));
+  }, [existingAssignment, open, singleSelectedEmployeeId, syncPreview]);
+
+  const syncValidation = useMemo(() => {
+    if (!singleSelectedEmployeeId || !scheduledWindow) {
+      return { valid: true, errors: [] as string[] };
+    }
+    if (!syncPreview?.storeShift) {
+      return { valid: true, errors: [] as string[] };
+    }
+    return validateAssignSyncOptions(
+      scheduledWindow,
+      syncPreview.storeShift,
+      syncValue,
+      locale,
+    );
+  }, [locale, scheduledWindow, singleSelectedEmployeeId, syncPreview?.storeShift, syncValue]);
+
+  useEffect(() => {
+    setSyncErrors(syncValidation.errors);
+  }, [syncValidation.errors]);
 
   const availableEmployees = useMemo(() => {
     if (!scheduledWindow) return employees;
@@ -325,9 +389,17 @@ export default function FieldJobFormModal({
       }
       setEmployeeError("");
 
+      if (!syncValidation.valid) {
+        setSyncErrors(syncValidation.errors);
+        return;
+      }
+      setSyncErrors([]);
+
+      const appliedSync = applyFieldJobStoreSyncForPreview(syncPreview, syncValue);
+
       setSubmitting(true);
       await onSubmit({
-        storeId: job?.storeId || "",
+        storeId: job?.storeId || storeId,
         customerName: values.customerName.trim(),
         customerPhone: values.customerPhone.trim(),
         serviceAddress: values.serviceAddress.trim(),
@@ -339,6 +411,8 @@ export default function FieldJobFormModal({
         serviceType: values.serviceType,
         notes: values.notes?.trim() || undefined,
         merchantAdminIds: selectedIds,
+        syncStoreClockIn: selectedIds.length === 1 ? appliedSync.syncStoreClockIn : false,
+        syncStoreClockOut: selectedIds.length === 1 ? appliedSync.syncStoreClockOut : false,
       });
     } finally {
       setSubmitting(false);
@@ -460,6 +534,19 @@ export default function FieldJobFormModal({
             optionFilterProp="label"
           />
         </Form.Item>
+
+        {singleSelectedEmployeeId && scheduledWindow ? (
+          <FieldJobStoreSyncFields
+            preview={syncPreview}
+            loading={loadingSyncPreview}
+            labels={labels}
+            value={syncValue}
+            onChange={setSyncValue}
+            validationErrors={syncErrors}
+          />
+        ) : selectedEmployeeIds.length > 1 ? (
+          <Alert type="info" showIcon message={String(labels.multiEmployeeAssignHint)} />
+        ) : null}
 
         <Form.Item label={String(labels.geofenceRadius)}>
           <GeoFenceMapPicker

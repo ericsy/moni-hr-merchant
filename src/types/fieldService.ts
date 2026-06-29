@@ -108,9 +108,10 @@ export interface FieldJobUpsertPayload {
   notes?: string;
 }
 
-/** 表单提交：可选多名员工，选中后走派单/改派同步接口 */
 export interface FieldJobFormSubmitPayload extends FieldJobUpsertPayload {
   merchantAdminIds?: string[];
+  syncStoreClockIn?: boolean;
+  syncStoreClockOut?: boolean;
 }
 
 export interface TimelineStoreShiftItem {

@@ -10,6 +10,9 @@
 
 ## 2026-06-29
 
+- **外勤派单 · 同步店班打卡**：派单弹窗与新建/编辑工单表单支持勾选「外勤到岗同步门店上班」「外勤完工同步门店下班」；按员工店班与外勤时段重叠预览店班并校验 R1/R2；改派时保留已有同步配置；多人派单时同步默认关闭并提示仅选一名员工可配置。
+  - **`FieldJobStoreSyncSection.tsx`**（预览 hook + 勾选 UI）、**`FieldJobAssignModal.tsx`**、**`FieldJobFormModal.tsx`**、**`fieldServiceAssign.ts`**（按时段重叠匹配店班）。
+
 - **店铺管理 · 营业时间选择器**：选择具体时间后自动关闭弹层并写入表单，无需再点确认或点击外部关闭；选完「分钟」后立即收起（改小时时不关闭，便于继续选分钟）。
   - **`src/pages/Stores.tsx`**：新增 **`AutoCloseTimePicker`**（`needConfirm={false}` + 选值后关闭）。
 
