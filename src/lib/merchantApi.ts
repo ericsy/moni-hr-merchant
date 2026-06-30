@@ -397,6 +397,13 @@ export interface MerchantAttendanceRequest {
   reviewedAt?: string | null;
   reviewComment?: string | null;
   publishedCellId?: number | string | null;
+  fieldJobId?: number | string | null;
+  linkedStoreShiftId?: number | string | null;
+  syncStoreClockIn?: boolean | null;
+  syncStoreClockOut?: boolean | null;
+  serviceAddress?: string | null;
+  areaId?: number | string | null;
+  areaName?: string | null;
   punchType?: MerchantClockPunchType | string | null;
   actualPunchedAt?: string | null;
   scheduleDate?: string | null;
@@ -796,6 +803,13 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
     reviewedAt: asString(raw.reviewedAt),
     reviewComment: asString(raw.reviewComment),
     publishedCellId: raw.publishedCellId as number | string | null | undefined,
+    fieldJobId: raw.fieldJobId as number | string | null | undefined,
+    linkedStoreShiftId: raw.linkedStoreShiftId as number | string | null | undefined,
+    syncStoreClockIn: asBoolean(raw.syncStoreClockIn),
+    syncStoreClockOut: asBoolean(raw.syncStoreClockOut),
+    serviceAddress: asString(raw.serviceAddress),
+    areaId: raw.areaId as number | string | null | undefined,
+    areaName: asString(raw.areaName),
     punchType: asString(raw.punchType) as MerchantClockPunchType,
     actualPunchedAt: asString(raw.actualPunchedAt),
     scheduleDate: asString(raw.scheduleDate),

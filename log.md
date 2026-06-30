@@ -1,3 +1,11 @@
+## 2026-06-29
+
+- **外勤漏打卡 · 商家端申请管理**：
+  - **`src/lib/merchantApi.ts`**：`MerchantAttendanceRequest` 增加 `fieldJobId`、`linkedStoreShiftId`、`syncStoreClockIn/Out`、`serviceAddress`、`areaName` 等字段映射。
+  - **`src/lib/attendanceRequestDisplay.ts`**：外勤漏打卡识别与展示辅助函数。
+  - **`src/pages/AttendanceRequests.tsx`**：列表类型标签区分「外勤漏打卡」；摘要展示客户/计划时段；详情展示客户、服务地址、计划时段、同步店班说明。
+  - **`src/i18n/locales.ts`**：外勤漏打卡相关中英文案。
+
 ## 2026-06-26
 
 - **排班编辑按环境区分当日是否可改**：**`src/lib/scheduleLock.ts`** + **`src/lib/appEnv.ts`**；**dev**（`VITE_APP_ENV=dev` 或 `pnpm dev`）允许编辑**当日**排班，**test/pro** 仍为仅明日及以后可编辑。环境变量见 **`.env.dev` / `.env.test` / `.env.production` / `.env.development`**。

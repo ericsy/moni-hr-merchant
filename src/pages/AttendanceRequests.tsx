@@ -43,6 +43,12 @@ import {
   type LeaveSubstitutionReviewItem,
   type MerchantEmployeeIdName,
 } from "../lib/merchantApi";
+import {
+  fieldMissedPunchCustomerName,
+  fieldMissedPunchSyncFlags,
+  formatMissedPunchShiftRange,
+  isFieldMissedPunchRequest,
+} from "../lib/attendanceRequestDisplay";
 
 type SubstitutionDraft = {
   enabled: boolean;
@@ -110,8 +116,23 @@ function statusColor(status?: string | null) {
   return "gold";
 }
 
-function requestTypeColor(type?: string | null) {
-  return type === "leave" ? "blue" : "purple";
+function requestTypeColor(type?: string | null, isFieldMissedPunch = false) {
+  if (type === "leave") return "blue";
+  if (isFieldMissedPunch) return "orange";
+  return "purple";
+}
+
+function buildFieldSyncHint(
+  request: MerchantAttendanceRequest,
+  labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"],
+  locale: "zh" | "en",
+) {
+  const { syncIn, syncOut } = fieldMissedPunchSyncFlags(request);
+  if (!syncIn && !syncOut) return labels.fieldSyncNone;
+  const parts: string[] = [];
+  if (syncIn) parts.push(labels.fieldSyncClockIn);
+  if (syncOut) parts.push(labels.fieldSyncClockOut);
+  return parts.join(locale === "zh" ? "、" : ", ");
 }
 
 export default function AttendanceRequestPage() {
@@ -378,7 +399,7 @@ export default function AttendanceRequestPage() {
       dataIndex: "requestType",
       width: 120,
       render: (type, record) => (
-        <RequestTypeTag type={type} leaveMode={record.leaveMode} labels={labels} />
+        <RequestTypeTag type={type} leaveMode={record.leaveMode} fieldJobId={record.fieldJobId} labels={labels} />
       ),
     },
     {
@@ -520,19 +541,24 @@ function StatusTag({ status, labels }: { status?: string | null; labels: ReturnT
 function RequestTypeTag({
   type,
   leaveMode,
+  fieldJobId,
   labels,
 }: {
   type?: string | null;
   leaveMode?: string | null;
+  fieldJobId?: number | string | null;
   labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"];
 }) {
+  const isFieldMissedPunch = type === "missed_punch" && fieldJobId != null && String(fieldJobId).trim() !== "";
   const text =
     type === "leave" && leaveMode === "date_range"
       ? labels.dateRangeLeave
       : type === "leave"
         ? labels.leaveRequest
-        : labels.missedPunch;
-  return <Tag color={requestTypeColor(type)}>{text}</Tag>;
+        : isFieldMissedPunch
+          ? labels.fieldMissedPunch
+          : labels.missedPunch;
+  return <Tag color={requestTypeColor(type, isFieldMissedPunch)}>{text}</Tag>;
 }
 
 function RequestSummary({ request, labels }: { request: MerchantAttendanceRequest; labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"] }) {
@@ -547,6 +573,19 @@ function RequestSummary({ request, labels }: { request: MerchantAttendanceReques
     return (
       <span className="text-sm text-muted-foreground">
         {labels.leaveItems}: {request.leaveItems?.length || 0}
+      </span>
+    );
+  }
+
+  if (isFieldMissedPunchRequest(request)) {
+    const customer = fieldMissedPunchCustomerName(request);
+    const range = formatMissedPunchShiftRange(request.shiftStartTime, request.shiftEndTime);
+    return (
+      <span className="text-sm text-muted-foreground">
+        {customer || labels.fieldCustomer}
+        {customer ? ` · ${range}` : range}
+        {" · "}
+        {request.punchType === "clock_out" ? labels.clockOut : labels.clockIn}
       </span>
     );
   }
@@ -787,7 +826,12 @@ function AttendanceDetailModal({
           <Space>
             <FileTextIcon size={18} />
             <span>{labels.requestDetail}</span>
-            <RequestTypeTag type={request.requestType} leaveMode={request.leaveMode} labels={labels} />
+            <RequestTypeTag
+              type={request.requestType}
+              leaveMode={request.leaveMode}
+              fieldJobId={request.fieldJobId}
+              labels={labels}
+            />
             <StatusTag status={request.status} labels={labels} />
           </Space>
         ) : labels.requestDetail
@@ -836,6 +880,30 @@ function AttendanceDetailModal({
                 substituteOptionsLoadingByLeaveItem={substituteOptionsLoadingByLeaveItem}
                 onLoadSubstituteOptions={onLoadSubstituteOptions}
                 onSubstitutionDraftChange={onSubstitutionDraftChange}
+              />
+            ) : isFieldMissedPunchRequest(request) ? (
+              <Descriptions
+                size="small"
+                bordered
+                title={labels.fieldMissedPunchDetail}
+                column={2}
+                items={[
+                  { key: "customer", label: labels.fieldCustomer, children: fieldMissedPunchCustomerName(request) || "-" },
+                  { key: "serviceAddress", label: labels.fieldServiceAddress, children: request.serviceAddress || "-" },
+                  { key: "scheduleDate", label: labels.scheduleDate, children: request.scheduleDate || "-" },
+                  {
+                    key: "plannedTime",
+                    label: labels.plannedTime,
+                    children: formatMissedPunchShiftRange(request.shiftStartTime, request.shiftEndTime),
+                  },
+                  {
+                    key: "punchType",
+                    label: labels.punchType,
+                    children: request.punchType === "clock_out" ? labels.clockOut : labels.clockIn,
+                  },
+                  { key: "actualPunchedAt", label: labels.actualPunchTime, children: formatDateTime(request.actualPunchedAt) },
+                  { key: "sync", label: labels.fieldSyncStore, children: buildFieldSyncHint(request, labels, locale) },
+                ]}
               />
             ) : (
               <Descriptions
