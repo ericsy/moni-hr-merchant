@@ -1,5 +1,9 @@
 ## 2026-06-29
 
+- **申请管理 · 按日期请假仅显示日期**：
+  - **`src/lib/merchantApi.ts`**：`mapAttendanceRequest` 对 `leaveDateFrom`/`leaveDateTo`/`scheduleDate` 做 `normalizeApiLocalDate`；`resolveAttendanceLeaveMode` 与 App 一致（有起止日即按日期请假）；兼容 `leave_mode` snake_case。
+  - **`src/pages/AttendanceRequests.tsx`**：列表摘要与详情弹窗用 `formatDateRangeLeave` 仅展示 `YYYY-MM-DD`，不显示时分；按班次请假的 `scheduleDate` 同样只显示日期。
+
 - **外勤漏打卡 · 商家端申请管理**：
   - **`src/lib/merchantApi.ts`**：`MerchantAttendanceRequest` 增加 `fieldJobId`、`linkedStoreShiftId`、`syncStoreClockIn/Out`、`serviceAddress`、`areaName` 等字段映射。
   - **`src/lib/attendanceRequestDisplay.ts`**：外勤漏打卡识别与展示辅助函数。

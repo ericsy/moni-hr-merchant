@@ -106,6 +106,26 @@ function formatDateTime(value?: string | null) {
   return parsed.isValid() ? parsed.format("YYYY-MM-DD HH:mm") : String(value);
 }
 
+function formatDateOnly(value?: string | null) {
+  if (!value) return "-";
+  const trimmed = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+  const parsed = dayjs(trimmed);
+  return parsed.isValid() ? parsed.format("YYYY-MM-DD") : trimmed;
+}
+
+function formatDateRangeLeave(from?: string | null, to?: string | null) {
+  const start = formatDateOnly(from);
+  const end = formatDateOnly(to);
+  if (start === "-" && end === "-") return "-";
+  if (start === end) return start;
+  return `${start} ~ ${end}`;
+}
+
+function isDateRangeLeave(request: MerchantAttendanceRequest) {
+  return request.requestType === "leave" && request.leaveMode === "date_range";
+}
+
 function formatShift(start?: string | null, end?: string | null) {
   return start && end ? `${start} - ${end}` : "-";
 }
@@ -334,7 +354,7 @@ export default function AttendanceRequestPage() {
       if (
         status === "approved" &&
         selectedRequest.requestType === "leave" &&
-        selectedRequest.leaveMode !== "date_range"
+        !isDateRangeLeave(selectedRequest)
       ) {
         substitutions = Object.entries(substitutionDrafts)
           .filter(([, draft]) => draft.enabled && draft.substituteId)
@@ -562,10 +582,10 @@ function RequestTypeTag({
 }
 
 function RequestSummary({ request, labels }: { request: MerchantAttendanceRequest; labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"] }) {
-  if (request.requestType === "leave" && request.leaveMode === "date_range") {
+  if (isDateRangeLeave(request)) {
     return (
       <span className="text-sm text-muted-foreground">
-        {request.leaveDateFrom} ~ {request.leaveDateTo}
+        {formatDateRangeLeave(request.leaveDateFrom, request.leaveDateTo)}
       </span>
     );
   }
@@ -812,7 +832,7 @@ function AttendanceDetailModal({
   const showSubstitutionEditor =
     isPending &&
     request?.requestType === "leave" &&
-    request?.leaveMode !== "date_range" &&
+    !isDateRangeLeave(request) &&
     (request.leaveItems?.length || 0) > 0;
 
   return (
@@ -858,11 +878,11 @@ function AttendanceDetailModal({
               ]}
             />
 
-            {request.requestType === "leave" && request.leaveMode === "date_range" ? (
+            {isDateRangeLeave(request) ? (
               <div className="rounded-lg border p-4 text-sm" style={{ borderColor: "var(--border)" }}>
                 <div className="font-semibold">{labels.dateRangeLeave}</div>
                 <div className="mt-2 text-muted-foreground">
-                  {request.leaveDateFrom} ~ {request.leaveDateTo}
+                  {formatDateRangeLeave(request.leaveDateFrom, request.leaveDateTo)}
                 </div>
                 <div className="mt-2 text-muted-foreground">
                   {locale === "zh"
@@ -1031,7 +1051,7 @@ function LeaveDetail({
             return (
             <div key={itemKey} className="rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                <Info label={labels.scheduleDate} value={item.scheduleDate || "-"} />
+                <Info label={labels.scheduleDate} value={formatDateOnly(item.scheduleDate)} />
                 <Info label={labels.shift} value={formatShift(item.shiftStartTime, item.shiftEndTime)} />
                 <Info label={labels.scope} value={leaveScopeLabel(item.leaveScope)} tagColor="blue" />
                 <Info label={labels.effect} value={leaveEffectLabel(item.leaveEffect)} tagColor="geekblue" />

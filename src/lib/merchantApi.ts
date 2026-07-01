@@ -596,7 +596,7 @@ function asString(value: unknown, fallback = "") {
 }
 
 /** 将接口中的 LocalDate（字符串或 [y,m,d] 数组等）规范为 YYYY-MM-DD，供排班请假区间比较 */
-function normalizeApiLocalDate(value: unknown): string {
+export function normalizeApiLocalDate(value: unknown): string {
   if (value === undefined || value === null) return "";
   if (typeof value === "string") {
     const s = value.trim();
@@ -768,6 +768,20 @@ function mapScheduleSubstitutionBrief(input: unknown): ScheduleSubstitutionBrief
   });
 }
 
+function resolveAttendanceLeaveMode(
+  requestType: string,
+  leaveModeRaw: unknown,
+  leaveDateFrom: string,
+  leaveDateTo: string,
+): "shift" | "date_range" {
+  if (requestType !== "leave") return "shift";
+  const raw = asString(leaveModeRaw).trim().toLowerCase().replace(/-/g, "_");
+  if (raw === "date_range" || raw === "daterange") return "date_range";
+  if (raw === "shift") return "shift";
+  if (leaveDateFrom && leaveDateTo) return "date_range";
+  return "shift";
+}
+
 function mapAttendanceLeaveItem(input: unknown): MerchantAttendanceLeaveItem {
   const raw = asRecord(input);
   return compactDeep({
@@ -777,7 +791,7 @@ function mapAttendanceLeaveItem(input: unknown): MerchantAttendanceLeaveItem {
     leaveEffect: asString(raw.leaveEffect) as MerchantAttendanceLeaveItem["leaveEffect"],
     partialStartTime: normalizeTime(raw.partialStartTime) || asString(raw.partialStartTime),
     partialEndTime: normalizeTime(raw.partialEndTime) || asString(raw.partialEndTime),
-    scheduleDate: asString(raw.scheduleDate || raw.shiftDate),
+    scheduleDate: normalizeApiLocalDate(raw.scheduleDate || raw.shiftDate || raw.schedule_date || raw.shift_date),
     shiftStartTime: normalizeTime(raw.shiftStartTime),
     shiftEndTime: normalizeTime(raw.shiftEndTime),
     substitution: mapScheduleSubstitutionBrief(raw.substitution),
@@ -787,14 +801,23 @@ function mapAttendanceLeaveItem(input: unknown): MerchantAttendanceLeaveItem {
 function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
   const raw = asRecord(input);
   const store = asRecord(raw.store);
+  const requestType = asString(raw.requestType) as MerchantAttendanceRequestType;
+  const leaveDateFrom = normalizeApiLocalDate(raw.leaveDateFrom ?? raw.leave_date_from);
+  const leaveDateTo = normalizeApiLocalDate(raw.leaveDateTo ?? raw.leave_date_to);
+  const leaveMode = resolveAttendanceLeaveMode(
+    requestType,
+    raw.leaveMode ?? raw.leave_mode,
+    leaveDateFrom,
+    leaveDateTo,
+  );
   return compactDeep({
     id: raw.id as number | string | null | undefined,
     storeId: raw.storeId as number | string | null | undefined,
     storeName: asString(raw.storeName || store.name),
-    requestType: asString(raw.requestType) as MerchantAttendanceRequestType,
-    leaveMode: asString(raw.leaveMode) || "shift",
-    leaveDateFrom: asString(raw.leaveDateFrom),
-    leaveDateTo: asString(raw.leaveDateTo),
+    requestType,
+    leaveMode,
+    leaveDateFrom,
+    leaveDateTo,
     status: asString(raw.status) as MerchantAttendanceRequestStatus,
     reason: asString(raw.reason),
     approverMerchantAdminId: raw.approverMerchantAdminId as number | string | null | undefined,
@@ -812,7 +835,7 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
     areaName: asString(raw.areaName),
     punchType: asString(raw.punchType) as MerchantClockPunchType,
     actualPunchedAt: asString(raw.actualPunchedAt),
-    scheduleDate: asString(raw.scheduleDate),
+    scheduleDate: normalizeApiLocalDate(raw.scheduleDate ?? raw.schedule_date),
     shiftStartTime: normalizeTime(raw.shiftStartTime),
     shiftEndTime: normalizeTime(raw.shiftEndTime),
     applicant: raw.applicant ? mapEmployeeBrief(raw.applicant) : undefined,
