@@ -656,6 +656,7 @@ export default function AttendanceRequestPage() {
 
       <AttendanceDetailModal
         request={selectedRequest}
+        storeNameById={storeNameById}
         labels={labels}
         locale={locale}
         loading={detailLoading}
@@ -732,6 +733,17 @@ function RequestTypeTag({
             ? labels.fieldMissedPunch
             : labels.missedPunch;
   return <Tag color={requestTypeColor(type, isFieldMissedPunch)}>{text}</Tag>;
+}
+
+function formatRequestStoreName(
+  request: Pick<MerchantAttendanceRequest, "storeId" | "storeName">,
+  storeNameById: Map<string, string>,
+): string {
+  const name = (request.storeName || "").trim();
+  if (name) return name;
+  const mapped = storeNameById.get(String(request.storeId ?? ""));
+  if (mapped) return mapped;
+  return "-";
 }
 
 function RequestSummary({ request, labels }: { request: MerchantAttendanceRequest; labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"] }) {
@@ -961,6 +973,7 @@ function CompactStatCard({
 
 function AttendanceDetailModal({
   request,
+  storeNameById,
   labels,
   locale,
   loading,
@@ -984,6 +997,7 @@ function AttendanceDetailModal({
   onReview,
 }: {
   request: MerchantAttendanceRequest | null;
+  storeNameById: Map<string, string>;
   labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"];
   locale: "zh" | "en";
   loading: boolean;
@@ -1050,7 +1064,7 @@ function AttendanceDetailModal({
               column={2}
               items={[
                 { key: "applicant", label: labels.applicant, children: getPersonName(request.applicant) || "-" },
-                { key: "store", label: labels.store, children: request.storeName || request.storeId || "-" },
+                { key: "store", label: labels.store, children: request ? formatRequestStoreName(request, storeNameById) : "-" },
                 { key: "submittedAt", label: labels.submittedAt, children: formatDateTime(request.submittedAt) },
                 { key: "approver", label: labels.approver, children: getPersonName(request.approver) || "-" },
                 { key: "reviewer", label: labels.reviewer, children: getPersonName(request.reviewer) || "-" },

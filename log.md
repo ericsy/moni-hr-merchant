@@ -1,5 +1,7 @@
 ## 2026-07-02
 
+- **申请管理 · 详情门店显示名称**：`AttendanceRequests.tsx` 详情弹窗门店字段优先 `storeName`，否则从 `storeNameById` 解析，不再回退显示 `storeId`。
+
 - **申请管理 · 外勤请假展示**：
   - **`src/lib/attendanceRequestDisplay.ts`**：新增 `isFieldLeaveRequest`、`fieldLeaveCustomerName`。
   - **`src/pages/AttendanceRequests.tsx`**：列表/详情展示外勤信息；外勤请假审批须选取消/改派，改派用候选人下拉。
