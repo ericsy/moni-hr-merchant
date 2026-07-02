@@ -496,6 +496,10 @@ export interface MerchantClockPunch {
   proxySharedDeviceEmployees?: MerchantEmployeeBrief[] | null;
   attendanceRequestId?: number | string | null;
   attendanceLeaveItemId?: number | string | null;
+  refType?: string | null;
+  refId?: number | string | null;
+  syncEffect?: string | null;
+  customerName?: string | null;
 }
 
 export interface MerchantClockPunchQueryParams {
@@ -934,6 +938,10 @@ function mapClockPunch(input: unknown): MerchantClockPunch {
     proxySharedDeviceEmployees: asArray(raw.proxySharedDeviceEmployees).map(mapEmployeeBrief),
     attendanceRequestId: raw.attendanceRequestId as number | string | null | undefined,
     attendanceLeaveItemId: raw.attendanceLeaveItemId as number | string | null | undefined,
+    refType: asString(raw.refType),
+    refId: raw.refId as number | string | null | undefined,
+    syncEffect: asString(raw.syncEffect),
+    customerName: asString(raw.customerName),
   });
 }
 

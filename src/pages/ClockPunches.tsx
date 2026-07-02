@@ -41,6 +41,12 @@ import {
   type MerchantClockSummary,
   type MerchantEmployeeIdName,
 } from "../lib/merchantApi";
+import {
+  formatPunchTaskTypeLabel,
+  isFieldJobClockPunch,
+  punchTaskTagColor,
+  resolvePunchTaskKind,
+} from "../lib/punchTaskType";
 
 const { RangePicker } = DatePicker;
 
@@ -596,6 +602,12 @@ function ClockPunchTable({
       render: (source) => <SourceTag source={source} labels={labels} />,
     },
     {
+      title: labels.punchTaskType,
+      key: "punchTaskType",
+      width: 150,
+      render: (_, record) => <PunchTaskTypeTag record={record} labels={labels} />,
+    },
+    {
       title: labels.deviceType,
       key: "device",
       width: 180,
@@ -658,7 +670,7 @@ function ClockPunchTable({
         rowKey={(record) => String(record.id)}
         loading={loading}
         pagination={pagination}
-        scroll={{ x: 1180 }}
+        scroll={{ x: 1330 }}
         onRow={(record) => ({
           onClick: () => onOpenRecord(record),
           style: { cursor: "pointer" },
@@ -682,6 +694,23 @@ function PunchTypeTag({ type, labels }: { type?: string | null; labels: ReturnTy
 function SourceTag({ source, labels }: { source?: string | null; labels: ReturnType<typeof useLocale>["t"]["clockPunch"] }) {
   const color = source === "missed_punch_backfill" ? "purple" : source === "leave" ? "cyan" : "default";
   return <Tag color={color}>{sourceLabel(source, labels)}</Tag>;
+}
+
+function PunchTaskTypeTag({
+  record,
+  labels,
+}: {
+  record: MerchantClockPunch;
+  labels: ReturnType<typeof useLocale>["t"]["clockPunch"];
+}) {
+  const kind = resolvePunchTaskKind(record);
+  const label = formatPunchTaskTypeLabel(record, {
+    taskStoreShift: labels.taskStoreShift,
+    taskFieldJob: labels.taskFieldJob,
+    taskFieldSyncStoreIn: labels.taskFieldSyncStoreIn,
+    taskFieldSyncStoreOut: labels.taskFieldSyncStoreOut,
+  });
+  return <Tag color={punchTaskTagColor(kind)}>{label}</Tag>;
 }
 
 function ProxyRisk({ record, labels }: { record: MerchantClockPunch; labels: ReturnType<typeof useLocale>["t"]["clockPunch"] }) {
@@ -738,6 +767,10 @@ function PunchDetailDrawer({
             items={[
               { key: "punchType", label: labels.punchType, children: <PunchTypeTag type={record.punchType} labels={labels} /> },
               { key: "punchSource", label: labels.punchSource, children: <SourceTag source={record.punchSource} labels={labels} /> },
+              { key: "punchTaskType", label: labels.punchTaskType, children: <PunchTaskTypeTag record={record} labels={labels} /> },
+              ...(isFieldJobClockPunch(record) && record.customerName
+                ? [{ key: "customerName", label: labels.fieldJobCustomer, children: record.customerName, span: 2 as const }]
+                : []),
               { key: "punchedAt", label: labels.punchedAt, children: formatDateTime(record.punchedAt), span: 2 },
               { key: "createdAt", label: labels.createdAt, children: formatDateTime(record.createdAt), span: 2 },
             ]}

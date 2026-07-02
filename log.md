@@ -1,5 +1,12 @@
 ## 2026-07-02
 
+- **商家端打卡记录展示任务类型**：
+  - **`MerchantClockPunchVo`** / **`MerchantClockPunchService`**：返回 `refType`、`refId`、`syncEffect`、`customerName`（外勤批量补全客户名）。
+  - **`src/lib/merchantApi.ts`**：类型与 `mapClockPunch` 映射新字段。
+  - **`src/lib/punchTaskType.ts`**：任务类型解析（店班 / 外勤 / 外勤同步上下班）。
+  - **`src/pages/ClockPunches.tsx`**：列表列与详情抽屉展示任务类型；外勤显示客户名。
+  - **`src/i18n/locales.ts`**：相关中英文案。
+
 - **外勤同步店班 1 小时窗口规则**（与后端 `FieldStoreSyncRules` 对齐）：
   - **`src/lib/fieldServiceAssign.ts`**：`canEnableSyncClockIn/Out`、`FIELD_STORE_SYNC_WINDOW_MINUTES`；`buildAssignPreview` / `validateAssignSyncOptions` 改用新规则。
   - **`FieldJobStoreSyncSection.tsx`**：超出窗口时 Checkbox 置灰并提示；提交前 `applyFieldJobStoreSyncForPreview` 过滤无效勾选。
