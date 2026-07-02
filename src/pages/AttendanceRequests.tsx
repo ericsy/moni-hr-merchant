@@ -46,10 +46,13 @@ import {
   type MerchantEmployeeIdName,
 } from "../lib/merchantApi";
 import {
+  fieldLeaveCustomerName,
   fieldMissedPunchCustomerName,
   fieldMissedPunchSyncFlags,
   formatMissedPunchShiftRange,
+  isFieldLeaveRequest,
   isFieldMissedPunchRequest,
+  resolveRequiredFieldImpactsForReview,
 } from "../lib/attendanceRequestDisplay";
 
 type SubstitutionDraft = {
@@ -174,8 +177,7 @@ function buildFieldDispositionsForReview(
   actionByJobId: Record<string, "cancel" | "reassign" | "">,
   assigneeByJobId: Record<string, string>,
 ): Array<{ fieldJobId: number; action: "cancel" | "reassign"; assigneeMerchantAdminId?: number | string | null }> {
-  const required = requiredFieldImpacts(impacts);
-  return required
+  return impacts
     .map((impact) => {
       const key = String(impact.fieldJobId);
       const action = actionByJobId[key];
@@ -224,6 +226,12 @@ export default function AttendanceRequestPage() {
     Record<string, "cancel" | "reassign" | "">
   >({});
   const [fieldAssigneeByJobId, setFieldAssigneeByJobId] = useState<Record<string, string>>({});
+  const [fieldAssigneeOptionsByJobId, setFieldAssigneeOptionsByJobId] = useState<
+    Record<string, MerchantEmployeeIdName[]>
+  >({});
+  const [fieldAssigneeOptionsLoadingByJobId, setFieldAssigneeOptionsLoadingByJobId] = useState<
+    Record<string, boolean>
+  >({});
   const [substituteOptionsByLeaveItem, setSubstituteOptionsByLeaveItem] = useState<
     Record<string, MerchantEmployeeIdName[]>
   >({});
@@ -348,10 +356,33 @@ export default function AttendanceRequestPage() {
         setSubstitutionDrafts(drafts);
         setSubstituteOptionsByLeaveItem({});
         setSubstituteOptionsLoadingByLeaveItem({});
+        const requiredForReview = resolveRequiredFieldImpactsForReview(detail);
+        if (requiredForReview.length > 0) {
+          const actions: Record<string, "cancel" | "reassign" | ""> = {};
+          const assignees: Record<string, string> = {};
+          for (const impact of requiredForReview) {
+            const key = String(impact.fieldJobId);
+            actions[key] = "";
+            assignees[key] = "";
+          }
+          setFieldDispositionByJobId(actions);
+          setFieldAssigneeByJobId(assignees);
+          setFieldAssigneeOptionsByJobId({});
+          setFieldAssigneeOptionsLoadingByJobId({});
+        } else {
+          setFieldDispositionByJobId({});
+          setFieldAssigneeByJobId({});
+          setFieldAssigneeOptionsByJobId({});
+          setFieldAssigneeOptionsLoadingByJobId({});
+        }
       } else {
         setSubstitutionDrafts({});
         setSubstituteOptionsByLeaveItem({});
         setSubstituteOptionsLoadingByLeaveItem({});
+        setFieldDispositionByJobId({});
+        setFieldAssigneeByJobId({});
+        setFieldAssigneeOptionsByJobId({});
+        setFieldAssigneeOptionsLoadingByJobId({});
       }
     } catch (detailError) {
       console.log("[AttendanceRequestPage] failed to load detail:", detailError);
@@ -378,6 +409,28 @@ export default function AttendanceRequestPage() {
     [],
   );
 
+  const loadFieldAssigneeOptionsForJob = useCallback(
+    async (storeId: string, request: MerchantAttendanceRequest, fieldJobId: string) => {
+      if (!storeId || !fieldJobId) return;
+      setFieldAssigneeOptionsLoadingByJobId((previous) => ({ ...previous, [fieldJobId]: true }));
+      try {
+        const items = await merchantApi.listSubstituteCandidates(storeId, {
+          scheduleDate: request.scheduleDate || undefined,
+          startTime: request.shiftStartTime || undefined,
+          endTime: request.shiftEndTime || undefined,
+          excludeMerchantAdminId: request.applicant?.merchantAdminId ?? request.applicant?.id,
+        });
+        setFieldAssigneeOptionsByJobId((previous) => ({ ...previous, [fieldJobId]: items }));
+      } catch (loadError) {
+        console.log("[AttendanceRequestPage] failed to load field assignee candidates:", loadError);
+        setFieldAssigneeOptionsByJobId((previous) => ({ ...previous, [fieldJobId]: [] }));
+      } finally {
+        setFieldAssigneeOptionsLoadingByJobId((previous) => ({ ...previous, [fieldJobId]: false }));
+      }
+    },
+    [],
+  );
+
   const closeDetail = () => {
     if (reviewing) return;
     setSelectedRequest(null);
@@ -387,6 +440,8 @@ export default function AttendanceRequestPage() {
     setSubstituteOptionsLoadingByLeaveItem({});
     setFieldDispositionByJobId({});
     setFieldAssigneeByJobId({});
+    setFieldAssigneeOptionsByJobId({});
+    setFieldAssigneeOptionsLoadingByJobId({});
   };
 
   const submitReview = async (status: "approved" | "rejected") => {
@@ -395,7 +450,9 @@ export default function AttendanceRequestPage() {
 
     try {
       setReviewing(status);
-      const requiredImpacts = requiredFieldImpacts(selectedRequest.fieldImpacts);
+      const requiredImpacts = selectedRequest
+        ? resolveRequiredFieldImpactsForReview(selectedRequest)
+        : [];
       if (
         status === "approved" &&
         selectedRequest.requestType === "leave" &&
@@ -420,7 +477,8 @@ export default function AttendanceRequestPage() {
       if (
         status === "approved" &&
         selectedRequest.requestType === "leave" &&
-        !isDateRangeLeave(selectedRequest)
+        !isDateRangeLeave(selectedRequest) &&
+        !isFieldLeaveRequest(selectedRequest)
       ) {
         substitutions = Object.entries(substitutionDrafts)
           .filter(([, draft]) => draft.enabled && draft.substituteId)
@@ -441,7 +499,7 @@ export default function AttendanceRequestPage() {
           fieldDispositions:
             status === "approved" && selectedRequest.requestType === "leave"
               ? buildFieldDispositionsForReview(
-                  selectedRequest.fieldImpacts || [],
+                  requiredImpacts,
                   fieldDispositionByJobId,
                   fieldAssigneeByJobId,
                 )
@@ -616,6 +674,14 @@ export default function AttendanceRequestPage() {
         onFieldAssigneeChange={(fieldJobId, value) => {
           setFieldAssigneeByJobId((prev) => ({ ...prev, [String(fieldJobId)]: value }));
         }}
+        fieldAssigneeOptionsByJobId={fieldAssigneeOptionsByJobId}
+        fieldAssigneeOptionsLoadingByJobId={fieldAssigneeOptionsLoadingByJobId}
+        onLoadFieldAssigneeOptions={(fieldJobId) => {
+          const storeId = String(selectedRequest?.storeId || activeStoreId || "");
+          if (storeId && selectedRequest) {
+            void loadFieldAssigneeOptionsForJob(storeId, selectedRequest, fieldJobId);
+          }
+        }}
         substitutionDrafts={substitutionDrafts}
         substituteOptionsByLeaveItem={substituteOptionsByLeaveItem}
         substituteOptionsLoadingByLeaveItem={substituteOptionsLoadingByLeaveItem}
@@ -658,11 +724,13 @@ function RequestTypeTag({
   const text =
     type === "leave" && leaveMode === "date_range"
       ? labels.dateRangeLeave
-      : type === "leave"
-        ? labels.leaveRequest
-        : isFieldMissedPunch
-          ? labels.fieldMissedPunch
-          : labels.missedPunch;
+      : type === "leave" && leaveMode === "field_job"
+        ? labels.fieldLeave
+        : type === "leave"
+          ? labels.leaveRequest
+          : isFieldMissedPunch
+            ? labels.fieldMissedPunch
+            : labels.missedPunch;
   return <Tag color={requestTypeColor(type, isFieldMissedPunch)}>{text}</Tag>;
 }
 
@@ -671,6 +739,17 @@ function RequestSummary({ request, labels }: { request: MerchantAttendanceReques
     return (
       <span className="text-sm text-muted-foreground">
         {formatDateRangeLeave(request.leaveDateFrom, request.leaveDateTo)}
+      </span>
+    );
+  }
+  if (isFieldLeaveRequest(request)) {
+    const customer = fieldLeaveCustomerName(request);
+    const range = formatMissedPunchShiftRange(request.shiftStartTime, request.shiftEndTime);
+    const date = formatDateOnly(request.scheduleDate);
+    return (
+      <span className="text-sm text-muted-foreground">
+        {customer || labels.fieldCustomer}
+        {customer ? ` · ${date} · ${range}` : `${date} · ${range}`}
       </span>
     );
   }
@@ -893,6 +972,9 @@ function AttendanceDetailModal({
   fieldAssigneeByJobId,
   onFieldDispositionChange,
   onFieldAssigneeChange,
+  fieldAssigneeOptionsByJobId,
+  fieldAssigneeOptionsLoadingByJobId,
+  onLoadFieldAssigneeOptions,
   substitutionDrafts,
   substituteOptionsByLeaveItem,
   substituteOptionsLoadingByLeaveItem,
@@ -913,6 +995,9 @@ function AttendanceDetailModal({
   fieldAssigneeByJobId: Record<string, string>;
   onFieldDispositionChange: (fieldJobId: number, value: "cancel" | "reassign" | "") => void;
   onFieldAssigneeChange: (fieldJobId: number, value: string) => void;
+  fieldAssigneeOptionsByJobId: Record<string, MerchantEmployeeIdName[]>;
+  fieldAssigneeOptionsLoadingByJobId: Record<string, boolean>;
+  onLoadFieldAssigneeOptions: (fieldJobId: string) => void;
   substitutionDrafts: Record<string, SubstitutionDraft>;
   substituteOptionsByLeaveItem: Record<string, MerchantEmployeeIdName[]>;
   substituteOptionsLoadingByLeaveItem: Record<string, boolean>;
@@ -926,8 +1011,13 @@ function AttendanceDetailModal({
     isPending &&
     request?.requestType === "leave" &&
     !isDateRangeLeave(request) &&
+    !isFieldLeaveRequest(request) &&
     (request.leaveItems?.length || 0) > 0;
-  const requiredImpacts = useMemo(() => requiredFieldImpacts(request?.fieldImpacts), [request?.fieldImpacts]);
+  const requiredImpacts = useMemo(
+    () => (request ? resolveRequiredFieldImpactsForReview(request) : []),
+    [request],
+  );
+  const showFieldDispositionEditor = isPending && request?.requestType === "leave" && requiredImpacts.length > 0;
 
   return (
     <Modal
@@ -984,6 +1074,30 @@ function AttendanceDetailModal({
                     : "Date-range leave is not tied to published shifts; no substitute required."}
                 </div>
               </div>
+            ) : isFieldLeaveRequest(request) ? (
+              <>
+                <Descriptions
+                  size="small"
+                  bordered
+                  title={labels.fieldLeaveDetail}
+                  column={2}
+                  items={[
+                    { key: "fieldJobId", label: labels.fieldJobId, children: request.fieldJobId ? `#${request.fieldJobId}` : "-" },
+                    { key: "customer", label: labels.fieldCustomer, children: fieldLeaveCustomerName(request) || "-" },
+                    { key: "serviceAddress", label: labels.fieldServiceAddress, children: request.serviceAddress || "-" },
+                    { key: "scheduleDate", label: labels.scheduleDate, children: formatDateOnly(request.scheduleDate) },
+                    {
+                      key: "plannedTime",
+                      label: labels.plannedTime,
+                      children: formatMissedPunchShiftRange(request.shiftStartTime, request.shiftEndTime),
+                    },
+                    { key: "sync", label: labels.fieldSyncStore, children: buildFieldSyncHint(request, labels, locale) },
+                  ]}
+                />
+                <div className="rounded-lg border px-4 py-3 text-sm text-muted-foreground" style={{ borderColor: "var(--border)" }}>
+                  {labels.fieldLeaveReviewHint}
+                </div>
+              </>
             ) : request.requestType === "leave" ? (
               <LeaveDetail
                 items={request.leaveItems || []}
@@ -1039,7 +1153,7 @@ function AttendanceDetailModal({
               <div className="rounded-lg bg-muted px-4 py-3 text-sm">{request.reason || "-"}</div>
             </div>
 
-            {(request.fieldImpacts?.length || 0) > 0 && (
+            {(request.fieldImpacts?.length || 0) > 0 && !isFieldLeaveRequest(request) && (
               <div className="rounded-lg border p-4 text-sm" style={{ borderColor: "var(--border)" }}>
                 <div className="font-semibold">{labels.fieldImpactSection}</div>
                 <div className="mt-2 flex flex-col gap-2">
@@ -1095,15 +1209,21 @@ function AttendanceDetailModal({
                   />
                 </Form.Item>
 
-                {request?.requestType === "leave" && requiredImpacts.length > 0 && (
+                {showFieldDispositionEditor && (
                   <div className="mb-4 rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
                     <div className="mb-2 text-sm font-semibold">{labels.fieldDispositionTitle}</div>
-                    <div className="text-xs text-muted-foreground">{labels.fieldDispositionHint}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isFieldLeaveRequest(request)
+                        ? labels.fieldLeaveDispositionHint
+                        : labels.fieldDispositionHint}
+                    </div>
                     <div className="mt-3 flex flex-col gap-3">
                       {requiredImpacts.map((impact) => {
                         const key = String(impact.fieldJobId);
                         const action = fieldDispositionByJobId[key] || "";
                         const assignee = fieldAssigneeByJobId[key] || "";
+                        const assigneeOptions = fieldAssigneeOptionsByJobId[key] || [];
+                        const assigneeOptionsLoading = !!fieldAssigneeOptionsLoadingByJobId[key];
                         return (
                           <div key={key} className="rounded-md bg-muted/40 p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1111,22 +1231,47 @@ function AttendanceDetailModal({
                                 {impact.customerName?.trim() || `#${impact.fieldJobId}`}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {formatFieldImpactRange(impact) || "-"}
+                                {formatFieldImpactRange(impact) ||
+                                  formatMissedPunchShiftRange(
+                                    request.shiftStartTime,
+                                    request.shiftEndTime,
+                                  ) ||
+                                  "-"}
                               </div>
                             </div>
                             <div className="mt-2 flex flex-col gap-2">
                               <Radio.Group
                                 value={action}
-                                onChange={(e) => onFieldDispositionChange(impact.fieldJobId, e.target.value)}
+                                onChange={(e) => {
+                                  const next = e.target.value as "cancel" | "reassign";
+                                  onFieldDispositionChange(impact.fieldJobId, next);
+                                  if (next === "reassign") {
+                                    onLoadFieldAssigneeOptions(key);
+                                  }
+                                }}
                               >
                                 <Radio value="cancel">{labels.fieldDispositionCancel}</Radio>
                                 <Radio value="reassign">{labels.fieldDispositionReassign}</Radio>
                               </Radio.Group>
                               {action === "reassign" && (
-                                <Input
-                                  value={assignee}
-                                  placeholder={labels.fieldDispositionAssigneePlaceholder}
-                                  onChange={(e) => onFieldAssigneeChange(impact.fieldJobId, e.target.value)}
+                                <Select
+                                  allowClear
+                                  showSearch
+                                  optionFilterProp="label"
+                                  loading={assigneeOptionsLoading}
+                                  placeholder={labels.selectFieldAssignee}
+                                  style={{ minWidth: 220 }}
+                                  value={assignee || undefined}
+                                  options={assigneeOptions.map((row) => ({
+                                    value: String(row.id),
+                                    label: row.name,
+                                  }))}
+                                  onDropdownVisibleChange={(open) => {
+                                    if (open) onLoadFieldAssigneeOptions(key);
+                                  }}
+                                  onChange={(value) =>
+                                    onFieldAssigneeChange(impact.fieldJobId, value ? String(value) : "")
+                                  }
                                 />
                               )}
                             </div>

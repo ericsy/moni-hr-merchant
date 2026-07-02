@@ -1,5 +1,10 @@
 ## 2026-07-02
 
+- **申请管理 · 外勤请假展示**：
+  - **`src/lib/attendanceRequestDisplay.ts`**：新增 `isFieldLeaveRequest`、`fieldLeaveCustomerName`。
+  - **`src/pages/AttendanceRequests.tsx`**：列表/详情展示外勤信息；外勤请假审批须选取消/改派，改派用候选人下拉。
+  - **`src/i18n/locales.ts`**：`fieldLeaveDispositionHint`、`selectFieldAssignee` 等文案。
+
 - **疑似代打卡移除新设备规则**：商家端概览去掉「新设备」统计；风险标签过滤 `new_device_id`。
 
 - **商家端打卡记录展示任务类型**：
