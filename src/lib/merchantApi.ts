@@ -840,6 +840,36 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
     leaveDateFrom,
     leaveDateTo,
   );
+  const fieldImpacts = asArray(raw.fieldImpacts).map((row) => {
+    const it = asRecord(row);
+    // NOTE: 不用 compactDeep，否则会把结果推成 Partial<>，导致 TS 无法满足必填 fieldJobId。
+    return {
+      id: (it.id as number | string | null | undefined) ?? null,
+      leaveItemId: (it.leaveItemId as number | string | null | undefined) ?? null,
+      fieldJobId: asNumber(it.fieldJobId),
+      linkedStoreShiftId: (it.linkedStoreShiftId as number | string | null | undefined) ?? null,
+      overlapType: asString(it.overlapType) || null,
+      requiredAction: asString(it.requiredAction) || null,
+      customerName: asString(it.customerName) || null,
+      serviceType: asString(it.serviceType) || null,
+      scheduledStart: asString(it.scheduledStart) || null,
+      scheduledEnd: asString(it.scheduledEnd) || null,
+      syncStoreClockIn: typeof it.syncStoreClockIn === "boolean" ? it.syncStoreClockIn : null,
+      syncStoreClockOut: typeof it.syncStoreClockOut === "boolean" ? it.syncStoreClockOut : null,
+    } satisfies MerchantAttendanceFieldImpact;
+  });
+
+  const fieldDispositions = asArray(raw.fieldDispositions).map((row) => {
+    const it = asRecord(row);
+    return {
+      id: (it.id as number | string | null | undefined) ?? null,
+      fieldJobId: asNumber(it.fieldJobId),
+      action: asString(it.action) || null,
+      assigneeMerchantAdminId: (it.assigneeMerchantAdminId as number | string | null | undefined) ?? null,
+      source: asString(it.source) || null,
+    } satisfies MerchantAttendanceFieldDisposition;
+  });
+
   return compactDeep({
     id: raw.id as number | string | null | undefined,
     storeId: raw.storeId as number | string | null | undefined,
@@ -875,33 +905,8 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
     proxyReviewer: raw.proxyReviewer ? mapEmployeeBrief(raw.proxyReviewer) : undefined,
     proxyReview: typeof raw.proxyReview === "boolean" ? raw.proxyReview : undefined,
     leaveItems: asArray(raw.leaveItems).map(mapAttendanceLeaveItem),
-    fieldImpacts: asArray(raw.fieldImpacts).map((row) => {
-      const it = asRecord(row);
-      return compactDeep({
-        id: it.id as number | string | null | undefined,
-        leaveItemId: it.leaveItemId as number | string | null | undefined,
-        fieldJobId: asNumber(it.fieldJobId),
-        linkedStoreShiftId: it.linkedStoreShiftId as number | string | null | undefined,
-        overlapType: asString(it.overlapType),
-        requiredAction: asString(it.requiredAction),
-        customerName: asString(it.customerName),
-        serviceType: asString(it.serviceType),
-        scheduledStart: asString(it.scheduledStart),
-        scheduledEnd: asString(it.scheduledEnd),
-        syncStoreClockIn: asBoolean(it.syncStoreClockIn),
-        syncStoreClockOut: asBoolean(it.syncStoreClockOut),
-      }) satisfies MerchantAttendanceFieldImpact;
-    }),
-    fieldDispositions: asArray(raw.fieldDispositions).map((row) => {
-      const it = asRecord(row);
-      return compactDeep({
-        id: it.id as number | string | null | undefined,
-        fieldJobId: asNumber(it.fieldJobId),
-        action: asString(it.action),
-        assigneeMerchantAdminId: it.assigneeMerchantAdminId as number | string | null | undefined,
-        source: asString(it.source),
-      }) satisfies MerchantAttendanceFieldDisposition;
-    }),
+    fieldImpacts,
+    fieldDispositions,
   });
 }
 
