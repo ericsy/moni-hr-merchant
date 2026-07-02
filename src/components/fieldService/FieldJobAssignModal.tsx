@@ -128,8 +128,10 @@ export default function FieldJobAssignModal({
 
   useEffect(() => {
     if (!open || !singleEmployeeMode || !preview) return;
-    setSyncValue(resolveFieldJobStoreSyncValue(preview, existingAssignment));
-  }, [existingAssignment, open, preview, singleEmployeeMode]);
+    setSyncValue(
+      resolveFieldJobStoreSyncValue(preview, existingAssignment, job ?? undefined),
+    );
+  }, [existingAssignment, job, open, preview, singleEmployeeMode]);
 
   const validation = useMemo(() => {
     if (!singleEmployeeMode) {
@@ -171,7 +173,7 @@ export default function FieldJobAssignModal({
       return;
     }
 
-    const appliedSync = applyFieldJobStoreSyncForPreview(preview, syncValue);
+    const appliedSync = applyFieldJobStoreSyncForPreview(preview, syncValue, job ?? undefined);
     const assignments = buildFieldJobAssignmentPayloads(job, employeeIds, {
       syncStoreClockIn: singleEmployeeMode ? appliedSync.syncStoreClockIn : false,
       syncStoreClockOut: singleEmployeeMode ? appliedSync.syncStoreClockOut : false,
@@ -231,6 +233,8 @@ export default function FieldJobAssignModal({
         {singleEmployeeMode && previewEmployeeId ? (
           <FieldJobStoreSyncFields
             preview={preview}
+            scheduledStart={job.scheduledStart}
+            scheduledEnd={job.scheduledEnd}
             loading={loadingPreview}
             labels={labels}
             value={syncValue}

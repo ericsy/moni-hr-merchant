@@ -1,7 +1,10 @@
 import { Alert, Checkbox, Spin } from "antd";
+import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import {
   buildAssignPreview,
+  canEnableSyncClockIn,
+  canEnableSyncClockOut,
   findBestOverlappingStoreShiftForEmployee,
 } from "../../lib/fieldServiceAssign";
 import { merchantApi } from "../../lib/merchantApi";
@@ -92,6 +95,8 @@ export function useFieldJobStoreSyncPreview({
 
 interface FieldJobStoreSyncFieldsProps {
   preview: FieldJobAssignPreview | null;
+  scheduledStart: string;
+  scheduledEnd: string;
   loading?: boolean;
   labels: Record<string, unknown>;
   value: FieldJobStoreSyncValue;
@@ -101,6 +106,8 @@ interface FieldJobStoreSyncFieldsProps {
 
 export function FieldJobStoreSyncFields({
   preview,
+  scheduledStart,
+  scheduledEnd,
   loading = false,
   labels,
   value,
@@ -117,6 +124,15 @@ export function FieldJobStoreSyncFields({
 
   if (!preview) return null;
 
+  const jobStart = dayjs(scheduledStart);
+  const jobEnd = dayjs(scheduledEnd);
+  const shiftStart = preview.storeShift ? dayjs(preview.storeShift.start) : null;
+  const shiftEnd = preview.storeShift ? dayjs(preview.storeShift.end) : null;
+  const syncInEligible =
+    preview.overlap && shiftStart ? canEnableSyncClockIn(jobStart, shiftStart) : false;
+  const syncOutEligible =
+    preview.overlap && shiftEnd ? canEnableSyncClockOut(jobEnd, shiftEnd) : false;
+
   return (
     <div className="flex flex-col gap-3">
       <Alert
@@ -132,23 +148,38 @@ export function FieldJobStoreSyncFields({
       {preview.overlap ? (
         <div className="rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
           <div className="mb-2 text-sm font-medium">{String(labels.syncHint)}</div>
+          <div className="mb-2 text-xs" style={{ color: "var(--muted-foreground)" }}>
+            {String(labels.syncWindowHint)}
+          </div>
           <div className="flex flex-col gap-2">
             <Checkbox
               checked={value.syncStoreClockIn}
+              disabled={!syncInEligible}
               onChange={(event) =>
                 onChange({ ...value, syncStoreClockIn: event.target.checked })
               }
             >
               {String(labels.syncStoreClockIn)}
             </Checkbox>
+            {!syncInEligible ? (
+              <div className="pl-6 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {String(labels.syncClockInWindowHint)}
+              </div>
+            ) : null}
             <Checkbox
               checked={value.syncStoreClockOut}
+              disabled={!syncOutEligible}
               onChange={(event) =>
                 onChange({ ...value, syncStoreClockOut: event.target.checked })
               }
             >
               {String(labels.syncStoreClockOut)}
             </Checkbox>
+            {!syncOutEligible ? (
+              <div className="pl-6 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {String(labels.syncClockOutWindowHint)}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : preview.hasStoreShift ? (
@@ -169,25 +200,41 @@ export function FieldJobStoreSyncFields({
 export function resolveFieldJobStoreSyncValue(
   preview: FieldJobAssignPreview | null,
   existingAssignment?: { syncStoreClockIn: boolean; syncStoreClockOut: boolean } | null,
+  jobWindow?: { scheduledStart: string; scheduledEnd: string },
 ): FieldJobStoreSyncValue {
-  if (existingAssignment) {
-    return {
-      syncStoreClockIn: existingAssignment.syncStoreClockIn,
-      syncStoreClockOut: existingAssignment.syncStoreClockOut,
-    };
+  const base = existingAssignment
+    ? {
+        syncStoreClockIn: existingAssignment.syncStoreClockIn,
+        syncStoreClockOut: existingAssignment.syncStoreClockOut,
+      }
+    : {
+        syncStoreClockIn: preview?.suggestedSyncStoreClockIn ?? false,
+        syncStoreClockOut: preview?.suggestedSyncStoreClockOut ?? false,
+      };
+
+  if (!jobWindow || !preview?.storeShift) {
+    return base;
   }
-  return {
-    syncStoreClockIn: preview?.suggestedSyncStoreClockIn ?? false,
-    syncStoreClockOut: preview?.suggestedSyncStoreClockOut ?? false,
-  };
+  return applyFieldJobStoreSyncForPreview(preview, base, jobWindow);
 }
 
 export function applyFieldJobStoreSyncForPreview(
   preview: FieldJobAssignPreview | null,
   value: FieldJobStoreSyncValue,
+  job?: { scheduledStart: string; scheduledEnd: string },
 ): FieldJobStoreSyncValue {
   if (!preview?.overlap) {
     return { syncStoreClockIn: false, syncStoreClockOut: false };
   }
-  return value;
+  if (!preview.storeShift || !job) {
+    return value;
+  }
+  const jobStart = dayjs(job.scheduledStart);
+  const jobEnd = dayjs(job.scheduledEnd);
+  const shiftStart = dayjs(preview.storeShift.start);
+  const shiftEnd = dayjs(preview.storeShift.end);
+  return {
+    syncStoreClockIn: value.syncStoreClockIn && canEnableSyncClockIn(jobStart, shiftStart),
+    syncStoreClockOut: value.syncStoreClockOut && canEnableSyncClockOut(jobEnd, shiftEnd),
+  };
 }

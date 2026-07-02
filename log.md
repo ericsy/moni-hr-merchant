@@ -1,3 +1,11 @@
+## 2026-07-02
+
+- **外勤同步店班 1 小时窗口规则**（与后端 `FieldStoreSyncRules` 对齐）：
+  - **`src/lib/fieldServiceAssign.ts`**：`canEnableSyncClockIn/Out`、`FIELD_STORE_SYNC_WINDOW_MINUTES`；`buildAssignPreview` / `validateAssignSyncOptions` 改用新规则。
+  - **`FieldJobStoreSyncSection.tsx`**：超出窗口时 Checkbox 置灰并提示；提交前 `applyFieldJobStoreSyncForPreview` 过滤无效勾选。
+  - **`FieldJobFormModal` / `FieldJobAssignModal`**：传入外勤时段用于窗口判断。
+  - **`src/i18n/locales.ts`**：同步窗口说明文案。
+
 ## 2026-06-29
 
 - **申请管理 · 按日期请假仅显示日期**：

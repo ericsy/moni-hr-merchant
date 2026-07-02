@@ -2,6 +2,9 @@ import dayjs from "dayjs";
 import type { FieldJobAssignPreview, FieldJobStoreShiftBrief, FieldServiceJob } from "../types/fieldService";
 import type { ScheduleShift } from "../context/DataContext";
 
+/** 外勤同步店班打卡允许的时间窗（分钟），与后端 FieldStoreSyncRules 一致 */
+export const FIELD_STORE_SYNC_WINDOW_MINUTES = 60;
+
 export function combineDateAndTime(date: string, time: string) {
   const normalizedDate = dayjs(date).format("YYYY-MM-DD");
   const normalizedTime = (time || "00:00").slice(0, 5);
@@ -10,6 +13,20 @@ export function combineDateAndTime(date: string, time: string) {
 
 export function intervalsOverlap(startA: dayjs.Dayjs, endA: dayjs.Dayjs, startB: dayjs.Dayjs, endB: dayjs.Dayjs) {
   return startA.isBefore(endB) && endA.isAfter(startB);
+}
+
+/** 同步上班：外勤开始在店班开始之后 1 小时内（含边界） */
+export function canEnableSyncClockIn(jobStart: dayjs.Dayjs, shiftStart: dayjs.Dayjs) {
+  if (!jobStart.isValid() || !shiftStart.isValid()) return false;
+  if (jobStart.isBefore(shiftStart, "minute")) return false;
+  return jobStart.diff(shiftStart, "minute") <= FIELD_STORE_SYNC_WINDOW_MINUTES;
+}
+
+/** 同步下班：外勤结束在店班结束之前 1 小时内（含边界） */
+export function canEnableSyncClockOut(jobEnd: dayjs.Dayjs, shiftEnd: dayjs.Dayjs) {
+  if (!jobEnd.isValid() || !shiftEnd.isValid()) return false;
+  if (jobEnd.isAfter(shiftEnd, "minute")) return false;
+  return shiftEnd.diff(jobEnd, "minute") <= FIELD_STORE_SYNC_WINDOW_MINUTES;
 }
 
 export function findEmployeeStoreShiftOnDate(
@@ -86,7 +103,7 @@ function toStoreShiftBrief(shift: ScheduleShift, storeNameById: Record<string, s
 export function buildAssignPreview(
   job: Pick<FieldServiceJob, "scheduledStart" | "scheduledEnd">,
   storeShift: FieldJobStoreShiftBrief | null,
-  locale: "zh" | "en" = "zh",
+  _locale: "zh" | "en" = "zh",
 ): FieldJobAssignPreview {
   if (!storeShift) {
     return {
@@ -105,32 +122,12 @@ export function buildAssignPreview(
   const shiftEnd = dayjs(storeShift.end);
   const overlap = intervalsOverlap(jobStart, jobEnd, shiftStart, shiftEnd);
 
-  const startAligned = jobStart.isSame(shiftStart, "minute");
-  const endAligned = jobEnd.isSame(shiftEnd, "minute");
-  const coversShift = !jobStart.isAfter(shiftStart, "minute") && !jobEnd.isBefore(shiftEnd, "minute");
-
-  let suggestedSyncStoreClockIn = false;
-  let suggestedSyncStoreClockOut = false;
-
-  if (overlap) {
-    if (coversShift || startAligned) suggestedSyncStoreClockIn = true;
-    if (coversShift || endAligned) suggestedSyncStoreClockOut = true;
-    if (coversShift) {
-      suggestedSyncStoreClockIn = true;
-      suggestedSyncStoreClockOut = true;
-    }
-    if (overlap && !startAligned && !endAligned && !coversShift) {
-      suggestedSyncStoreClockIn = false;
-      suggestedSyncStoreClockOut = false;
-    }
-  }
-
   return {
     hasStoreShift: true,
     storeShift,
     overlap,
-    suggestedSyncStoreClockIn,
-    suggestedSyncStoreClockOut,
+    suggestedSyncStoreClockIn: overlap && canEnableSyncClockIn(jobStart, shiftStart),
+    suggestedSyncStoreClockOut: overlap && canEnableSyncClockOut(jobEnd, shiftEnd),
     validationWarnings: [],
   };
 }
@@ -160,30 +157,20 @@ export function validateAssignSyncOptions(
   const shiftStart = dayjs(storeShift.start);
   const shiftEnd = dayjs(storeShift.end);
 
-  if (payload.syncStoreClockIn && jobStart.isAfter(shiftStart, "minute")) {
+  if (payload.syncStoreClockIn && !canEnableSyncClockIn(jobStart, shiftStart)) {
     errors.push(
       locale === "zh"
-        ? "勾选同步门店上班时，外勤开始时间不能晚于店班开始时间"
-        : "Field start must be on or before store shift start when syncing store clock-in",
+        ? "勾选同步门店上班时，外勤开始时间须在店班开始之后 1 小时内"
+        : "Field start must be within 1 hour after store shift start when syncing store clock-in",
     );
   }
 
-  if (payload.syncStoreClockOut && jobEnd.isBefore(shiftEnd, "minute")) {
+  if (payload.syncStoreClockOut && !canEnableSyncClockOut(jobEnd, shiftEnd)) {
     errors.push(
       locale === "zh"
-        ? "勾选同步门店下班时，外勤结束时间不能早于店班结束时间"
-        : "Field end must be on or after store shift end when syncing store clock-out",
+        ? "勾选同步门店下班时，外勤结束时间须在店班结束之前 1 小时内"
+        : "Field end must be within 1 hour before store shift end when syncing store clock-out",
     );
-  }
-
-  if (payload.syncStoreClockIn && payload.syncStoreClockOut) {
-    if (jobStart.isAfter(shiftStart, "minute") || jobEnd.isBefore(shiftEnd, "minute")) {
-      errors.push(
-        locale === "zh"
-          ? "同时同步上下班时，外勤时段应覆盖或对齐店班时段"
-          : "When syncing both ends, the field job must cover or align with the store shift",
-      );
-    }
   }
 
   return { valid: errors.length === 0, warnings, errors };

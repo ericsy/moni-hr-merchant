@@ -573,6 +573,9 @@ export const locales = {
       syncStoreClockIn: "外勤到岗时，同步记为门店上班",
       syncStoreClockOut: "外勤完工时，同步记为门店下班",
       syncHint: "仅在当日店班与外勤时间重叠时可配置",
+      syncWindowHint: "同步上班：外勤开始须在店班开始后 1 小时内；同步下班：外勤结束须在店班结束前 1 小时内",
+      syncClockInWindowHint: "当前外勤开始时间不在店班开始后 1 小时内，无法同步门店上班",
+      syncClockOutWindowHint: "当前外勤结束时间不在店班结束前 1 小时内，无法同步门店下班",
       overlapRequired: "外勤时间与店班无重叠，无需同步门店打卡",
       loadFailed: "工单数据加载失败",
       saveFailed: "保存失败",
@@ -1174,6 +1177,12 @@ export const locales = {
       syncStoreClockIn: "Sync field start as store clock-in",
       syncStoreClockOut: "Sync field completion as store clock-out",
       syncHint: "Available only when the field job overlaps today's store shift",
+      syncWindowHint:
+        "Clock-in sync: field start within 1 hour after shift start; clock-out sync: field end within 1 hour before shift end",
+      syncClockInWindowHint:
+        "Field start is not within 1 hour after store shift start; store clock-in sync unavailable",
+      syncClockOutWindowHint:
+        "Field end is not within 1 hour before store shift end; store clock-out sync unavailable",
       overlapRequired: "No overlap with store shift; store punch sync is not needed",
       loadFailed: "Failed to load field jobs",
       saveFailed: "Failed to save",

@@ -188,8 +188,14 @@ export default function FieldJobFormModal({
 
   useEffect(() => {
     if (!open || !singleSelectedEmployeeId || !syncPreview) return;
-    setSyncValue(resolveFieldJobStoreSyncValue(syncPreview, existingAssignment));
-  }, [existingAssignment, open, singleSelectedEmployeeId, syncPreview]);
+    setSyncValue(
+      resolveFieldJobStoreSyncValue(
+        syncPreview,
+        existingAssignment,
+        scheduledWindow ?? undefined,
+      ),
+    );
+  }, [existingAssignment, open, scheduledWindow, singleSelectedEmployeeId, syncPreview]);
 
   const syncValidation = useMemo(() => {
     if (!singleSelectedEmployeeId || !scheduledWindow) {
@@ -395,7 +401,7 @@ export default function FieldJobFormModal({
       }
       setSyncErrors([]);
 
-      const appliedSync = applyFieldJobStoreSyncForPreview(syncPreview, syncValue);
+      const appliedSync = applyFieldJobStoreSyncForPreview(syncPreview, syncValue, scheduledWindow ?? undefined);
 
       setSubmitting(true);
       await onSubmit({
@@ -538,6 +544,8 @@ export default function FieldJobFormModal({
         {singleSelectedEmployeeId && scheduledWindow ? (
           <FieldJobStoreSyncFields
             preview={syncPreview}
+            scheduledStart={scheduledWindow.scheduledStart}
+            scheduledEnd={scheduledWindow.scheduledEnd}
             loading={loadingSyncPreview}
             labels={labels}
             value={syncValue}
