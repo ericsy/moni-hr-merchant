@@ -88,11 +88,13 @@ function getEmployeeRole(record?: MerchantClockPunch | null) {
 }
 
 function proxyReasons(record: MerchantClockPunch) {
-  if (record.proxyPunchReasons?.length) return record.proxyPunchReasons;
-  return String(record.proxyPunchReason || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const raw = record.proxyPunchReasons?.length
+    ? record.proxyPunchReasons
+    : String(record.proxyPunchReason || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+  return raw.filter((reason) => reason !== "new_device_id");
 }
 
 function sourceLabel(source: string | null | undefined, labels: ReturnType<typeof useLocale>["t"]["clockPunch"]) {
@@ -106,7 +108,6 @@ function punchTypeLabel(type: string | null | undefined, labels: ReturnType<type
 }
 
 function riskReasonLabel(reason: string, labels: ReturnType<typeof useLocale>["t"]["clockPunch"]) {
-  if (reason === "new_device_id") return labels.newDeviceId;
   if (reason === "shared_merchant_device") return labels.sharedMerchantDevice;
   return reason;
 }
@@ -465,9 +466,8 @@ function ClockOverview({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Metric label={labels.pendingMissedPunchRequests} value={asNumber(summary.pendingMissedPunchRequests)} icon={<ClockIcon size={20} />} color="#d48806" loading={loading} />
-          <Metric label={labels.newDeviceCount} value={asNumber(anomalySummary.newDeviceIdCount)} icon={<SmartphoneIcon size={20} />} color="#fa541c" loading={loading} />
           <Metric label={labels.sharedDeviceCount} value={asNumber(anomalySummary.sharedMerchantDeviceCount)} icon={<ShieldAlertIcon size={20} />} color="#eb2f96" loading={loading} />
         </div>
       </div>
@@ -532,7 +532,7 @@ function ClockAnomalies({
         type="warning"
         showIcon
         message={`${asNumber(summary.totalCount)} ${labels.anomalyCount}`}
-        description={`${labels.newDeviceCount}: ${asNumber(summary.newDeviceIdCount)} · ${labels.sharedDeviceCount}: ${asNumber(summary.sharedMerchantDeviceCount)}`}
+        description={`${labels.sharedDeviceCount}: ${asNumber(summary.sharedMerchantDeviceCount)}`}
       />
       <ClockPunchTable
         data={data}
@@ -714,8 +714,8 @@ function PunchTaskTypeTag({
 }
 
 function ProxyRisk({ record, labels }: { record: MerchantClockPunch; labels: ReturnType<typeof useLocale>["t"]["clockPunch"] }) {
-  const suspected = !!record.suspectedProxyPunch;
   const reasons = proxyReasons(record);
+  const suspected = reasons.length > 0;
   return (
     <div className="flex flex-col gap-1">
       <span className="flex items-center gap-1" style={{ color: suspected ? "#f5222d" : "#52c41a" }}>

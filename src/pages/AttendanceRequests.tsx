@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   Modal,
+  Radio,
   Select,
   Space,
   Spin,
@@ -34,6 +35,7 @@ import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import {
   merchantApi,
+  type MerchantAttendanceFieldImpact,
   type MerchantAttendanceLeaveItem,
   type MerchantAttendanceRequest,
   type MerchantAttendanceRequestStatus,
@@ -155,6 +157,43 @@ function buildFieldSyncHint(
   return parts.join(locale === "zh" ? "、" : ", ");
 }
 
+function requiredFieldImpacts(impacts: MerchantAttendanceFieldImpact[] | undefined): MerchantAttendanceFieldImpact[] {
+  return (impacts || []).filter((row) => row.requiredAction === "required");
+}
+
+function formatFieldImpactRange(impact: MerchantAttendanceFieldImpact): string {
+  const range =
+    impact.scheduledStart && impact.scheduledEnd ? `${impact.scheduledStart} – ${impact.scheduledEnd}` : "";
+  const overlap =
+    impact.overlapType && impact.overlapType !== "none" ? ` [${impact.overlapType}]` : "";
+  return `${range}${overlap}`.trim();
+}
+
+function buildFieldDispositionsForReview(
+  impacts: MerchantAttendanceFieldImpact[],
+  actionByJobId: Record<string, "cancel" | "reassign" | "">,
+  assigneeByJobId: Record<string, string>,
+): Array<{ fieldJobId: number; action: "cancel" | "reassign"; assigneeMerchantAdminId?: number | string | null }> {
+  const required = requiredFieldImpacts(impacts);
+  return required
+    .map((impact) => {
+      const key = String(impact.fieldJobId);
+      const action = actionByJobId[key];
+      if (action !== "cancel" && action !== "reassign") return null;
+      const rawAssignee = (assigneeByJobId[key] || "").trim();
+      const assigneeMerchantAdminId =
+        action === "reassign" && rawAssignee
+          ? (/^\d+$/.test(rawAssignee) ? Number(rawAssignee) : rawAssignee)
+          : undefined;
+      return {
+        fieldJobId: impact.fieldJobId,
+        action,
+        ...(action === "reassign" ? { assigneeMerchantAdminId: assigneeMerchantAdminId ?? null } : {}),
+      };
+    })
+    .filter(Boolean) as Array<{ fieldJobId: number; action: "cancel" | "reassign"; assigneeMerchantAdminId?: number | string | null }>;
+}
+
 export default function AttendanceRequestPage() {
   const { locale, t } = useLocale();
   const labels = t.attendanceRequest;
@@ -181,6 +220,10 @@ export default function AttendanceRequestPage() {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewing, setReviewing] = useState<"approved" | "rejected" | null>(null);
   const [substitutionDrafts, setSubstitutionDrafts] = useState<Record<string, SubstitutionDraft>>({});
+  const [fieldDispositionByJobId, setFieldDispositionByJobId] = useState<
+    Record<string, "cancel" | "reassign" | "">
+  >({});
+  const [fieldAssigneeByJobId, setFieldAssigneeByJobId] = useState<Record<string, string>>({});
   const [substituteOptionsByLeaveItem, setSubstituteOptionsByLeaveItem] = useState<
     Record<string, MerchantEmployeeIdName[]>
   >({});
@@ -342,6 +385,8 @@ export default function AttendanceRequestPage() {
     setSubstitutionDrafts({});
     setSubstituteOptionsByLeaveItem({});
     setSubstituteOptionsLoadingByLeaveItem({});
+    setFieldDispositionByJobId({});
+    setFieldAssigneeByJobId({});
   };
 
   const submitReview = async (status: "approved" | "rejected") => {
@@ -350,6 +395,27 @@ export default function AttendanceRequestPage() {
 
     try {
       setReviewing(status);
+      const requiredImpacts = requiredFieldImpacts(selectedRequest.fieldImpacts);
+      if (
+        status === "approved" &&
+        selectedRequest.requestType === "leave" &&
+        requiredImpacts.length > 0
+      ) {
+        for (const impact of requiredImpacts) {
+          const key = String(impact.fieldJobId);
+          const action = fieldDispositionByJobId[key];
+          if (action !== "cancel" && action !== "reassign") {
+            toast.error(labels.fieldDispositionRequired);
+            setReviewing(null);
+            return;
+          }
+          if (action === "reassign" && !(fieldAssigneeByJobId[key] || "").trim()) {
+            toast.error(labels.fieldDispositionAssigneeRequired);
+            setReviewing(null);
+            return;
+          }
+        }
+      }
       let substitutions: LeaveSubstitutionReviewItem[] | undefined;
       if (
         status === "approved" &&
@@ -372,6 +438,14 @@ export default function AttendanceRequestPage() {
           approved: status === "approved",
           reviewComment,
           substitutions,
+          fieldDispositions:
+            status === "approved" && selectedRequest.requestType === "leave"
+              ? buildFieldDispositionsForReview(
+                  selectedRequest.fieldImpacts || [],
+                  fieldDispositionByJobId,
+                  fieldAssigneeByJobId,
+                )
+              : undefined,
         },
       );
       toast.success(labels.reviewSuccess);
@@ -531,6 +605,17 @@ export default function AttendanceRequestPage() {
         reviewing={reviewing}
         reviewComment={reviewComment}
         onReviewCommentChange={setReviewComment}
+        fieldDispositionByJobId={fieldDispositionByJobId}
+        fieldAssigneeByJobId={fieldAssigneeByJobId}
+        onFieldDispositionChange={(fieldJobId, value) => {
+          setFieldDispositionByJobId((prev) => ({ ...prev, [String(fieldJobId)]: value }));
+          if (value !== "reassign") {
+            setFieldAssigneeByJobId((prev) => ({ ...prev, [String(fieldJobId)]: "" }));
+          }
+        }}
+        onFieldAssigneeChange={(fieldJobId, value) => {
+          setFieldAssigneeByJobId((prev) => ({ ...prev, [String(fieldJobId)]: value }));
+        }}
         substitutionDrafts={substitutionDrafts}
         substituteOptionsByLeaveItem={substituteOptionsByLeaveItem}
         substituteOptionsLoadingByLeaveItem={substituteOptionsLoadingByLeaveItem}
@@ -804,6 +889,10 @@ function AttendanceDetailModal({
   reviewing,
   reviewComment,
   onReviewCommentChange,
+  fieldDispositionByJobId,
+  fieldAssigneeByJobId,
+  onFieldDispositionChange,
+  onFieldAssigneeChange,
   substitutionDrafts,
   substituteOptionsByLeaveItem,
   substituteOptionsLoadingByLeaveItem,
@@ -820,6 +909,10 @@ function AttendanceDetailModal({
   reviewing: "approved" | "rejected" | null;
   reviewComment: string;
   onReviewCommentChange: (value: string) => void;
+  fieldDispositionByJobId: Record<string, "cancel" | "reassign" | "">;
+  fieldAssigneeByJobId: Record<string, string>;
+  onFieldDispositionChange: (fieldJobId: number, value: "cancel" | "reassign" | "") => void;
+  onFieldAssigneeChange: (fieldJobId: number, value: string) => void;
   substitutionDrafts: Record<string, SubstitutionDraft>;
   substituteOptionsByLeaveItem: Record<string, MerchantEmployeeIdName[]>;
   substituteOptionsLoadingByLeaveItem: Record<string, boolean>;
@@ -834,6 +927,7 @@ function AttendanceDetailModal({
     request?.requestType === "leave" &&
     !isDateRangeLeave(request) &&
     (request.leaveItems?.length || 0) > 0;
+  const requiredImpacts = useMemo(() => requiredFieldImpacts(request?.fieldImpacts), [request?.fieldImpacts]);
 
   return (
     <Modal
@@ -945,6 +1039,35 @@ function AttendanceDetailModal({
               <div className="rounded-lg bg-muted px-4 py-3 text-sm">{request.reason || "-"}</div>
             </div>
 
+            {(request.fieldImpacts?.length || 0) > 0 && (
+              <div className="rounded-lg border p-4 text-sm" style={{ borderColor: "var(--border)" }}>
+                <div className="font-semibold">{labels.fieldImpactSection}</div>
+                <div className="mt-2 flex flex-col gap-2">
+                  {(request.fieldImpacts || []).map((impact) => {
+                    const required = impact.requiredAction === "required";
+                    return (
+                      <div
+                        key={String(impact.fieldJobId)}
+                        className="rounded-md bg-muted/40 px-3 py-2"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium">
+                            {impact.customerName?.trim() || `#${impact.fieldJobId}`}
+                          </div>
+                          <Tag color={required ? "gold" : "default"}>
+                            {required ? labels.fieldImpactRequired : labels.fieldImpactOptional}
+                          </Tag>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {formatFieldImpactRange(impact) || "-"}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {!isPending && (
               <div>
                 <Divider style={{ margin: "4px 0 12px" }} />
@@ -971,6 +1094,49 @@ function AttendanceDetailModal({
                     onChange={(event) => onReviewCommentChange(event.target.value)}
                   />
                 </Form.Item>
+
+                {request?.requestType === "leave" && requiredImpacts.length > 0 && (
+                  <div className="mb-4 rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
+                    <div className="mb-2 text-sm font-semibold">{labels.fieldDispositionTitle}</div>
+                    <div className="text-xs text-muted-foreground">{labels.fieldDispositionHint}</div>
+                    <div className="mt-3 flex flex-col gap-3">
+                      {requiredImpacts.map((impact) => {
+                        const key = String(impact.fieldJobId);
+                        const action = fieldDispositionByJobId[key] || "";
+                        const assignee = fieldAssigneeByJobId[key] || "";
+                        return (
+                          <div key={key} className="rounded-md bg-muted/40 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="font-medium">
+                                {impact.customerName?.trim() || `#${impact.fieldJobId}`}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatFieldImpactRange(impact) || "-"}
+                              </div>
+                            </div>
+                            <div className="mt-2 flex flex-col gap-2">
+                              <Radio.Group
+                                value={action}
+                                onChange={(e) => onFieldDispositionChange(impact.fieldJobId, e.target.value)}
+                              >
+                                <Radio value="cancel">{labels.fieldDispositionCancel}</Radio>
+                                <Radio value="reassign">{labels.fieldDispositionReassign}</Radio>
+                              </Radio.Group>
+                              {action === "reassign" && (
+                                <Input
+                                  value={assignee}
+                                  placeholder={labels.fieldDispositionAssigneePlaceholder}
+                                  onChange={(e) => onFieldAssigneeChange(impact.fieldJobId, e.target.value)}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-3">
                   <Button onClick={onClose} disabled={!!reviewing}>
                     {locale === "zh" ? "取消" : "Cancel"}

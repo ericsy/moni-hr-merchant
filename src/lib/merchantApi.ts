@@ -381,12 +381,35 @@ export interface EmployeeShiftLeave {
   leaveItemId?: number | string | null;
 }
 
+export interface MerchantAttendanceFieldImpact {
+  id?: number | string | null;
+  leaveItemId?: number | string | null;
+  fieldJobId: number;
+  linkedStoreShiftId?: number | string | null;
+  overlapType?: string | null;
+  requiredAction?: string | null;
+  customerName?: string | null;
+  serviceType?: string | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
+  syncStoreClockIn?: boolean | null;
+  syncStoreClockOut?: boolean | null;
+}
+
+export interface MerchantAttendanceFieldDisposition {
+  id?: number | string | null;
+  fieldJobId: number;
+  action?: string | null;
+  assigneeMerchantAdminId?: number | string | null;
+  source?: string | null;
+}
+
 export interface MerchantAttendanceRequest {
   id?: number | string | null;
   storeId?: number | string | null;
   storeName?: string | null;
   requestType?: MerchantAttendanceRequestType | string | null;
-  leaveMode?: "shift" | "date_range" | string | null;
+  leaveMode?: "shift" | "date_range" | "field_job" | string | null;
   leaveDateFrom?: string | null;
   leaveDateTo?: string | null;
   status?: MerchantAttendanceRequestStatus | string | null;
@@ -416,6 +439,8 @@ export interface MerchantAttendanceRequest {
   proxyReviewer?: MerchantEmployeeBrief | null;
   proxyReview?: boolean | null;
   leaveItems?: MerchantAttendanceLeaveItem[];
+  fieldImpacts?: MerchantAttendanceFieldImpact[];
+  fieldDispositions?: MerchantAttendanceFieldDisposition[];
 }
 
 export interface MerchantAttendanceRequestSummary {
@@ -777,11 +802,12 @@ function resolveAttendanceLeaveMode(
   leaveModeRaw: unknown,
   leaveDateFrom: string,
   leaveDateTo: string,
-): "shift" | "date_range" {
+): "shift" | "date_range" | "field_job" {
   if (requestType !== "leave") return "shift";
   const raw = asString(leaveModeRaw).trim().toLowerCase().replace(/-/g, "_");
   if (raw === "date_range" || raw === "daterange") return "date_range";
   if (raw === "shift") return "shift";
+  if (raw === "field_job" || raw === "fieldjob") return "field_job";
   if (leaveDateFrom && leaveDateTo) return "date_range";
   return "shift";
 }
@@ -849,6 +875,33 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
     proxyReviewer: raw.proxyReviewer ? mapEmployeeBrief(raw.proxyReviewer) : undefined,
     proxyReview: typeof raw.proxyReview === "boolean" ? raw.proxyReview : undefined,
     leaveItems: asArray(raw.leaveItems).map(mapAttendanceLeaveItem),
+    fieldImpacts: asArray(raw.fieldImpacts).map((row) => {
+      const it = asRecord(row);
+      return compactDeep({
+        id: it.id as number | string | null | undefined,
+        leaveItemId: it.leaveItemId as number | string | null | undefined,
+        fieldJobId: asNumber(it.fieldJobId),
+        linkedStoreShiftId: it.linkedStoreShiftId as number | string | null | undefined,
+        overlapType: asString(it.overlapType),
+        requiredAction: asString(it.requiredAction),
+        customerName: asString(it.customerName),
+        serviceType: asString(it.serviceType),
+        scheduledStart: asString(it.scheduledStart),
+        scheduledEnd: asString(it.scheduledEnd),
+        syncStoreClockIn: asBoolean(it.syncStoreClockIn),
+        syncStoreClockOut: asBoolean(it.syncStoreClockOut),
+      }) satisfies MerchantAttendanceFieldImpact;
+    }),
+    fieldDispositions: asArray(raw.fieldDispositions).map((row) => {
+      const it = asRecord(row);
+      return compactDeep({
+        id: it.id as number | string | null | undefined,
+        fieldJobId: asNumber(it.fieldJobId),
+        action: asString(it.action),
+        assigneeMerchantAdminId: it.assigneeMerchantAdminId as number | string | null | undefined,
+        source: asString(it.source),
+      }) satisfies MerchantAttendanceFieldDisposition;
+    }),
   });
 }
 
@@ -2356,6 +2409,11 @@ export const merchantApi = {
       approved: boolean;
       reviewComment?: string | null;
       substitutions?: LeaveSubstitutionReviewItem[];
+      fieldDispositions?: Array<{
+        fieldJobId: number;
+        action: "cancel" | "reassign";
+        assigneeMerchantAdminId?: number | string | null;
+      }>;
     },
   ) => {
     const substitutions = (payload.substitutions || [])
@@ -2373,6 +2431,7 @@ export const merchantApi = {
         approved: payload.approved,
         reviewComment: payload.reviewComment || null,
         substitutions: substitutions.length > 0 ? substitutions : undefined,
+        fieldDispositions: (payload.fieldDispositions || []).length > 0 ? payload.fieldDispositions : undefined,
       }),
     });
     return mapAttendanceRequest(data);

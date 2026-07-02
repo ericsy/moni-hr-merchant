@@ -1,5 +1,7 @@
 ## 2026-07-02
 
+- **疑似代打卡移除新设备规则**：商家端概览去掉「新设备」统计；风险标签过滤 `new_device_id`。
+
 - **商家端打卡记录展示任务类型**：
   - **`MerchantClockPunchVo`** / **`MerchantClockPunchService`**：返回 `refType`、`refId`、`syncEffect`、`customerName`（外勤批量补全客户名）。
   - **`src/lib/merchantApi.ts`**：类型与 `mapClockPunch` 映射新字段。

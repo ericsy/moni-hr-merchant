@@ -462,6 +462,17 @@ export const locales = {
       selectSubstitute: "选择替班人",
       publishSubstitutionConflicts: "替班与计划排班存在冲突",
       publishSubstitutionOrphaned: "以下替班因原班次删除已自动作废",
+
+      fieldImpactSection: "外勤影响",
+      fieldImpactRequired: "审批时须处置",
+      fieldImpactOptional: "仅供参考",
+      fieldDispositionTitle: "外勤处置",
+      fieldDispositionHint: "通过请假前，请为以下外勤工单选择处置方式（取消或改派）。",
+      fieldDispositionCancel: "取消外勤工单",
+      fieldDispositionReassign: "改派外勤工单",
+      fieldDispositionAssigneePlaceholder: "输入接单人ID（merchantAdminId）",
+      fieldDispositionRequired: "请先选择外勤处置方式",
+      fieldDispositionAssigneeRequired: "改派外勤时需要填写接单人ID",
     },
 
     // Clock Punch Attendance
@@ -1073,6 +1084,17 @@ export const locales = {
       selectSubstitute: "Select substitute",
       publishSubstitutionConflicts: "Schedule conflicts with substitutions",
       publishSubstitutionOrphaned: "Substitutions cancelled (original shift removed)",
+
+      fieldImpactSection: "Field job impact",
+      fieldImpactRequired: "Action required at approval",
+      fieldImpactOptional: "Informational",
+      fieldDispositionTitle: "Field job disposition",
+      fieldDispositionHint: "Before approving this leave, choose how to handle affected field jobs (cancel or reassign).",
+      fieldDispositionCancel: "Cancel field job",
+      fieldDispositionReassign: "Reassign field job",
+      fieldDispositionAssigneePlaceholder: "Assignee ID (merchantAdminId)",
+      fieldDispositionRequired: "Please choose dispositions for required field jobs",
+      fieldDispositionAssigneeRequired: "Assignee ID is required when reassigning",
     },
 
     clockPunch: {
