@@ -1117,9 +1117,22 @@ function AttendanceDetailModal({
     () => new Set(requiredImpacts.map((row) => String(row.fieldJobId))),
     [requiredImpacts],
   );
+  const isFieldLeave = request ? isFieldLeaveRequest(request) : false;
   const showFieldDispositionEditor =
     isPending && request?.requestType === "leave" && requiredImpacts.length > 0;
-  const showFieldImpactSection = displayFieldImpacts.length > 0;
+  /** 店班/按日期请假连带外勤：单独区块展示影响与处置 */
+  const showFieldImpactSection = !isFieldLeave && displayFieldImpacts.length > 0;
+  /** 独立外勤请假：处置放在原因下方，不展示「外勤影响与处置」 */
+  const fieldLeaveDispositionImpact = isFieldLeave ? requiredImpacts[0] : undefined;
+  const fieldLeaveDispositionKey = fieldLeaveDispositionImpact
+    ? String(fieldLeaveDispositionImpact.fieldJobId)
+    : "";
+  const fieldLeaveSavedDisposition =
+    isFieldLeave && request
+      ? (request.fieldDispositions || []).find(
+          (row) => String(row.fieldJobId) === String(request.fieldJobId),
+        )
+      : undefined;
 
   return (
     <Modal
@@ -1250,6 +1263,73 @@ function AttendanceDetailModal({
             <div>
               <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">{labels.reason}</div>
               <div className="rounded-lg bg-muted px-4 py-3 text-sm">{request.reason || "-"}</div>
+              {isFieldLeave && fieldLeaveDispositionImpact && showFieldDispositionEditor ? (
+                <div className="mt-3 rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
+                  <div className="text-xs text-muted-foreground">{labels.fieldLeaveDispositionHint}</div>
+                  <div className="mt-2 flex flex-col gap-2">
+                    <div className="text-xs font-semibold text-foreground/80">
+                      {labels.fieldDispositionTitle}
+                    </div>
+                    <Radio.Group
+                      value={fieldDispositionByJobId[fieldLeaveDispositionKey] || ""}
+                      onChange={(e) => {
+                        const next = e.target.value as "cancel" | "reassign";
+                        onFieldDispositionChange(fieldLeaveDispositionImpact.fieldJobId, next);
+                        if (next === "reassign") {
+                          onLoadFieldAssigneeOptions(fieldLeaveDispositionKey);
+                        }
+                      }}
+                    >
+                      <Radio value="cancel">{labels.fieldDispositionCancel}</Radio>
+                      <Radio value="reassign">{labels.fieldDispositionReassign}</Radio>
+                    </Radio.Group>
+                    {(fieldDispositionByJobId[fieldLeaveDispositionKey] || "") === "reassign" ? (
+                      <Select
+                        allowClear
+                        showSearch
+                        optionFilterProp="label"
+                        loading={!!fieldAssigneeOptionsLoadingByJobId[fieldLeaveDispositionKey]}
+                        placeholder={labels.selectFieldAssignee}
+                        style={{ minWidth: 220, maxWidth: 360 }}
+                        value={fieldAssigneeByJobId[fieldLeaveDispositionKey] || undefined}
+                        notFoundContent={
+                          fieldAssigneeOptionsLoadingByJobId[fieldLeaveDispositionKey]
+                            ? undefined
+                            : labels.fieldAssigneeNoCandidates
+                        }
+                        options={(fieldAssigneeOptionsByJobId[fieldLeaveDispositionKey] || []).map(
+                          (row) => ({
+                            value: String(row.id),
+                            label: row.name,
+                          }),
+                        )}
+                        onDropdownVisibleChange={(open) => {
+                          if (open) onLoadFieldAssigneeOptions(fieldLeaveDispositionKey);
+                        }}
+                        onChange={(value) =>
+                          onFieldAssigneeChange(
+                            fieldLeaveDispositionImpact.fieldJobId,
+                            value ? String(value) : "",
+                          )
+                        }
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+              {isFieldLeave && !isPending && fieldLeaveSavedDisposition?.action ? (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground/70">
+                    {labels.fieldDispositionTitle}：
+                  </span>
+                  {fieldLeaveSavedDisposition.action === "reassign"
+                    ? labels.fieldDispositionReassign
+                    : labels.fieldDispositionCancel}
+                  {fieldLeaveSavedDisposition.assigneeMerchantAdminId
+                    ? ` (#${fieldLeaveSavedDisposition.assigneeMerchantAdminId})`
+                    : ""}
+                </div>
+              ) : null}
             </div>
 
             {showFieldImpactSection && (
@@ -1257,9 +1337,7 @@ function AttendanceDetailModal({
                 <div className="font-semibold">{labels.fieldImpactDispositionSection}</div>
                 {showFieldDispositionEditor ? (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {isFieldLeaveRequest(request)
-                      ? labels.fieldLeaveDispositionHint
-                      : labels.fieldDispositionHint}
+                    {labels.fieldDispositionHint}
                   </div>
                 ) : null}
                 <div className="mt-3 flex flex-col gap-3">
