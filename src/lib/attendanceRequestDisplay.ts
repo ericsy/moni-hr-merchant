@@ -27,10 +27,18 @@ export function fieldLeaveCustomerName(request: Pick<MerchantAttendanceRequest, 
   return (request.areaName || "").trim();
 }
 
+/** 与 App 一致：仅展示与请假时段有实际重叠的外勤（不含仅与店班重叠） */
+export function isVisibleFieldImpact(impact: MerchantAttendanceFieldImpact): boolean {
+  const overlap = (impact.overlapType || "").trim().toLowerCase();
+  return overlap === "full" || overlap === "partial";
+}
+
 export function requiredFieldImpactsFromRequest(
   impacts: MerchantAttendanceFieldImpact[] | undefined,
 ): MerchantAttendanceFieldImpact[] {
-  return (impacts || []).filter((row) => row.requiredAction === "required");
+  return (impacts || []).filter(
+    (row) => isVisibleFieldImpact(row) && row.requiredAction === "required",
+  );
 }
 
 function combineDateAndHm(date?: string | null, hm?: string | null): string | null {
@@ -62,12 +70,13 @@ export function resolveRequiredFieldImpactsForReview(
   ];
 }
 
-/** 详情展示用：有 fieldImpacts 用接口数据，外勤请假无 impact 时用快照合成。 */
+/** 详情展示用：仅实际重叠的外勤；外勤请假无 impact 时用快照合成。 */
 export function resolveDisplayFieldImpacts(
   request: MerchantAttendanceRequest,
 ): MerchantAttendanceFieldImpact[] {
-  if ((request.fieldImpacts?.length || 0) > 0) {
-    return request.fieldImpacts || [];
+  const visible = (request.fieldImpacts || []).filter(isVisibleFieldImpact);
+  if (visible.length > 0) {
+    return visible;
   }
   return resolveRequiredFieldImpactsForReview(request);
 }

@@ -1,5 +1,7 @@
 ## 2026-07-04
 
+- **店班请假无外勤重叠时商家端误显外勤**：与 App 对齐，仅展示 `overlapType` 为 `full`/`partial` 的外勤影响；后端不再落库/返回与请假时段无重叠的 impact。
+- **请假审批改派进行中外勤**：后端 `reassignForLeaveApproval` 允许进行中工单改派（先重置为已分配），修复商家端审批时报「进行中的工单不支持改派」。
 - **申请管理 · 店班请假外勤影响与处置合并**：
   - **`AttendanceRequests.tsx`**：外勤影响与处置合并为「外勤影响与处置」卡片，展示客户、工单号、服务日期/时段、服务类型、重叠说明、同步店班；待审且须处置时在同一卡片内选择取消/改派。
   - **改派接单人无数据**：原先用申请根上的 `scheduleDate/shiftStartTime/shiftEndTime`（店班请假常为空）查候选人；改为按外勤 `scheduledStart/End`（`resolveFieldImpactScheduleWindow`）查询。
