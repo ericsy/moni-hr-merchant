@@ -854,8 +854,8 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
       serviceType: asString(it.serviceType) || null,
       scheduledStart: asString(it.scheduledStart) || null,
       scheduledEnd: asString(it.scheduledEnd) || null,
-      syncStoreClockIn: typeof it.syncStoreClockIn === "boolean" ? it.syncStoreClockIn : null,
-      syncStoreClockOut: typeof it.syncStoreClockOut === "boolean" ? it.syncStoreClockOut : null,
+      syncStoreClockIn: asBoolean(it.syncStoreClockIn),
+      syncStoreClockOut: asBoolean(it.syncStoreClockOut),
     } satisfies MerchantAttendanceFieldImpact;
   });
 

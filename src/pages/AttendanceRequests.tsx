@@ -52,6 +52,8 @@ import {
   formatMissedPunchShiftRange,
   isFieldLeaveRequest,
   isFieldMissedPunchRequest,
+  resolveDisplayFieldImpacts,
+  resolveFieldImpactScheduleWindow,
   resolveRequiredFieldImpactsForReview,
 } from "../lib/attendanceRequestDisplay";
 
@@ -164,12 +166,58 @@ function requiredFieldImpacts(impacts: MerchantAttendanceFieldImpact[] | undefin
   return (impacts || []).filter((row) => row.requiredAction === "required");
 }
 
-function formatFieldImpactRange(impact: MerchantAttendanceFieldImpact): string {
-  const range =
-    impact.scheduledStart && impact.scheduledEnd ? `${impact.scheduledStart} – ${impact.scheduledEnd}` : "";
-  const overlap =
-    impact.overlapType && impact.overlapType !== "none" ? ` [${impact.overlapType}]` : "";
-  return `${range}${overlap}`.trim();
+function formatFieldImpactOverlap(
+  overlapType: string | null | undefined,
+  labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"],
+): string {
+  const raw = (overlapType || "").trim().toLowerCase();
+  if (!raw || raw === "none") return "";
+  if (raw === "full") return labels.fieldOverlapFull;
+  if (raw === "partial") return labels.fieldOverlapPartial;
+  return overlapType || "";
+}
+
+function formatFieldImpactSync(
+  impact: MerchantAttendanceFieldImpact,
+  labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"],
+  locale: "zh" | "en",
+): string {
+  const parts: string[] = [];
+  if (impact.syncStoreClockIn) parts.push(labels.fieldSyncClockIn);
+  if (impact.syncStoreClockOut) parts.push(labels.fieldSyncClockOut);
+  if (parts.length === 0) return labels.fieldSyncNone;
+  return parts.join(locale === "zh" ? "、" : ", ");
+}
+
+function formatFieldImpactMeta(
+  impact: MerchantAttendanceFieldImpact,
+  request: MerchantAttendanceRequest,
+  labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"],
+  locale: "zh" | "en",
+): Array<{ label: string; value: string }> {
+  const window = resolveFieldImpactScheduleWindow(impact, request);
+  const dateLabel = window.scheduleDate ? formatDateOnly(window.scheduleDate) : "-";
+  const timeLabel =
+    window.startTime && window.endTime
+      ? `${window.startTime} – ${window.endTime}`
+      : formatMissedPunchShiftRange(window.startTime, window.endTime);
+  const overlap = formatFieldImpactOverlap(impact.overlapType, labels);
+  const rows: Array<{ label: string; value: string }> = [
+    { label: labels.fieldImpactDate, value: dateLabel },
+    { label: labels.fieldImpactTime, value: timeLabel || "-" },
+    { label: labels.fieldJobId, value: impact.fieldJobId ? `#${impact.fieldJobId}` : "-" },
+  ];
+  if (impact.serviceType?.trim()) {
+    rows.push({ label: labels.fieldServiceType, value: impact.serviceType.trim() });
+  }
+  if (overlap) {
+    rows.push({ label: labels.fieldImpactOverlap, value: overlap });
+  }
+  rows.push({
+    label: labels.fieldSyncStore,
+    value: formatFieldImpactSync(impact, labels, locale),
+  });
+  return rows;
 }
 
 function buildFieldDispositionsForReview(
@@ -414,10 +462,26 @@ export default function AttendanceRequestPage() {
       if (!storeId || !fieldJobId) return;
       setFieldAssigneeOptionsLoadingByJobId((previous) => ({ ...previous, [fieldJobId]: true }));
       try {
+        const impact =
+          resolveDisplayFieldImpacts(request).find((row) => String(row.fieldJobId) === fieldJobId) ||
+          resolveRequiredFieldImpactsForReview(request).find(
+            (row) => String(row.fieldJobId) === fieldJobId,
+          );
+        const window = resolveFieldImpactScheduleWindow(impact, request);
+        if (!window.scheduleDate || !window.startTime || !window.endTime) {
+          console.log(
+            "[AttendanceRequestPage] field assignee window missing:",
+            fieldJobId,
+            window,
+            impact,
+          );
+          setFieldAssigneeOptionsByJobId((previous) => ({ ...previous, [fieldJobId]: [] }));
+          return;
+        }
         const items = await merchantApi.listSubstituteCandidates(storeId, {
-          scheduleDate: request.scheduleDate || undefined,
-          startTime: request.shiftStartTime || undefined,
-          endTime: request.shiftEndTime || undefined,
+          scheduleDate: window.scheduleDate,
+          startTime: window.startTime,
+          endTime: window.endTime,
           excludeMerchantAdminId: request.applicant?.merchantAdminId ?? request.applicant?.id,
         });
         setFieldAssigneeOptionsByJobId((previous) => ({ ...previous, [fieldJobId]: items }));
@@ -1027,11 +1091,21 @@ function AttendanceDetailModal({
     !isDateRangeLeave(request) &&
     !isFieldLeaveRequest(request) &&
     (request.leaveItems?.length || 0) > 0;
+  const displayFieldImpacts = useMemo(
+    () => (request ? resolveDisplayFieldImpacts(request) : []),
+    [request],
+  );
   const requiredImpacts = useMemo(
     () => (request ? resolveRequiredFieldImpactsForReview(request) : []),
     [request],
   );
-  const showFieldDispositionEditor = isPending && request?.requestType === "leave" && requiredImpacts.length > 0;
+  const requiredFieldJobIds = useMemo(
+    () => new Set(requiredImpacts.map((row) => String(row.fieldJobId))),
+    [requiredImpacts],
+  );
+  const showFieldDispositionEditor =
+    isPending && request?.requestType === "leave" && requiredImpacts.length > 0;
+  const showFieldImpactSection = displayFieldImpacts.length > 0;
 
   return (
     <Modal
@@ -1108,9 +1182,6 @@ function AttendanceDetailModal({
                     { key: "sync", label: labels.fieldSyncStore, children: buildFieldSyncHint(request, labels, locale) },
                   ]}
                 />
-                <div className="rounded-lg border px-4 py-3 text-sm text-muted-foreground" style={{ borderColor: "var(--border)" }}>
-                  {labels.fieldLeaveReviewHint}
-                </div>
               </>
             ) : request.requestType === "leave" ? (
               <LeaveDetail
@@ -1167,28 +1238,113 @@ function AttendanceDetailModal({
               <div className="rounded-lg bg-muted px-4 py-3 text-sm">{request.reason || "-"}</div>
             </div>
 
-            {(request.fieldImpacts?.length || 0) > 0 && !isFieldLeaveRequest(request) && (
+            {showFieldImpactSection && (
               <div className="rounded-lg border p-4 text-sm" style={{ borderColor: "var(--border)" }}>
-                <div className="font-semibold">{labels.fieldImpactSection}</div>
-                <div className="mt-2 flex flex-col gap-2">
-                  {(request.fieldImpacts || []).map((impact) => {
-                    const required = impact.requiredAction === "required";
+                <div className="font-semibold">{labels.fieldImpactDispositionSection}</div>
+                {showFieldDispositionEditor ? (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {isFieldLeaveRequest(request)
+                      ? labels.fieldLeaveDispositionHint
+                      : labels.fieldDispositionHint}
+                  </div>
+                ) : null}
+                <div className="mt-3 flex flex-col gap-3">
+                  {displayFieldImpacts.map((impact) => {
+                    const key = String(impact.fieldJobId);
+                    const required =
+                      impact.requiredAction === "required" || requiredFieldJobIds.has(key);
+                    const metaRows = formatFieldImpactMeta(impact, request, labels, locale);
+                    const action = fieldDispositionByJobId[key] || "";
+                    const assignee = fieldAssigneeByJobId[key] || "";
+                    const assigneeOptions = fieldAssigneeOptionsByJobId[key] || [];
+                    const assigneeOptionsLoading = !!fieldAssigneeOptionsLoadingByJobId[key];
+                    const saved = (request.fieldDispositions || []).find(
+                      (row) => String(row.fieldJobId) === key,
+                    );
+                    const showDispositionControls =
+                      showFieldDispositionEditor && required;
                     return (
-                      <div
-                        key={String(impact.fieldJobId)}
-                        className="rounded-md bg-muted/40 px-3 py-2"
-                      >
+                      <div key={key} className="rounded-md bg-muted/40 px-3 py-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="font-medium">
-                            {impact.customerName?.trim() || `#${impact.fieldJobId}`}
+                            {impact.customerName?.trim() ||
+                              fieldLeaveCustomerName(request) ||
+                              `#${impact.fieldJobId}`}
                           </div>
                           <Tag color={required ? "gold" : "default"}>
                             {required ? labels.fieldImpactRequired : labels.fieldImpactOptional}
                           </Tag>
                         </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {formatFieldImpactRange(impact) || "-"}
+                        <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                          {metaRows.map((row) => (
+                            <div key={`${key}-${row.label}`}>
+                              <span className="font-semibold text-foreground/70">{row.label}：</span>
+                              {row.value}
+                            </div>
+                          ))}
                         </div>
+                        {showDispositionControls ? (
+                          <div className="mt-3 flex flex-col gap-2 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+                            <div className="text-xs font-semibold text-foreground/80">
+                              {labels.fieldDispositionTitle}
+                            </div>
+                            <Radio.Group
+                              value={action}
+                              onChange={(e) => {
+                                const next = e.target.value as "cancel" | "reassign";
+                                onFieldDispositionChange(impact.fieldJobId, next);
+                                if (next === "reassign") {
+                                  onLoadFieldAssigneeOptions(key);
+                                }
+                              }}
+                            >
+                              <Radio value="cancel">{labels.fieldDispositionCancel}</Radio>
+                              <Radio value="reassign">{labels.fieldDispositionReassign}</Radio>
+                            </Radio.Group>
+                            {action === "reassign" ? (
+                              <Select
+                                allowClear
+                                showSearch
+                                optionFilterProp="label"
+                                loading={assigneeOptionsLoading}
+                                placeholder={labels.selectFieldAssignee}
+                                style={{ minWidth: 220, maxWidth: 360 }}
+                                value={assignee || undefined}
+                                notFoundContent={
+                                  assigneeOptionsLoading
+                                    ? undefined
+                                    : labels.fieldAssigneeNoCandidates
+                                }
+                                options={assigneeOptions.map((row) => ({
+                                  value: String(row.id),
+                                  label: row.name,
+                                }))}
+                                onDropdownVisibleChange={(open) => {
+                                  if (open) onLoadFieldAssigneeOptions(key);
+                                }}
+                                onChange={(value) =>
+                                  onFieldAssigneeChange(
+                                    impact.fieldJobId,
+                                    value ? String(value) : "",
+                                  )
+                                }
+                              />
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {!isPending && saved?.action ? (
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            <span className="font-semibold text-foreground/70">
+                              {labels.fieldDispositionTitle}：
+                            </span>
+                            {saved.action === "reassign"
+                              ? labels.fieldDispositionReassign
+                              : labels.fieldDispositionCancel}
+                            {saved.assigneeMerchantAdminId
+                              ? ` (#${saved.assigneeMerchantAdminId})`
+                              : ""}
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -1222,79 +1378,6 @@ function AttendanceDetailModal({
                     onChange={(event) => onReviewCommentChange(event.target.value)}
                   />
                 </Form.Item>
-
-                {showFieldDispositionEditor && (
-                  <div className="mb-4 rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
-                    <div className="mb-2 text-sm font-semibold">{labels.fieldDispositionTitle}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {isFieldLeaveRequest(request)
-                        ? labels.fieldLeaveDispositionHint
-                        : labels.fieldDispositionHint}
-                    </div>
-                    <div className="mt-3 flex flex-col gap-3">
-                      {requiredImpacts.map((impact) => {
-                        const key = String(impact.fieldJobId);
-                        const action = fieldDispositionByJobId[key] || "";
-                        const assignee = fieldAssigneeByJobId[key] || "";
-                        const assigneeOptions = fieldAssigneeOptionsByJobId[key] || [];
-                        const assigneeOptionsLoading = !!fieldAssigneeOptionsLoadingByJobId[key];
-                        return (
-                          <div key={key} className="rounded-md bg-muted/40 p-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="font-medium">
-                                {impact.customerName?.trim() || `#${impact.fieldJobId}`}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {formatFieldImpactRange(impact) ||
-                                  formatMissedPunchShiftRange(
-                                    request.shiftStartTime,
-                                    request.shiftEndTime,
-                                  ) ||
-                                  "-"}
-                              </div>
-                            </div>
-                            <div className="mt-2 flex flex-col gap-2">
-                              <Radio.Group
-                                value={action}
-                                onChange={(e) => {
-                                  const next = e.target.value as "cancel" | "reassign";
-                                  onFieldDispositionChange(impact.fieldJobId, next);
-                                  if (next === "reassign") {
-                                    onLoadFieldAssigneeOptions(key);
-                                  }
-                                }}
-                              >
-                                <Radio value="cancel">{labels.fieldDispositionCancel}</Radio>
-                                <Radio value="reassign">{labels.fieldDispositionReassign}</Radio>
-                              </Radio.Group>
-                              {action === "reassign" && (
-                                <Select
-                                  allowClear
-                                  showSearch
-                                  optionFilterProp="label"
-                                  loading={assigneeOptionsLoading}
-                                  placeholder={labels.selectFieldAssignee}
-                                  style={{ minWidth: 220 }}
-                                  value={assignee || undefined}
-                                  options={assigneeOptions.map((row) => ({
-                                    value: String(row.id),
-                                    label: row.name,
-                                  }))}
-                                  onDropdownVisibleChange={(open) => {
-                                    if (open) onLoadFieldAssigneeOptions(key);
-                                  }}
-                                  onChange={(value) =>
-                                    onFieldAssigneeChange(impact.fieldJobId, value ? String(value) : "")
-                                  }
-                                />
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex justify-end gap-3">
                   <Button onClick={onClose} disabled={!!reviewing}>

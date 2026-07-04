@@ -1,3 +1,11 @@
+## 2026-07-04
+
+- **申请管理 · 店班请假外勤影响与处置合并**：
+  - **`AttendanceRequests.tsx`**：外勤影响与处置合并为「外勤影响与处置」卡片，展示客户、工单号、服务日期/时段、服务类型、重叠说明、同步店班；待审且须处置时在同一卡片内选择取消/改派。
+  - **改派接单人无数据**：原先用申请根上的 `scheduleDate/shiftStartTime/shiftEndTime`（店班请假常为空）查候选人；改为按外勤 `scheduledStart/End`（`resolveFieldImpactScheduleWindow`）查询。
+  - **`attendanceRequestDisplay.ts`**：新增 `resolveDisplayFieldImpacts`、`resolveFieldImpactScheduleWindow`；外勤请假快照补全日期时间。
+  - **`locales.ts`**：合并区块与外勤信息相关中英文案。
+
 ## 2026-07-02
 
 - **申请管理 · 详情门店显示名称**：`AttendanceRequests.tsx` 详情弹窗门店字段优先 `storeName`，否则从 `storeNameById` 解析，不再回退显示 `storeId`。
