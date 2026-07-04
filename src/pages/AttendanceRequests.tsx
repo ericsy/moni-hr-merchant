@@ -189,11 +189,22 @@ function formatFieldImpactSync(
   return parts.join(locale === "zh" ? "、" : ", ");
 }
 
+function formatFieldServiceTypeLabel(
+  serviceType: string | null | undefined,
+  serviceTypes?: Record<string, string>,
+): string {
+  const code = (serviceType || "").trim();
+  if (!code) return "";
+  const key = code.toLowerCase();
+  return serviceTypes?.[key] || serviceTypes?.[code] || code;
+}
+
 function formatFieldImpactMeta(
   impact: MerchantAttendanceFieldImpact,
   request: MerchantAttendanceRequest,
   labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"],
   locale: "zh" | "en",
+  serviceTypes?: Record<string, string>,
 ): Array<{ label: string; value: string }> {
   const window = resolveFieldImpactScheduleWindow(impact, request);
   const dateLabel = window.scheduleDate ? formatDateOnly(window.scheduleDate) : "-";
@@ -207,8 +218,9 @@ function formatFieldImpactMeta(
     { label: labels.fieldImpactTime, value: timeLabel || "-" },
     { label: labels.fieldJobId, value: impact.fieldJobId ? `#${impact.fieldJobId}` : "-" },
   ];
-  if (impact.serviceType?.trim()) {
-    rows.push({ label: labels.fieldServiceType, value: impact.serviceType.trim() });
+  const serviceTypeLabel = formatFieldServiceTypeLabel(impact.serviceType, serviceTypes);
+  if (serviceTypeLabel) {
+    rows.push({ label: labels.fieldServiceType, value: serviceTypeLabel });
   }
   if (overlap) {
     rows.push({ label: labels.fieldImpactOverlap, value: overlap });
@@ -1084,6 +1096,8 @@ function AttendanceDetailModal({
   onClose: () => void;
   onReview: (status: "approved" | "rejected") => void;
 }) {
+  const { t } = useLocale();
+  const fieldServiceTypes = (t.fieldJobs.serviceTypes || {}) as Record<string, string>;
   const isPending = request?.status === "pending";
   const showSubstitutionEditor =
     isPending &&
@@ -1253,7 +1267,13 @@ function AttendanceDetailModal({
                     const key = String(impact.fieldJobId);
                     const required =
                       impact.requiredAction === "required" || requiredFieldJobIds.has(key);
-                    const metaRows = formatFieldImpactMeta(impact, request, labels, locale);
+                    const metaRows = formatFieldImpactMeta(
+                      impact,
+                      request,
+                      labels,
+                      locale,
+                      fieldServiceTypes,
+                    );
                     const action = fieldDispositionByJobId[key] || "";
                     const assignee = fieldAssigneeByJobId[key] || "";
                     const assigneeOptions = fieldAssigneeOptionsByJobId[key] || [];
