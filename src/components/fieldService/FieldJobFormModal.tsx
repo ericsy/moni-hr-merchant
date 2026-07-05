@@ -1,6 +1,7 @@
-import { DatePicker, Alert, Form, Input, Modal, Select, TimePicker } from "antd";
+import { DatePicker, Alert, Form, Input, Modal, Select } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useState } from "react";
+import AutoCloseTimePicker from "../AutoCloseTimePicker";
 import GeoFenceMapPicker from "../GeoFenceMapPicker";
 import GoogleAddressAutocompleteInput from "../GoogleAddressAutocompleteInput";
 import {
@@ -489,14 +490,12 @@ export default function FieldJobFormModal({
             required
             validateStatus={timeError ? "error" : undefined}
           >
-            <TimePicker
+            <AutoCloseTimePicker
               className="w-full"
               format="HH:mm"
               minuteStep={5}
               value={timeValue(startTime, "09:00")}
               onChange={(time) => applyTimeChange(time, setStartTime)}
-              onCalendarChange={(time) => applyTimeChange(time, setStartTime)}
-              onOk={(time) => applyTimeChange(time, setStartTime)}
             />
           </Form.Item>
           <Form.Item
@@ -505,14 +504,12 @@ export default function FieldJobFormModal({
             validateStatus={timeError ? "error" : undefined}
             help={timeError || undefined}
           >
-            <TimePicker
+            <AutoCloseTimePicker
               className="w-full"
               format="HH:mm"
               minuteStep={5}
               value={timeValue(endTime, "11:00")}
               onChange={(time) => applyTimeChange(time, setEndTime)}
-              onCalendarChange={(time) => applyTimeChange(time, setEndTime)}
-              onOk={(time) => applyTimeChange(time, setEndTime)}
             />
           </Form.Item>
         </div>

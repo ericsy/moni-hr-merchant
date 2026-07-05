@@ -1,3 +1,9 @@
+## 2026-07-05
+
+- **外勤工单 · 创建/编辑时间选择**：开始/结束时间改用 **`AutoCloseTimePicker`**，选完分钟即写入并关闭弹层，无需点确认。
+  - **`src/components/AutoCloseTimePicker.tsx`**：从店铺管理抽出共用组件（`needConfirm={false}` + 选分钟自动关闭）。
+  - **`FieldJobFormModal.tsx`**、**`Stores.tsx`**：接入共用组件。
+
 ## 2026-07-04
 
 - **独立外勤请假详情**：不再展示「外勤影响与处置」区块；取消/改派处置直接放在原因下方（店班连带外勤仍用合并区块）。

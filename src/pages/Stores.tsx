@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Input,
@@ -6,13 +6,11 @@ import {
   Modal,
   Form,
   Popconfirm,
-  TimePicker,
   Avatar,
   Tabs,
   Switch,
   InputNumber,
   Tooltip,
-  type TimePickerProps,
 } from "antd";
 import {
   Plus,
@@ -44,6 +42,7 @@ import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import GeoFenceMapPicker from "../components/GeoFenceMapPicker";
 import GoogleAddressAutocompleteInput from "../components/GoogleAddressAutocompleteInput";
+import AutoCloseTimePicker from "../components/AutoCloseTimePicker";
 import type { GooglePlaceSummary } from "../lib/googleMaps";
 
 const { Option } = Select;
@@ -1195,63 +1194,6 @@ function StoreModal({
         style={{ minHeight: 480 }}
       />
     </Modal>
-  );
-}
-
-function AutoCloseTimePicker({
-  onChange,
-  onOpenChange,
-  onCalendarChange,
-  value,
-  ...rest
-}: TimePickerProps) {
-  const [open, setOpen] = useState(false);
-  const lastPanelValueRef = useRef<Dayjs | null>(null);
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) {
-      lastPanelValueRef.current = value ?? null;
-    }
-    setOpen(nextOpen);
-    onOpenChange?.(nextOpen);
-  };
-
-  const shouldCloseAfterPanelSelect = (
-    previous: Dayjs | null,
-    next: Dayjs,
-  ) => {
-    if (rest.showSecond) {
-      return previous.second() !== next.second();
-    }
-    if (rest.showMinute !== false) {
-      return previous.minute() !== next.minute();
-    }
-    return previous.hour() !== next.hour();
-  };
-
-  return (
-    <TimePicker
-      {...rest}
-      value={value}
-      open={open}
-      needConfirm={false}
-      onOpenChange={handleOpenChange}
-      onCalendarChange={(date, dateString, info) => {
-        onCalendarChange?.(date, dateString, info);
-        const nextValue = date as Dayjs | null;
-        if (!nextValue) return;
-
-        const previous = lastPanelValueRef.current;
-        lastPanelValueRef.current = nextValue;
-
-        if (previous && shouldCloseAfterPanelSelect(previous, nextValue)) {
-          setOpen(false);
-        }
-      }}
-      onChange={(nextValue, dateString) => {
-        onChange?.(nextValue, dateString);
-      }}
-    />
   );
 }
 
