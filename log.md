@@ -1,5 +1,11 @@
 ## 2026-07-05
 
+- **外勤工单 · 服务时段校验**：开始时间必须早于结束时间；修改任一时间后立即标红并提示，提交时拦截无效时段。
+  - **`FieldJobFormModal.tsx`**：新增 **`isValidServiceTimeRange`** 与实时 **`timeRangeError`**。
+
+- **外勤工单 · 新建默认开始时间**：创建外勤工单时，开始时间默认为当前时间（按 5 分钟对齐），结束时间默认为开始时间 +2 小时。
+  - **`FieldJobFormModal.tsx`**：新增 **`getDefaultFieldJobStartTime`** / **`getDefaultFieldJobTimes`**。
+
 - **外勤工单 · 创建/编辑时间选择**：开始/结束时间改用 **`AutoCloseTimePicker`**，选完分钟即写入并关闭弹层，无需点确认。
   - **`src/components/AutoCloseTimePicker.tsx`**：从店铺管理抽出共用组件（`needConfirm={false}` + 选分钟自动关闭）。
   - **`FieldJobFormModal.tsx`**、**`Stores.tsx`**：接入共用组件。

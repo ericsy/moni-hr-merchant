@@ -25,6 +25,8 @@ import { validateAssignSyncOptions } from "../../lib/fieldServiceAssign";
 const { TextArea } = Input;
 
 const TIME_ONLY_DATE = "2000-01-01";
+const FIELD_JOB_TIME_MINUTE_STEP = 5;
+const DEFAULT_FIELD_JOB_DURATION_HOURS = 2;
 
 export interface FieldJobFormValues {
   customerName: string;
@@ -60,11 +62,58 @@ function getServiceTypeOptions(labels: Record<string, unknown>) {
   return Object.entries(types).map(([value, label]) => ({ value, label }));
 }
 
-function timeValue(value?: Dayjs | string | null, fallback = "09:00") {
+function snapTimeToMinuteStep(
+  time: Dayjs = dayjs(),
+  minuteStep = FIELD_JOB_TIME_MINUTE_STEP,
+) {
+  const totalMinutes = time.hour() * 60 + time.minute();
+  const snappedMinutes =
+    Math.round(totalMinutes / minuteStep) * minuteStep;
+  const clampedMinutes = Math.min(
+    Math.max(snappedMinutes, 0),
+    24 * 60 - minuteStep,
+  );
+  return time.startOf("day").add(clampedMinutes, "minute");
+}
+
+function getDefaultFieldJobStartTime(now = dayjs()) {
+  return snapTimeToMinuteStep(now).format("HH:mm");
+}
+
+function getDefaultFieldJobEndTime(
+  startTime: string,
+  durationHours = DEFAULT_FIELD_JOB_DURATION_HOURS,
+  minuteStep = FIELD_JOB_TIME_MINUTE_STEP,
+) {
+  const start = timeValue(startTime);
+  let end = start.add(durationHours, "hour");
+  if (!end.isAfter(start)) {
+    end = start.add(minuteStep, "minute");
+  }
+  const latestEnd = dayjs(`${TIME_ONLY_DATE} 23:59`, "YYYY-MM-DD HH:mm");
+  if (end.isAfter(latestEnd)) {
+    end = start.add(minuteStep, "minute");
+  }
+  return end.format("HH:mm");
+}
+
+function getDefaultFieldJobTimes(now = dayjs()) {
+  const startTime = getDefaultFieldJobStartTime(now);
+  return {
+    startTime,
+    endTime: getDefaultFieldJobEndTime(startTime),
+  };
+}
+
+function timeValue(value?: Dayjs | string | null, fallback?: string) {
+  const resolvedFallback = fallback ?? getDefaultFieldJobStartTime();
   if (dayjs.isDayjs(value) && value.isValid()) {
     return dayjs(`${TIME_ONLY_DATE} ${value.format("HH:mm")}`, "YYYY-MM-DD HH:mm");
   }
-  const text = typeof value === "string" && /^\d{1,2}:\d{2}$/.test(value) ? value : fallback;
+  const text =
+    typeof value === "string" && /^\d{1,2}:\d{2}$/.test(value)
+      ? value
+      : resolvedFallback;
   return dayjs(`${TIME_ONLY_DATE} ${text}`, "YYYY-MM-DD HH:mm");
 }
 
@@ -119,6 +168,10 @@ function applyTimeChange(
   onChange(time.format("HH:mm"));
 }
 
+function isValidServiceTimeRange(start: string, end: string) {
+  return timeValue(end).isAfter(timeValue(start));
+}
+
 export default function FieldJobFormModal({
   open,
   job,
@@ -136,9 +189,10 @@ export default function FieldJobFormModal({
 }: FieldJobFormModalProps) {
   const [form] = Form.useForm<FieldJobFormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("11:00");
-  const [timeError, setTimeError] = useState("");
+  const [startTime, setStartTime] = useState(() => getDefaultFieldJobStartTime());
+  const [endTime, setEndTime] = useState(() =>
+    getDefaultFieldJobEndTime(getDefaultFieldJobStartTime()),
+  );
   const [employeeError, setEmployeeError] = useState("");
   const [syncValue, setSyncValue] = useState<FieldJobStoreSyncValue>({
     syncStoreClockIn: false,
@@ -156,6 +210,11 @@ export default function FieldJobFormModal({
     longitude: job?.longitude ?? 174.7633,
     geofenceRadius: job?.geofenceRadius ?? 100,
   });
+
+  const timeRangeError = useMemo(() => {
+    if (isValidServiceTimeRange(startTime, endTime)) return "";
+    return String(labels.endTimeInvalid);
+  }, [endTime, labels.endTimeInvalid, startTime]);
 
   const scheduledWindow = useMemo(() => {
     const date = serviceDate ? dayjs(serviceDate) : dayjs().startOf("day");
@@ -304,7 +363,6 @@ export default function FieldJobFormModal({
       });
       setStartTime(toTimeString(start));
       setEndTime(toTimeString(end, 11, 0));
-      setTimeError("");
       setEmployeeError("");
       setGeo({
         latitude: job.latitude,
@@ -318,15 +376,16 @@ export default function FieldJobFormModal({
 
     form.resetFields();
     const today = dayjs().startOf("day");
+    const { startTime: defaultStartTime, endTime: defaultEndTime } =
+      getDefaultFieldJobTimes();
     form.setFieldsValue({
       serviceType: "cleaning",
       serviceDate: today,
       geofenceRadius: 100,
       merchantAdminIds: [],
     });
-    setStartTime("09:00");
-    setEndTime("11:00");
-    setTimeError("");
+    setStartTime(defaultStartTime);
+    setEndTime(defaultEndTime);
     setEmployeeError("");
     setGeo({ latitude: -36.8485, longitude: 174.7633, geofenceRadius: 100 });
     setPreservedGeocodeAddress("");
@@ -368,11 +427,9 @@ export default function FieldJobFormModal({
       const scheduledStart = combineDateAndTime(values.serviceDate, startTime);
       const scheduledEnd = combineDateAndTime(values.serviceDate, endTime);
 
-      if (!scheduledEnd.isAfter(scheduledStart)) {
-        setTimeError(String(labels.endTimeInvalid));
+      if (!isValidServiceTimeRange(startTime, endTime)) {
         return;
       }
-      setTimeError("");
 
       const selectedIds = (values.merchantAdminIds || []).filter(Boolean);
       if (selectedIds.length > 0) {
@@ -488,27 +545,27 @@ export default function FieldJobFormModal({
           <Form.Item
             label={String(labels.scheduledStart)}
             required
-            validateStatus={timeError ? "error" : undefined}
+            validateStatus={timeRangeError ? "error" : undefined}
+            help={timeRangeError || undefined}
           >
             <AutoCloseTimePicker
               className="w-full"
               format="HH:mm"
-              minuteStep={5}
-              value={timeValue(startTime, "09:00")}
+              minuteStep={FIELD_JOB_TIME_MINUTE_STEP}
+              value={timeValue(startTime)}
               onChange={(time) => applyTimeChange(time, setStartTime)}
             />
           </Form.Item>
           <Form.Item
             label={String(labels.scheduledEnd)}
             required
-            validateStatus={timeError ? "error" : undefined}
-            help={timeError || undefined}
+            validateStatus={timeRangeError ? "error" : undefined}
           >
             <AutoCloseTimePicker
               className="w-full"
               format="HH:mm"
-              minuteStep={5}
-              value={timeValue(endTime, "11:00")}
+              minuteStep={FIELD_JOB_TIME_MINUTE_STEP}
+              value={timeValue(endTime, getDefaultFieldJobEndTime(startTime))}
               onChange={(time) => applyTimeChange(time, setEndTime)}
             />
           </Form.Item>
