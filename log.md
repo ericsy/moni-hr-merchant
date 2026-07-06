@@ -314,6 +314,7 @@
 
 - 商家端登录：未激活账户不再跳转激活页，在登录页显示「账户尚未激活」提示；激活仍通过邮件链接 `/activate?token=...` 完成。
 
-## 2026-07-06
+## 2026-07-07
 
-- 外勤工单创建/编辑弹层：设置 `maskClosable={false}`，点击遮罩层不再关闭弹窗，需通过取消或确定按钮关闭。涉及：`FieldJobFormModal.tsx`。
+- **修复外勤工单创建/编辑无法选择部分员工（如 Mike Mai）**：外勤页原用 `POST /employees/active-brief`（要求 `profile.status=1` 且 **App 账号已激活**），排班页用 `DataContext` 员工列表（仅要求在职）。现外勤改为与排班一致：`listActiveEmployeesForStore` 从 `DataContext` 取当前门店在职员工。后端 `active-brief` 同步放宽为仅校验在职档案（`isActiveEmployeeProfile`），不再强制 `activated=1`。
+

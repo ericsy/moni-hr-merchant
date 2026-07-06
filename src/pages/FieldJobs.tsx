@@ -16,6 +16,7 @@ import {
   buildFieldJobAssignmentPayloads,
   getFieldJobEmployeeNamesLabel,
   isFieldJobAssigned,
+  listActiveEmployeesForStore,
   shouldSyncFieldJobAssignments,
 } from "../lib/fieldJobEmployees";
 import { filterJobsInWeek, getWeekStart } from "../lib/fieldJobSchedule";
@@ -44,7 +45,7 @@ export default function FieldJobs() {
   const { t, locale } = useLocale();
   const labels = t.fieldJobs;
   const { selectedStoreId } = useStore();
-  const { scheduleShifts, stores, employeeDateLeaves, employeeShiftLeaves } = useData();
+  const { scheduleShifts, stores, employeeDateLeaves, employeeShiftLeaves, employees: contextEmployees } = useData();
 
   const dateLeavesForStore = useMemo(
     () => filterLeavesForStore(employeeDateLeaves, selectedStoreId),
@@ -66,7 +67,11 @@ export default function FieldJobs() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<FieldServiceJob | null>(null);
   const [assigningJob, setAssigningJob] = useState<FieldServiceJob | null>(null);
-  const [employees, setEmployees] = useState<Array<{ id: string; name: string }>>([]);
+
+  const employees = useMemo(
+    () => listActiveEmployeesForStore(contextEmployees, selectedStoreId),
+    [contextEmployees, selectedStoreId],
+  );
 
   const storeNameById = useMemo(
     () =>
@@ -141,34 +146,9 @@ export default function FieldJobs() {
     }
   }, [labels.loadFailed, search, selectedStoreId, status, viewMode]);
 
-  const loadEmployees = useCallback(async () => {
-    if (!selectedStoreId) {
-      setEmployees([]);
-      return;
-    }
-    try {
-      const items = await merchantApi.listActiveEmployeeBriefs([selectedStoreId]);
-      setEmployees(
-        items
-          .map((item) => ({
-            id: String(item.id || ""),
-            name: item.name || "",
-          }))
-          .filter((item) => item.id),
-      );
-    } catch (error) {
-      console.log("[FieldJobs] employees load failed:", error);
-      setEmployees([]);
-    }
-  }, [selectedStoreId]);
-
   useEffect(() => {
     void loadJobs();
   }, [loadJobs]);
-
-  useEffect(() => {
-    void loadEmployees();
-  }, [loadEmployees]);
 
   const handleSelectedDateChange = useCallback((date: Dayjs) => {
     const nextDate = date.startOf("day");

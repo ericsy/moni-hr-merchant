@@ -1,4 +1,40 @@
 import type { FieldJobAssignPayload, FieldServiceJob } from "../types/fieldService";
+import type { Employee } from "../context/DataContext";
+
+export function getFieldJobEmployeeDisplayName(
+  employee: Pick<Employee, "firstName" | "lastName" | "employeeId" | "email" | "id">,
+) {
+  const fullName = `${employee.firstName || ""} ${employee.lastName || ""}`.trim();
+  return fullName || employee.employeeId || employee.email || employee.id || "";
+}
+
+export function employeeBelongsToStore(
+  employee: Pick<Employee, "storeIds" | "assignedStores" | "storeDetails">,
+  storeId: string,
+) {
+  if (!storeId) return true;
+  return (
+    employee.storeIds.includes(storeId) ||
+    (employee.assignedStores || []).includes(storeId) ||
+    (employee.storeDetails || []).some((store) => store.id === storeId)
+  );
+}
+
+/** 与排班页一致：当前门店在职员工（不要求 App 账号已激活）。 */
+export function listActiveEmployeesForStore(
+  employees: Employee[],
+  storeId: string,
+): Array<{ id: string; name: string }> {
+  if (!storeId) return [];
+  return employees
+    .filter((employee) => employee.status === "active")
+    .filter((employee) => employeeBelongsToStore(employee, storeId))
+    .map((employee) => ({
+      id: employee.id,
+      name: getFieldJobEmployeeDisplayName(employee),
+    }))
+    .filter((employee) => employee.id);
+}
 
 export function getFieldJobAssignments(job?: FieldServiceJob | null) {
   if (job?.assignments?.length) {
