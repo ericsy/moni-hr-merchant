@@ -1,5 +1,7 @@
 ## 2026-07-07
 
+- **外勤改派/更换服务人员假成功**：指派名单未变化时跳过 API 仍提示成功；现提示「服务人员未变更」。移除派单弹层会静默清空已选员工的 effect；合并当前工单已分配员工进下拉；派单前校验请假/外勤冲突；`merchantAdminId` 以数字提交。涉及：`fieldJobAssignment.ts`、`fieldJobEmployees.ts`、`FieldJobs.tsx`、`FieldJobAssignModal.tsx`、`merchantApi.ts`、`locales.ts`。
+
 - **外勤工单 · 已分配仅可更换员工**：编辑已分配员工的外勤工单时，客户信息、地址、时间、围栏等字段只读，仅可更换服务人员及店班同步设置；保存时只调用分配接口，不更新工单详情。
   - **`FieldJobFormModal.tsx`**、**`FieldJobs.tsx`**、**`locales.ts`**、**`fieldService.ts`**。
 
@@ -316,5 +318,8 @@
 
 ## 2026-07-07
 
-- **修复外勤工单创建/编辑无法选择部分员工（如 Mike Mai）**：外勤页原用 `POST /employees/active-brief`（要求 `profile.status=1` 且 **App 账号已激活**），排班页用 `DataContext` 员工列表（仅要求在职）。现外勤改为与排班一致：`listActiveEmployeesForStore` 从 `DataContext` 取当前门店在职员工。后端 `active-brief` 同步放宽为仅校验在职档案（`isActiveEmployeeProfile`），不再强制 `activated=1`。
+- **外勤改派/更换服务人员假成功**：指派未变化时 `applyFieldJobAssignments` 跳过 API 仍 toast 成功；现未变更时提示「服务人员未变更」。移除派单弹层静默清空已选员工的 effect；`buildFieldJobEmployeeOptions` 合并当前工单已分配员工；派单前校验请假/外勤冲突；`merchantAdminId` 以数字提交。
+
+- **外勤员工下拉与排班对齐**：改用 `DataContext` 在职员工，不再依赖 `active-brief` 的已激活限制。
+
 

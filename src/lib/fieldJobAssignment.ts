@@ -25,10 +25,11 @@ export async function applyFieldJobAssignments(
   jobId: string,
   job: FieldServiceJob | null | undefined,
   assignments: FieldJobAssignPayload[],
-) {
+): Promise<boolean> {
   if (!shouldSyncFieldJobAssignments(job, assignments)) {
-    return;
+    return false;
   }
 
   await merchantApi.syncFieldJobAssignments(storeId, jobId, { assignments });
+  return true;
 }

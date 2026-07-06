@@ -14,6 +14,7 @@ import { filterLeavesForStore, getEmployeeFieldJobBlockInfo } from "../lib/emplo
 import { applyFieldJobAssignments } from "../lib/fieldJobAssignment";
 import {
   buildFieldJobAssignmentPayloads,
+  buildFieldJobEmployeeOptions,
   getFieldJobEmployeeNamesLabel,
   isFieldJobAssigned,
   listActiveEmployeesForStore,
@@ -71,6 +72,16 @@ export default function FieldJobs() {
   const employees = useMemo(
     () => listActiveEmployeesForStore(contextEmployees, selectedStoreId),
     [contextEmployees, selectedStoreId],
+  );
+
+  const formEmployeeOptions = useMemo(
+    () => buildFieldJobEmployeeOptions(employees, editingJob),
+    [employees, editingJob],
+  );
+
+  const assignEmployeeOptions = useMemo(
+    () => buildFieldJobEmployeeOptions(employees, assigningJob),
+    [employees, assigningJob],
   );
 
   const storeNameById = useMemo(
@@ -255,7 +266,11 @@ export default function FieldJobs() {
           syncStoreClockOut: merchantAdminIds.length === 1 ? !!syncStoreClockOut : false,
         });
         const assignmentChanged = shouldSyncFieldJobAssignments(editingJob, assignments);
-        await applyFieldJobAssignments(selectedStoreId, editingJob.id, editingJob, assignments);
+        const synced = await applyFieldJobAssignments(selectedStoreId, editingJob.id, editingJob, assignments);
+        if (!synced) {
+          toast.message(labels.assignUnchanged);
+          return;
+        }
         toast.success(assignmentChanged ? labels.reassignSuccess : labels.saveSuccess);
         setFormOpen(false);
         setEditingJob(null);
@@ -281,7 +296,11 @@ export default function FieldJobs() {
           syncStoreClockIn: merchantAdminIds.length === 1 ? !!syncStoreClockIn : false,
           syncStoreClockOut: merchantAdminIds.length === 1 ? !!syncStoreClockOut : false,
         });
-        await applyFieldJobAssignments(selectedStoreId, jobId, editingJob, assignments);
+        const synced = await applyFieldJobAssignments(selectedStoreId, jobId, editingJob, assignments);
+        if (merchantAdminIds.length > 0 && !synced) {
+          toast.message(labels.assignUnchanged);
+          return;
+        }
       }
 
       toast.success(labels.saveSuccess);
@@ -311,12 +330,16 @@ export default function FieldJobs() {
     const isReassign = isFieldJobAssigned(assigningJob);
 
     try {
-      await applyFieldJobAssignments(
+      const synced = await applyFieldJobAssignments(
         selectedStoreId,
         assigningJob.id,
         assigningJob,
         payload.assignments,
       );
+      if (!synced) {
+        toast.message(labels.assignUnchanged);
+        return;
+      }
       toast.success(isReassign ? labels.reassignSuccess : labels.assignSuccess);
       setAssignOpen(false);
       setAssigningJob(null);
@@ -391,7 +414,7 @@ export default function FieldJobs() {
       title: labels.employee,
       key: "employee",
       width: 120,
-      render: (_, record) => getFieldJobEmployeeNamesLabel(record),
+      render: (_, record) => getFieldJobEmployeeNamesLabel(record, "—", employees),
     },
     {
       title: t.status,
@@ -513,7 +536,7 @@ export default function FieldJobs() {
         storeId={selectedStoreId}
         storeNameById={storeNameById}
         scheduleShifts={scheduleShifts.filter((shift) => shift.storeId === selectedStoreId)}
-        employees={employees}
+        employees={formEmployeeOptions}
         dateLeaves={dateLeavesForStore}
         shiftLeaves={shiftLeavesForStore}
         existingJobs={allJobs}
@@ -531,7 +554,7 @@ export default function FieldJobs() {
         job={assigningJob}
         storeId={selectedStoreId}
         storeNameById={storeNameById}
-        employees={employees}
+        employees={assignEmployeeOptions}
         dateLeaves={dateLeavesForStore}
         shiftLeaves={shiftLeavesForStore}
         existingJobs={allJobs}

@@ -36,6 +36,27 @@ export function listActiveEmployeesForStore(
     .filter((employee) => employee.id);
 }
 
+/** 合并当前工单已分配员工，避免改派时下拉缺少在案人员或选项被静默清空。 */
+export function buildFieldJobEmployeeOptions(
+  employees: Array<{ id: string; name: string }>,
+  job?: FieldServiceJob | null,
+): Array<{ id: string; name: string }> {
+  const byId = new Map(employees.map((employee) => [String(employee.id), employee]));
+
+  for (const assignment of getFieldJobAssignments(job)) {
+    const id = String(assignment.merchantAdminId || "");
+    if (!id || byId.has(id)) continue;
+    byId.set(id, {
+      id,
+      name: assignment.employeeName?.trim() || id,
+    });
+  }
+
+  return Array.from(byId.values()).sort((left, right) =>
+    left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+  );
+}
+
 export function getFieldJobAssignments(job?: FieldServiceJob | null) {
   if (job?.assignments?.length) {
     return job.assignments;
@@ -52,9 +73,18 @@ export function getFieldJobAssignmentEmployeeIds(job?: FieldServiceJob | null) {
     .filter(Boolean);
 }
 
-export function getFieldJobEmployeeNamesLabel(job?: FieldServiceJob | null, fallback = "—") {
+export function getFieldJobEmployeeNamesLabel(
+  job?: FieldServiceJob | null,
+  fallback = "—",
+  employees?: Array<{ id: string; name: string }>,
+) {
   const names = getFieldJobAssignments(job)
-    .map((assignment) => assignment.employeeName?.trim())
+    .map((assignment) => {
+      const fromAssignment = assignment.employeeName?.trim();
+      if (fromAssignment) return fromAssignment;
+      const employeeId = String(assignment.merchantAdminId || "");
+      return employees?.find((employee) => String(employee.id) === employeeId)?.name || "";
+    })
     .filter(Boolean);
   return names.length > 0 ? names.join("、") : fallback;
 }
@@ -65,7 +95,7 @@ export function isFieldJobAssigned(job?: FieldServiceJob | null) {
 
 function assignmentPayloadKey(payload: FieldJobAssignPayload) {
   return [
-    payload.merchantAdminId,
+    String(payload.merchantAdminId),
     payload.syncStoreClockIn ? "1" : "0",
     payload.syncStoreClockOut ? "1" : "0",
   ].join(":");

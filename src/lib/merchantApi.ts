@@ -2549,7 +2549,7 @@ export const merchantApi = {
         storeId,
         body: {
           assignments: payload.assignments.map((item) => ({
-            merchantAdminId: item.merchantAdminId,
+            merchantAdminId: Number(item.merchantAdminId),
             syncStoreClockIn: item.syncStoreClockIn,
             syncStoreClockOut: item.syncStoreClockOut,
           })),
@@ -2570,7 +2570,7 @@ export const merchantApi = {
         storeId,
         body: {
           assignments: payload.assignments.map((item) => ({
-            merchantAdminId: item.merchantAdminId,
+            merchantAdminId: Number(item.merchantAdminId),
             syncStoreClockIn: item.syncStoreClockIn,
             syncStoreClockOut: item.syncStoreClockOut,
           })),

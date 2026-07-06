@@ -2,7 +2,7 @@ import { Alert, Modal, Select } from "antd";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { validateAssignSyncOptions } from "../../lib/fieldServiceAssign";
-import { filterEmployeesAvailableForFieldJob } from "../../lib/employeeLeave";
+import { filterEmployeesAvailableForFieldJob, getEmployeeFieldJobBlockInfo } from "../../lib/employeeLeave";
 import {
   buildFieldJobAssignmentPayloads,
   getFieldJobAssignmentEmployeeIds,
@@ -108,13 +108,6 @@ export default function FieldJobAssignModal({
     );
   }, [dateLeaves, employeeIds, employees, existingJobs, job, shiftLeaves]);
 
-  useEffect(() => {
-    if (!open) return;
-    setEmployeeIds((current) =>
-      current.filter((employeeId) => availableEmployees.some((employee) => employee.id === employeeId)),
-    );
-  }, [availableEmployees, open]);
-
   const { preview, loading: loadingPreview } = useFieldJobStoreSyncPreview({
     jobId: open && singleEmployeeMode ? job?.id : undefined,
     scheduledStart: job?.scheduledStart || "",
@@ -171,6 +164,37 @@ export default function FieldJobAssignModal({
     if (!validation.valid) {
       setErrors(validation.errors);
       return;
+    }
+
+    if (job) {
+      for (const employeeId of employeeIds) {
+        const blockInfo = getEmployeeFieldJobBlockInfo(
+          employeeId,
+          job.scheduledStart,
+          job.scheduledEnd,
+          dateLeaves,
+          shiftLeaves,
+          existingJobs,
+          { excludeJobId: job.id },
+        );
+        if (!blockInfo) continue;
+
+        const employeeName = employees.find((employee) => employee.id === employeeId)?.name || employeeId;
+        if (blockInfo.reason === "leave") {
+          setErrors([String(labels.employeeUnavailableLeave).replace("{name}", employeeName)]);
+          return;
+        }
+        const conflictCustomer = blockInfo.conflictingJob?.customerName?.trim();
+        const template = conflictCustomer
+          ? String(labels.employeeUnavailableConflictWithJob)
+          : String(labels.employeeUnavailableConflict);
+        setErrors([
+          template
+            .replace("{name}", employeeName)
+            .replace("{customer}", conflictCustomer || ""),
+        ]);
+        return;
+      }
     }
 
     const appliedSync = applyFieldJobStoreSyncForPreview(preview, syncValue, job ?? undefined);
