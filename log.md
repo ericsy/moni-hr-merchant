@@ -1,3 +1,9 @@
+## 2026-07-07
+
+- **时间选择改为小时/分钟小框输入**：店铺每周营业时间、外勤工单开始/结束时间不再使用滚动 TimePicker，改为点击后弹出小框，分别输入 24 小时制「时」「分」并确定写入。
+  - **`src/components/HourMinuteTimePicker.tsx`**：新增共用组件；外勤分钟按 5 分钟步长对齐。
+  - **`Stores.tsx`**、**`FieldJobFormModal.tsx`**：接入新组件；移除 **`AutoCloseTimePicker.tsx`**。
+
 ## 2026-07-06
 
 - **员工创建/重置 App 密码（商家端）**：创建员工不再传密码，由后端随机 **8 位数字**并邮件发送、默认已激活；员工详情增加 **「重置 App 密码」**（`POST .../employees/{id}/reset-password`）。**`merchantApi.ts`**、**`Employees.tsx`**、**`locales.ts`**。

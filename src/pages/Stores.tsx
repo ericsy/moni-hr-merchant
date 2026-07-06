@@ -42,7 +42,7 @@ import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import GeoFenceMapPicker from "../components/GeoFenceMapPicker";
 import GoogleAddressAutocompleteInput from "../components/GoogleAddressAutocompleteInput";
-import AutoCloseTimePicker from "../components/AutoCloseTimePicker";
+import HourMinuteTimePicker from "../components/HourMinuteTimePicker";
 import type { GooglePlaceSummary } from "../lib/googleMaps";
 
 const { Option } = Select;
@@ -1003,6 +1003,7 @@ function StoreModal({
                       key={field.key}
                       fieldName={field.name}
                       st={st}
+                      locale={locale === "zh" ? "zh" : "en"}
                       weekDayLabel={st.weekDays[field.name] || `${field.name + 1}`}
                       form={form}
                     />
@@ -1202,11 +1203,13 @@ function WeeklyHoursRow({
   weekDayLabel,
   st,
   form,
+  locale = "zh",
 }: {
   fieldName: number;
   weekDayLabel: string;
   st: ReturnType<typeof useLocale>["t"]["store"];
   form: ReturnType<typeof Form.useForm>[0];
+  locale?: "zh" | "en";
 }) {
   const closed = Form.useWatch(["weeklyHours", fieldName, "closed"], form) === true;
 
@@ -1239,10 +1242,10 @@ function WeeklyHoursRow({
         style={{ marginBottom: 0 }}
         rules={[{ required: !closed, message: st.openTimeRequired }]}
       >
-        <AutoCloseTimePicker
+        <HourMinuteTimePicker
           disabled={closed}
-          format="HH:mm"
           placeholder={st.openTime}
+          locale={locale}
           style={{ width: "100%" }}
         />
       </Form.Item>
@@ -1251,10 +1254,10 @@ function WeeklyHoursRow({
         style={{ marginBottom: 0 }}
         rules={[{ required: !closed, message: st.closeTimeRequired }]}
       >
-        <AutoCloseTimePicker
+        <HourMinuteTimePicker
           disabled={closed}
-          format="HH:mm"
           placeholder={st.closeTime}
+          locale={locale}
           style={{ width: "100%" }}
         />
       </Form.Item>
