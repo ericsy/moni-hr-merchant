@@ -486,6 +486,7 @@ export default function FieldJobFormModal({
       confirmLoading={submitting}
       width={760}
       destroyOnClose
+      maskClosable={false}
     >
       <Form form={form} layout="vertical" className="mt-2">
         {employeeError ? (
