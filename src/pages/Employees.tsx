@@ -28,6 +28,7 @@ import {
   ExternalLink,
   FileText,
   IdCard,
+  KeyRound,
   Mail,
   MapPin,
   Paperclip,
@@ -2107,12 +2108,16 @@ function DetailPanel({
   stores = [],
   onEdit = () => {},
   onDelete = () => {},
+  onResetPassword = () => {},
+  resetPasswordLoading = false,
   t,
 }: {
   employee: Employee;
   stores?: { id: string; name: string; country?: string }[];
   onEdit?: () => void;
   onDelete?: () => void;
+  onResetPassword?: () => void;
+  resetPasswordLoading?: boolean;
   t: ReturnType<typeof useLocale>["t"];
 }) {
   const et = t.employee as Record<string, unknown>;
@@ -2496,6 +2501,22 @@ function DetailPanel({
             {t.edit}
           </Button>
           <Popconfirm
+            title={et.resetAppPassword as string}
+            description={et.resetAppPasswordConfirm as string}
+            onConfirm={onResetPassword}
+            okText={t.yes}
+            cancelText={t.no}
+          >
+            <Button
+              type="default"
+              size="small"
+              loading={resetPasswordLoading}
+              icon={<KeyRound size={13} />}
+            >
+              {et.resetAppPassword as string}
+            </Button>
+          </Popconfirm>
+          <Popconfirm
             title={t.deleteConfirm}
             description={t.deleteWarning}
             onConfirm={onDelete}
@@ -2534,6 +2555,7 @@ export default function Employees() {
   const [selectedId, setSelectedId] = useState<string>(employees[0]?.id ?? "");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
 
   console.log(
     "[Employees] selectedId:",
@@ -2596,6 +2618,23 @@ export default function Employees() {
       toast.error(
         error instanceof Error ? error.message : (et.deleteFailed as string),
       );
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!selectedEmployee) return;
+    setResetPasswordLoading(true);
+    try {
+      await merchantApi.resetEmployeePassword(selectedEmployee.id);
+      toast.success(et.resetAppPasswordSuccess as string);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : (et.resetAppPasswordFailed as string),
+      );
+    } finally {
+      setResetPasswordLoading(false);
     }
   };
 
@@ -2759,6 +2798,8 @@ export default function Employees() {
               stores={stores}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onResetPassword={handleResetPassword}
+              resetPasswordLoading={resetPasswordLoading}
               t={t}
             />
           ) : (

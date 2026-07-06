@@ -2163,7 +2163,7 @@ export const merchantApi = {
   createEmployee: async (employee: Employee & { password?: string }) => {
     const data = await apiRequest<unknown>(getMerchantEndpoint("employees"), {
       method: "POST",
-      body: employeeToApiPayload(employee, true),
+      body: employeeToApiPayload(employee, false),
     });
     return mapApiEmployee(data);
   },
@@ -2177,6 +2177,10 @@ export const merchantApi = {
   deleteEmployee: (id: string) =>
     apiRequest(appendEndpointPath(getMerchantEndpoint("employees"), id), {
       method: "DELETE",
+    }),
+  resetEmployeePassword: (id: string) =>
+    apiRequest<null>(appendEndpointPath(getMerchantEndpoint("employees"), id, "reset-password"), {
+      method: "POST",
     }),
   checkEmployeeEmailAvailable: async (email: string, excludeId?: string) => {
     const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("employees"), "email-available"), {

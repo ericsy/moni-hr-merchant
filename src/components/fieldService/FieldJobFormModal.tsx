@@ -57,11 +57,6 @@ interface FieldJobFormModalProps {
   onSubmit: (payload: FieldJobFormSubmitPayload) => Promise<void>;
 }
 
-function getServiceTypeOptions(labels: Record<string, unknown>) {
-  const types = (labels.serviceTypes || {}) as Record<string, string>;
-  return Object.entries(types).map(([value, label]) => ({ value, label }));
-}
-
 function snapTimeToMinuteStep(
   time: Dayjs = dayjs(),
   minuteStep = FIELD_JOB_TIME_MINUTE_STEP,
@@ -353,7 +348,7 @@ export default function FieldJobFormModal({
         customerName: job.customerName,
         customerPhone: job.customerPhone,
         serviceAddress: job.serviceAddress,
-        serviceType: job.serviceType || "cleaning",
+        serviceType: job.serviceType?.trim() || "",
         serviceDate: start.startOf("day"),
         latitude: job.latitude,
         longitude: job.longitude,
@@ -379,7 +374,6 @@ export default function FieldJobFormModal({
     const { startTime: defaultStartTime, endTime: defaultEndTime } =
       getDefaultFieldJobTimes();
     form.setFieldsValue({
-      serviceType: "cleaning",
       serviceDate: today,
       geofenceRadius: 100,
       merchantAdminIds: [],
@@ -472,7 +466,7 @@ export default function FieldJobFormModal({
         geofenceRadius: geo.geofenceRadius,
         scheduledStart: toLocalDateTimeString(scheduledStart),
         scheduledEnd: toLocalDateTimeString(scheduledEnd),
-        serviceType: values.serviceType,
+        serviceType: values.serviceType.trim(),
         notes: values.notes?.trim() || undefined,
         merchantAdminIds: selectedIds,
         syncStoreClockIn: selectedIds.length === 1 ? appliedSync.syncStoreClockIn : false,
@@ -529,8 +523,18 @@ export default function FieldJobFormModal({
         </Form.Item>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Form.Item name="serviceType" label={String(labels.serviceType)}>
-            <Select options={getServiceTypeOptions(labels)} />
+          <Form.Item
+            name="serviceType"
+            label={String(labels.serviceType)}
+            rules={[
+              { required: true, message: String(labels.serviceTypeRequired) },
+              { max: 64, message: String(labels.serviceTypeMaxLength) },
+            ]}
+          >
+            <Input
+              maxLength={64}
+              placeholder={String(labels.serviceTypePlaceholder)}
+            />
           </Form.Item>
           <Form.Item
             name="serviceDate"
