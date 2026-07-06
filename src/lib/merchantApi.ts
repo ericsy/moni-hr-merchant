@@ -30,6 +30,7 @@ export interface MerchantLoginResult {
   user?: {
     email?: string;
     name?: string;
+    lastStoreId?: number | string | null;
   };
   status?: string | null;
 }

@@ -3,6 +3,7 @@ import {
   clearStoredAccessToken,
   getStoredAccessToken,
   getStoredAccessTokenScope,
+  setCurrentStoreId,
   setStoredAccessToken,
   subscribeAuthExpired,
   type TokenStorageScope,
@@ -219,6 +220,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setStoredAccessToken(result.accessToken, nextStorageScope);
+      const loginLastStoreId = result?.user?.lastStoreId;
+      if (loginLastStoreId !== null && loginLastStoreId !== undefined && String(loginLastStoreId)) {
+        setCurrentStoreId(String(loginLastStoreId));
+      }
       setStorageScope(nextStorageScope);
       setUser(nextUser);
       setActivationToken("");
