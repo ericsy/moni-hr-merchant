@@ -112,6 +112,8 @@ export interface FieldJobFormSubmitPayload extends FieldJobUpsertPayload {
   merchantAdminIds?: string[];
   syncStoreClockIn?: boolean;
   syncStoreClockOut?: boolean;
+  /** 已分配工单编辑：仅同步员工，不更新工单详情 */
+  assignmentsOnly?: boolean;
 }
 
 export interface TimelineStoreShiftItem {

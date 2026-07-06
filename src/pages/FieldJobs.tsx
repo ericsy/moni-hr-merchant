@@ -11,8 +11,13 @@ import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { filterLeavesForStore, getEmployeeFieldJobBlockInfo } from "../lib/employeeLeave";
-import { applyFieldJobAssignments, isFieldJobAssigned } from "../lib/fieldJobAssignment";
-import { buildFieldJobAssignmentPayloads, getFieldJobEmployeeNamesLabel } from "../lib/fieldJobEmployees";
+import { applyFieldJobAssignments } from "../lib/fieldJobAssignment";
+import {
+  buildFieldJobAssignmentPayloads,
+  getFieldJobEmployeeNamesLabel,
+  isFieldJobAssigned,
+  shouldSyncFieldJobAssignments,
+} from "../lib/fieldJobEmployees";
 import { filterJobsInWeek, getWeekStart } from "../lib/fieldJobSchedule";
 import { ApiError } from "../lib/apiClient";
 import { merchantApi } from "../lib/merchantApi";
@@ -243,7 +248,7 @@ export default function FieldJobs() {
       return;
     }
 
-    const { merchantAdminIds = [], syncStoreClockIn, syncStoreClockOut, ...upsert } = payload;
+    const { merchantAdminIds = [], syncStoreClockIn, syncStoreClockOut, assignmentsOnly, ...upsert } = payload;
 
     for (const employeeId of merchantAdminIds) {
       const blockMessage = getEmployeeBlockMessage(
@@ -259,6 +264,24 @@ export default function FieldJobs() {
 
     try {
       let jobId = editingJob?.id;
+
+      if (assignmentsOnly && editingJob) {
+        if (merchantAdminIds.length === 0) {
+          toast.error(labels.employeeRequired);
+          return;
+        }
+        const assignments = buildFieldJobAssignmentPayloads(editingJob, merchantAdminIds, {
+          syncStoreClockIn: merchantAdminIds.length === 1 ? !!syncStoreClockIn : false,
+          syncStoreClockOut: merchantAdminIds.length === 1 ? !!syncStoreClockOut : false,
+        });
+        const assignmentChanged = shouldSyncFieldJobAssignments(editingJob, assignments);
+        await applyFieldJobAssignments(selectedStoreId, editingJob.id, editingJob, assignments);
+        toast.success(assignmentChanged ? labels.reassignSuccess : labels.saveSuccess);
+        setFormOpen(false);
+        setEditingJob(null);
+        await loadJobs();
+        return;
+      }
 
       if (editingJob) {
         await merchantApi.updateFieldJob(selectedStoreId, editingJob.id, {

@@ -1,5 +1,8 @@
 ## 2026-07-07
 
+- **外勤工单 · 已分配仅可更换员工**：编辑已分配员工的外勤工单时，客户信息、地址、时间、围栏等字段只读，仅可更换服务人员及店班同步设置；保存时只调用分配接口，不更新工单详情。
+  - **`FieldJobFormModal.tsx`**、**`FieldJobs.tsx`**、**`locales.ts`**、**`fieldService.ts`**。
+
 - **时间选择改为小时/分钟小框输入**：店铺每周营业时间、外勤工单开始/结束时间不再使用滚动 TimePicker，改为点击后弹出小框，分别输入 24 小时制「时」「分」并确定写入。
   - **`src/components/HourMinuteTimePicker.tsx`**：新增共用组件；外勤分钟按 5 分钟步长对齐。
   - **`Stores.tsx`**、**`FieldJobFormModal.tsx`**：接入新组件；移除 **`AutoCloseTimePicker.tsx`**。
