@@ -1089,7 +1089,7 @@ function mapEmployeeStatisticsPayload(input: unknown): MerchantEmployeeStatistic
 function toPositiveMerchantAdminId(value: string | number): number {
   const numeric = Number(String(value).trim());
   if (!Number.isFinite(numeric) || numeric <= 0) {
-    throw new ApiError(400, "Invalid employee id");
+    throw new ApiError("Invalid employee id", 400);
   }
   return numeric;
 }

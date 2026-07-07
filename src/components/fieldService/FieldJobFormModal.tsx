@@ -635,6 +635,9 @@ export default function FieldJobFormModal({
               )}
             </span>
           )}
+          getValueFromEvent={(value) =>
+            normalizeEmployeeAdminIds(value as Array<string | number> | undefined)
+          }
         >
           <Select
             allowClear
@@ -647,9 +650,6 @@ export default function FieldJobFormModal({
               label: employee.name,
             }))}
             optionFilterProp="label"
-            getValueFromEvent={(value) =>
-              normalizeEmployeeAdminIds(value as Array<string | number> | undefined)
-            }
           />
         </Form.Item>
 
