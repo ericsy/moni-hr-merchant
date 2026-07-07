@@ -320,6 +320,7 @@
 
 - **外勤改派/更换服务人员假成功**：指派未变化时 `applyFieldJobAssignments` 跳过 API 仍 toast 成功；现未变更时提示「服务人员未变更」。移除派单弹层静默清空已选员工的 effect；`buildFieldJobEmployeeOptions` 合并当前工单已分配员工；派单前校验请假/外勤冲突；`merchantAdminId` 以数字提交。
 - **修复改派已选员工但提交 assignments 为空**：Ant Design 多选可能回传 number，与选项 string id 严格相等失败导致选项被丢弃、表单 `merchantAdminIds` 为空，仅更新工单不调 `assignments/sync`，响应仍为 `status: pending`、`assignments: []`。现统一 `normalizeEmployeeAdminId(s)`；请假过滤保留已选员工用字符串比较；`syncFieldJobAssignments` 校验无效 id；派单提交前拦截空 assignments。`getValueFromEvent` 挂在 `Form.Item` 上（非 `Select`）；`ApiError` 参数顺序修正。
+- **个别历史工单改派仍失败**：`assignments: []` 时不再误读 deprecated `assignment`；派单/改派弹窗 `force` 调用 sync 跳过「未变更」误判；后端对已有留底分配行做 upsert（需同步部署 `moni-hr-service`）。
 
 - **外勤员工下拉与排班对齐**：改用 `DataContext` 在职员工，不再依赖 `active-brief` 的已激活限制。
 

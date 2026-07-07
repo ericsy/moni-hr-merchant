@@ -1944,11 +1944,10 @@ function mapApiFieldJobAssignment(input: unknown): FieldServiceJobAssignment | n
 
 function mapApiFieldJob(input: unknown): FieldServiceJob {
   const raw = asRecord(input);
-  const assignmentRaw = raw.assignments ?? raw.assignment;
-  const assignments = Array.isArray(assignmentRaw)
-    ? assignmentRaw.map(mapApiFieldJobAssignment).filter(Boolean) as FieldServiceJobAssignment[]
-    : mapApiFieldJobAssignment(assignmentRaw)
-      ? [mapApiFieldJobAssignment(assignmentRaw) as FieldServiceJobAssignment]
+  const assignments = Array.isArray(raw.assignments)
+    ? raw.assignments.map(mapApiFieldJobAssignment).filter(Boolean) as FieldServiceJobAssignment[]
+    : mapApiFieldJobAssignment(raw.assignment)
+      ? [mapApiFieldJobAssignment(raw.assignment) as FieldServiceJobAssignment]
       : [];
   const assignment = assignments[0] ?? null;
 

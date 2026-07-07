@@ -266,7 +266,13 @@ export default function FieldJobs() {
           syncStoreClockOut: merchantAdminIds.length === 1 ? !!syncStoreClockOut : false,
         });
         const assignmentChanged = shouldSyncFieldJobAssignments(editingJob, assignments);
-        const synced = await applyFieldJobAssignments(selectedStoreId, editingJob.id, editingJob, assignments);
+        const synced = await applyFieldJobAssignments(
+          selectedStoreId,
+          editingJob.id,
+          editingJob,
+          assignments,
+          { force: true },
+        );
         if (!synced) {
           toast.message(labels.assignUnchanged);
           return;
@@ -296,7 +302,13 @@ export default function FieldJobs() {
           syncStoreClockIn: merchantAdminIds.length === 1 ? !!syncStoreClockIn : false,
           syncStoreClockOut: merchantAdminIds.length === 1 ? !!syncStoreClockOut : false,
         });
-        const synced = await applyFieldJobAssignments(selectedStoreId, jobId, editingJob, assignments);
+        const synced = await applyFieldJobAssignments(
+          selectedStoreId,
+          jobId,
+          editingJob,
+          assignments,
+          { force: merchantAdminIds.length > 0 },
+        );
         if (merchantAdminIds.length > 0 && !synced) {
           toast.message(labels.assignUnchanged);
           return;
@@ -340,6 +352,7 @@ export default function FieldJobs() {
         assigningJob.id,
         assigningJob,
         payload.assignments,
+        { force: true },
       );
       if (!synced) {
         toast.message(labels.assignUnchanged);

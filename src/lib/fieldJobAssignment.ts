@@ -35,12 +35,13 @@ export async function applyFieldJobAssignments(
   jobId: string,
   job: FieldServiceJob | null | undefined,
   assignments: FieldJobAssignPayload[],
+  options?: { force?: boolean },
 ): Promise<boolean> {
   const normalized = normalizeAssignmentPayloads(assignments);
   if (normalized.length === 0) {
     return false;
   }
-  if (!shouldSyncFieldJobAssignments(job, normalized)) {
+  if (!options?.force && !shouldSyncFieldJobAssignments(job, normalized)) {
     return false;
   }
 

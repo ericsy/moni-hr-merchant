@@ -69,7 +69,7 @@ export function buildFieldJobEmployeeOptions(
 }
 
 export function getFieldJobAssignments(job?: FieldServiceJob | null) {
-  if (job?.assignments?.length) {
+  if (job && Array.isArray(job.assignments)) {
     return job.assignments;
   }
   if (job?.assignment?.merchantAdminId) {
