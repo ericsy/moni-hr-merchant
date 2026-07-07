@@ -11,7 +11,7 @@ import {
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantApi";
 import type { GooglePlaceSummary } from "../../lib/googleMaps";
 import type { FieldJobFormSubmitPayload, FieldServiceJob } from "../../types/fieldService";
-import { getFieldJobAssignmentEmployeeIds, getFieldJobAssignments, isFieldJobAssigned } from "../../lib/fieldJobEmployees";
+import { getFieldJobAssignmentEmployeeIds, getFieldJobAssignments, isFieldJobAssigned, normalizeEmployeeAdminIds } from "../../lib/fieldJobEmployees";
 import type { ScheduleShift } from "../../context/DataContext";
 import {
   applyFieldJobStoreSyncForPreview,
@@ -198,7 +198,9 @@ export default function FieldJobFormModal({
   const [preservedGeocodeAddress, setPreservedGeocodeAddress] = useState("");
   const serviceAddress = Form.useWatch("serviceAddress", form);
   const serviceDate = Form.useWatch("serviceDate", form);
-  const selectedEmployeeIds = (Form.useWatch("merchantAdminIds", form) || []) as string[];
+  const selectedEmployeeIds = normalizeEmployeeAdminIds(
+    Form.useWatch("merchantAdminIds", form) as Array<string | number> | undefined,
+  );
   const singleSelectedEmployeeId = selectedEmployeeIds.length === 1 ? selectedEmployeeIds[0] : "";
   const isEmployeeOnlyEdit = !!job && isFieldJobAssigned(job);
   const [geo, setGeo] = useState({
@@ -355,7 +357,7 @@ export default function FieldJobFormModal({
         longitude: job.longitude,
         geofenceRadius: job.geofenceRadius,
         notes: job.notes,
-        merchantAdminIds: getFieldJobAssignmentEmployeeIds(job),
+        merchantAdminIds: normalizeEmployeeAdminIds(getFieldJobAssignmentEmployeeIds(job)),
       });
       setStartTime(toTimeString(start));
       setEndTime(toTimeString(end, 11, 0));
@@ -432,7 +434,7 @@ export default function FieldJobFormModal({
         return;
       }
 
-      const selectedIds = (values.merchantAdminIds || []).filter(Boolean);
+      const selectedIds = normalizeEmployeeAdminIds(values.merchantAdminIds as Array<string | number> | undefined);
       if (isEmployeeOnlyEdit && selectedIds.length === 0) {
         setEmployeeError(String(labels.employeeRequired));
         return;
@@ -641,10 +643,13 @@ export default function FieldJobFormModal({
             className="w-full"
             placeholder={String(labels.selectEmployeeOptional)}
             options={availableEmployees.map((employee) => ({
-              value: employee.id,
+              value: String(employee.id),
               label: employee.name,
             }))}
             optionFilterProp="label"
+            getValueFromEvent={(value) =>
+              normalizeEmployeeAdminIds(value as Array<string | number> | undefined)
+            }
           />
         </Form.Item>
 

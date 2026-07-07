@@ -22,7 +22,7 @@ import type {
   FieldServiceJob,
   FieldServiceJobAssignment,
 } from "../types/fieldService";
-import { apiRequest, apiRequestBlob } from "./apiClient";
+import { apiRequest, apiRequestBlob, ApiError } from "./apiClient";
 
 export interface MerchantLoginResult {
   accessToken?: string | null;
@@ -1084,6 +1084,14 @@ function mapEmployeeStatisticsPayload(input: unknown): MerchantEmployeeStatistic
     to: asString(raw.to),
     items: asArray(raw.items).map(mapEmployeeStatisticsItem),
   };
+}
+
+function toPositiveMerchantAdminId(value: string | number): number {
+  const numeric = Number(String(value).trim());
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    throw new ApiError(400, "Invalid employee id");
+  }
+  return numeric;
 }
 
 function toNumberOrString(value: string) {
@@ -2549,7 +2557,7 @@ export const merchantApi = {
         storeId,
         body: {
           assignments: payload.assignments.map((item) => ({
-            merchantAdminId: Number(item.merchantAdminId),
+            merchantAdminId: toPositiveMerchantAdminId(item.merchantAdminId),
             syncStoreClockIn: item.syncStoreClockIn,
             syncStoreClockOut: item.syncStoreClockOut,
           })),
@@ -2570,7 +2578,7 @@ export const merchantApi = {
         storeId,
         body: {
           assignments: payload.assignments.map((item) => ({
-            merchantAdminId: Number(item.merchantAdminId),
+            merchantAdminId: toPositiveMerchantAdminId(item.merchantAdminId),
             syncStoreClockIn: item.syncStoreClockIn,
             syncStoreClockOut: item.syncStoreClockOut,
           })),

@@ -1,6 +1,17 @@
 import type { FieldJobAssignPayload, FieldServiceJob } from "../types/fieldService";
 import type { Employee } from "../context/DataContext";
 
+/** Ant Design Select 可能回传 number，统一为字符串避免选项匹配失败、提交丢员工。 */
+export function normalizeEmployeeAdminId(value: string | number | null | undefined): string {
+  return String(value ?? "").trim();
+}
+
+export function normalizeEmployeeAdminIds(
+  values: Array<string | number> | null | undefined,
+): string[] {
+  return (values ?? []).map(normalizeEmployeeAdminId).filter(Boolean);
+}
+
 export function getFieldJobEmployeeDisplayName(
   employee: Pick<Employee, "firstName" | "lastName" | "employeeId" | "email" | "id">,
 ) {
@@ -69,7 +80,7 @@ export function getFieldJobAssignments(job?: FieldServiceJob | null) {
 
 export function getFieldJobAssignmentEmployeeIds(job?: FieldServiceJob | null) {
   return getFieldJobAssignments(job)
-    .map((assignment) => String(assignment.merchantAdminId))
+    .map((assignment) => normalizeEmployeeAdminId(assignment.merchantAdminId))
     .filter(Boolean);
 }
 
@@ -103,15 +114,16 @@ function assignmentPayloadKey(payload: FieldJobAssignPayload) {
 
 export function buildFieldJobAssignmentPayloads(
   job: FieldServiceJob | null | undefined,
-  merchantAdminIds: string[],
+  merchantAdminIds: Array<string | number>,
   options?: {
     syncStoreClockIn?: boolean;
     syncStoreClockOut?: boolean;
   },
 ): FieldJobAssignPayload[] {
-  return merchantAdminIds.map((merchantAdminId) => {
+  return normalizeEmployeeAdminIds(merchantAdminIds).map((merchantAdminId) => {
     const existing = getFieldJobAssignments(job).find(
-      (assignment) => String(assignment.merchantAdminId) === String(merchantAdminId),
+      (assignment) =>
+        normalizeEmployeeAdminId(assignment.merchantAdminId) === merchantAdminId,
     );
     return {
       merchantAdminId,

@@ -327,6 +327,11 @@ export default function FieldJobs() {
   const handleAssignSubmit = async (payload: { assignments: FieldJobAssignPayload[] }) => {
     if (!selectedStoreId || !assigningJob) return;
 
+    if (payload.assignments.length === 0) {
+      toast.error(labels.employeeRequired);
+      return;
+    }
+
     const isReassign = isFieldJobAssigned(assigningJob);
 
     try {

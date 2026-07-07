@@ -2,7 +2,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "./merchantApi";
 import { intervalsOverlap } from "./fieldServiceAssign";
 import type { FieldServiceJob } from "../types/fieldService";
-import { getFieldJobAssignmentEmployeeIds } from "./fieldJobEmployees";
+import { getFieldJobAssignmentEmployeeIds, normalizeEmployeeAdminId } from "./fieldJobEmployees";
 
 function normalizeTime(value: string) {
   return (value || "").trim().slice(0, 5);
@@ -238,8 +238,19 @@ export function filterEmployeesAvailableForFieldJob(
   }
 
   const preserved = includeIds
-    .filter((employeeId) => !available.some((employee) => employee.id === employeeId))
-    .map((employeeId) => employees.find((employee) => employee.id === employeeId))
+    .filter(
+      (employeeId) =>
+        !available.some(
+          (employee) =>
+            normalizeEmployeeAdminId(employee.id) === normalizeEmployeeAdminId(employeeId),
+        ),
+    )
+    .map((employeeId) =>
+      employees.find(
+        (employee) =>
+          normalizeEmployeeAdminId(employee.id) === normalizeEmployeeAdminId(employeeId),
+      ),
+    )
     .filter((employee): employee is { id: string; name: string } => Boolean(employee));
 
   return preserved.length > 0 ? [...preserved, ...available] : available;

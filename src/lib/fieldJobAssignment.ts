@@ -1,10 +1,20 @@
 import type { FieldJobAssignPayload, FieldServiceJob } from "../types/fieldService";
 import {
   buildFieldJobAssignmentPayloads,
-  isFieldJobAssigned,
+  normalizeEmployeeAdminId,
   shouldSyncFieldJobAssignments,
 } from "./fieldJobEmployees";
 import { merchantApi } from "./merchantApi";
+
+function normalizeAssignmentPayloads(assignments: FieldJobAssignPayload[]): FieldJobAssignPayload[] {
+  return assignments
+    .map((item) => ({
+      merchantAdminId: normalizeEmployeeAdminId(item.merchantAdminId),
+      syncStoreClockIn: !!item.syncStoreClockIn,
+      syncStoreClockOut: !!item.syncStoreClockOut,
+    }))
+    .filter((item) => item.merchantAdminId);
+}
 
 export { isFieldJobAssigned } from "./fieldJobEmployees";
 
@@ -26,10 +36,14 @@ export async function applyFieldJobAssignments(
   job: FieldServiceJob | null | undefined,
   assignments: FieldJobAssignPayload[],
 ): Promise<boolean> {
-  if (!shouldSyncFieldJobAssignments(job, assignments)) {
+  const normalized = normalizeAssignmentPayloads(assignments);
+  if (normalized.length === 0) {
+    return false;
+  }
+  if (!shouldSyncFieldJobAssignments(job, normalized)) {
     return false;
   }
 
-  await merchantApi.syncFieldJobAssignments(storeId, jobId, { assignments });
+  await merchantApi.syncFieldJobAssignments(storeId, jobId, { assignments: normalized });
   return true;
 }

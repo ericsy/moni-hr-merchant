@@ -8,6 +8,8 @@ import {
   getFieldJobAssignmentEmployeeIds,
   getFieldJobAssignments,
   isFieldJobAssigned,
+  normalizeEmployeeAdminId,
+  normalizeEmployeeAdminIds,
 } from "../../lib/fieldJobEmployees";
 import type { FieldJobAssignPayload, FieldServiceJob } from "../../types/fieldService";
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantApi";
@@ -86,7 +88,7 @@ export default function FieldJobAssignModal({
       return;
     }
 
-    setEmployeeIds(getFieldJobAssignmentEmployeeIds(job));
+    setEmployeeIds(normalizeEmployeeAdminIds(getFieldJobAssignmentEmployeeIds(job)));
   }, [job, open, resetState]);
 
   const availableEmployees = useMemo(() => {
@@ -244,9 +246,9 @@ export default function FieldJobAssignModal({
               className="w-full"
               placeholder={String(labels.selectEmployee)}
               value={employeeIds}
-              onChange={setEmployeeIds}
+              onChange={(ids) => setEmployeeIds(normalizeEmployeeAdminIds(ids as Array<string | number>))}
               options={availableEmployees.map((employee) => ({
-                value: employee.id,
+                value: normalizeEmployeeAdminId(employee.id),
                 label: employee.name,
               }))}
               optionFilterProp="label"
