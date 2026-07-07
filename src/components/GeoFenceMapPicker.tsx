@@ -86,6 +86,10 @@ interface GeoFenceMapPickerProps {
   hideSearch?: boolean;
   /** 覆盖默认围栏说明文案 */
   geofenceDesc?: string;
+  /** 紧凑模式：缩小地图高度，适合弹层内一屏展示 */
+  compact?: boolean;
+  /** 地图区域高度（px），compact 时默认 200 */
+  mapHeight?: number;
 }
 
 export default function GeoFenceMapPicker({
@@ -98,6 +102,8 @@ export default function GeoFenceMapPicker({
   locateNow = 0,
   hideSearch = false,
   geofenceDesc,
+  compact = false,
+  mapHeight,
 }: GeoFenceMapPickerProps) {
   const { t } = useLocale();
   const st = t.store;
@@ -387,14 +393,19 @@ export default function GeoFenceMapPicker({
     geocodeAddress(searchText);
   };
 
+  const resolvedMapHeight = mapHeight ?? (compact ? 200 : 380);
+
   return (
-    <div data-cmp="GeoFenceMapPicker" className="flex flex-col gap-4">
+    <div
+      data-cmp="GeoFenceMapPicker"
+      className={`flex flex-col ${compact ? "gap-2" : "gap-4"}`}
+    >
       {/* Description banner */}
       <div
-        className="flex items-start gap-2 p-3 rounded-lg text-sm"
+        className={`flex items-start gap-2 rounded-lg ${compact ? "p-2 text-xs" : "p-3 text-sm"}`}
         style={{ background: "var(--secondary)", color: "var(--secondary-foreground)" }}
       >
-        <Info size={15} className="mt-0.5 flex-shrink-0" />
+        <Info size={compact ? 13 : 15} className="mt-0.5 flex-shrink-0" />
         <span>{geofenceDesc || st.geofenceDesc}</span>
       </div>
 
@@ -430,7 +441,7 @@ export default function GeoFenceMapPicker({
       {/* Map container */}
       <div
         className="relative rounded-xl overflow-hidden"
-        style={{ height: 380, border: "1px solid var(--border)" }}
+        style={{ height: resolvedMapHeight, border: "1px solid var(--border)" }}
       >
         {!mapsReady && !mapsError && (
           <div
@@ -471,10 +482,10 @@ export default function GeoFenceMapPicker({
 
       {/* Radius slider */}
       <div
-        className="p-4 rounded-xl"
+        className={`rounded-xl ${compact ? "p-3" : "p-4"}`}
         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       >
-        <div className="flex items-center justify-between mb-3">
+        <div className={`flex items-center justify-between ${compact ? "mb-2" : "mb-3"}`}>
           <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
             {st.geofenceRadius}
           </span>
@@ -501,6 +512,7 @@ export default function GeoFenceMapPicker({
       </div>
 
       {/* Coordinates info */}
+      {!compact ? (
       <div
         className="flex items-center gap-4 p-3 rounded-xl"
         style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
@@ -527,6 +539,7 @@ export default function GeoFenceMapPicker({
           </div>
         </div>
       </div>
+      ) : null}
     </div>
   );
 }

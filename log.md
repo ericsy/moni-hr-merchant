@@ -1,3 +1,8 @@
+## 2026-07-08
+
+- **外勤工单 · 地图紧凑显示**：创建/编辑弹层内 Google 地图改为紧凑模式（高度 200px、隐藏坐标信息区），弹层内容限制最大高度以便一屏展示。
+  - **`GeoFenceMapPicker.tsx`**：新增 **`compact`** / **`mapHeight`**；**`FieldJobFormModal.tsx`** 接入。
+
 ## 2026-07-07
 
 - **外勤改派/更换服务人员假成功**：指派名单未变化时跳过 API 仍提示成功；现提示「服务人员未变更」。移除派单弹层会静默清空已选员工的 effect；合并当前工单已分配员工进下拉；派单前校验请假/外勤冲突；`merchantAdminId` 以数字提交。涉及：`fieldJobAssignment.ts`、`fieldJobEmployees.ts`、`FieldJobs.tsx`、`FieldJobAssignModal.tsx`、`merchantApi.ts`、`locales.ts`。
@@ -321,6 +326,8 @@
 - **外勤改派/更换服务人员假成功**：指派未变化时 `applyFieldJobAssignments` 跳过 API 仍 toast 成功；现未变更时提示「服务人员未变更」。移除派单弹层静默清空已选员工的 effect；`buildFieldJobEmployeeOptions` 合并当前工单已分配员工；派单前校验请假/外勤冲突；`merchantAdminId` 以数字提交。
 - **修复改派已选员工但提交 assignments 为空**：Ant Design 多选可能回传 number，与选项 string id 严格相等失败导致选项被丢弃、表单 `merchantAdminIds` 为空，仅更新工单不调 `assignments/sync`，响应仍为 `status: pending`、`assignments: []`。现统一 `normalizeEmployeeAdminId(s)`；请假过滤保留已选员工用字符串比较；`syncFieldJobAssignments` 校验无效 id；派单提交前拦截空 assignments。`getValueFromEvent` 挂在 `Form.Item` 上（非 `Select`）；`ApiError` 参数顺序修正。
 - **个别历史工单改派仍失败**：`assignments: []` 时不再误读 deprecated `assignment`；派单/改派弹窗 `force` 调用 sync 跳过「未变更」误判；后端对已有留底分配行做 upsert（需同步部署 `moni-hr-service`）。
+- **sync 200 仍 pending/空 assignments**：根因为 MyBatis-Plus `updateById` 未将 `released_at` 写回 NULL；后端已用 `LambdaUpdateWrapper` 显式清空（须重新部署后端）。
+- **多人派单只保存一人**：后端 `upsertActiveAssignment` 误复用第一条有效分配行导致覆盖；已修复（须重新部署后端）。
 
 - **外勤员工下拉与排班对齐**：改用 `DataContext` 在职员工，不再依赖 `active-brief` 的已激活限制。
 

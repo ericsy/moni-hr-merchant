@@ -526,8 +526,15 @@ export default function FieldJobFormModal({
       destroyOnClose
       maskClosable={false}
       okText={isEmployeeOnlyEdit ? String(labels.reassignConfirm) : undefined}
+      styles={{
+        body: {
+          maxHeight: "calc(100vh - 160px)",
+          overflowY: "auto",
+          paddingTop: 8,
+        },
+      }}
     >
-      <Form form={form} layout="vertical" className="mt-2">
+      <Form form={form} layout="vertical" className="mt-1">
         {isEmployeeOnlyEdit ? (
           <Alert type="info" showIcon className="mb-3" message={String(labels.editAssignedHint)} />
         ) : null}
@@ -672,6 +679,7 @@ export default function FieldJobFormModal({
           <div className={isEmployeeOnlyEdit ? "pointer-events-none opacity-70" : undefined}>
             <GeoFenceMapPicker
               value={geo}
+              compact
               hideSearch
               addressQuery={serviceAddress || ""}
               preservedGeocodeAddress={preservedGeocodeAddress}
