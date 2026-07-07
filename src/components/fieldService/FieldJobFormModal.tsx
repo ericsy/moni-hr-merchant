@@ -202,7 +202,7 @@ export default function FieldJobFormModal({
     Form.useWatch("merchantAdminIds", form) as Array<string | number> | undefined,
   );
   const singleSelectedEmployeeId = selectedEmployeeIds.length === 1 ? selectedEmployeeIds[0] : "";
-  const isEmployeeOnlyEdit = !!job && isFieldJobAssigned(job);
+  const isAssignedJob = !!job && isFieldJobAssigned(job);
   const [geo, setGeo] = useState({
     latitude: job?.latitude ?? -36.8485,
     longitude: job?.longitude ?? 174.7633,
@@ -429,25 +429,15 @@ export default function FieldJobFormModal({
 
   const handleOk = async () => {
     try {
-      const values = isEmployeeOnlyEdit
-        ? await form.validateFields(["merchantAdminIds"])
-        : await form.validateFields();
-      const scheduledStart = isEmployeeOnlyEdit && job
-        ? dayjs(job.scheduledStart)
-        : combineDateAndTime(values.serviceDate, startTime);
-      const scheduledEnd = isEmployeeOnlyEdit && job
-        ? dayjs(job.scheduledEnd)
-        : combineDateAndTime(values.serviceDate, endTime);
+      const values = await form.validateFields();
+      const scheduledStart = combineDateAndTime(values.serviceDate, startTime);
+      const scheduledEnd = combineDateAndTime(values.serviceDate, endTime);
 
-      if (!isEmployeeOnlyEdit && !isValidServiceTimeRange(startTime, endTime)) {
+      if (!isValidServiceTimeRange(startTime, endTime)) {
         return;
       }
 
       const selectedIds = normalizeEmployeeAdminIds(values.merchantAdminIds as Array<string | number> | undefined);
-      if (isEmployeeOnlyEdit && selectedIds.length === 0) {
-        setEmployeeError(String(labels.employeeRequired));
-        return;
-      }
       if (selectedIds.length > 0) {
         for (const employeeId of selectedIds) {
           const blockInfo = getEmployeeFieldJobBlockInfo(
@@ -478,40 +468,21 @@ export default function FieldJobFormModal({
       const appliedSync = applyFieldJobStoreSyncForPreview(syncPreview, syncValue, scheduledWindow ?? undefined);
 
       setSubmitting(true);
-      const upsertPayload = isEmployeeOnlyEdit && job
-        ? {
-            storeId: job.storeId || storeId,
-            customerName: job.customerName,
-            customerPhone: job.customerPhone,
-            serviceAddress: job.serviceAddress,
-            latitude: job.latitude,
-            longitude: job.longitude,
-            geofenceRadius: job.geofenceRadius,
-            scheduledStart: job.scheduledStart,
-            scheduledEnd: job.scheduledEnd,
-            serviceType: job.serviceType?.trim() || "",
-            notes: job.notes,
-          }
-        : {
-            storeId: job?.storeId || storeId,
-            customerName: values.customerName.trim(),
-            customerPhone: values.customerPhone.trim(),
-            serviceAddress: values.serviceAddress.trim(),
-            latitude: geo.latitude,
-            longitude: geo.longitude,
-            geofenceRadius: geo.geofenceRadius,
-            scheduledStart: toLocalDateTimeString(scheduledStart),
-            scheduledEnd: toLocalDateTimeString(scheduledEnd),
-            serviceType: values.serviceType.trim(),
-            notes: values.notes?.trim() || undefined,
-          };
-
       await onSubmit({
-        ...upsertPayload,
+        storeId: job?.storeId || storeId,
+        customerName: values.customerName.trim(),
+        customerPhone: values.customerPhone.trim(),
+        serviceAddress: values.serviceAddress.trim(),
+        latitude: geo.latitude,
+        longitude: geo.longitude,
+        geofenceRadius: geo.geofenceRadius,
+        scheduledStart: toLocalDateTimeString(scheduledStart),
+        scheduledEnd: toLocalDateTimeString(scheduledEnd),
+        serviceType: values.serviceType.trim(),
+        notes: values.notes?.trim() || undefined,
         merchantAdminIds: selectedIds,
         syncStoreClockIn: selectedIds.length === 1 ? appliedSync.syncStoreClockIn : false,
         syncStoreClockOut: selectedIds.length === 1 ? appliedSync.syncStoreClockOut : false,
-        assignmentsOnly: isEmployeeOnlyEdit,
       });
     } finally {
       setSubmitting(false);
@@ -521,20 +492,13 @@ export default function FieldJobFormModal({
   return (
     <Modal
       open={open}
-      title={
-        isEmployeeOnlyEdit
-          ? String(labels.editAssignedTitle)
-          : job
-            ? String(labels.edit)
-            : String(labels.create)
-      }
+      title={job ? String(labels.edit) : String(labels.create)}
       onCancel={onCancel}
       onOk={handleOk}
       confirmLoading={submitting}
       width={760}
       destroyOnClose
       maskClosable={false}
-      okText={isEmployeeOnlyEdit ? String(labels.reassignConfirm) : undefined}
       styles={{
         body: {
           maxHeight: "calc(100vh - 160px)",
@@ -544,9 +508,6 @@ export default function FieldJobFormModal({
       }}
     >
       <Form form={form} layout="vertical" className="mt-1">
-        {isEmployeeOnlyEdit ? (
-          <Alert type="info" showIcon className="mb-3" message={String(labels.editAssignedHint)} />
-        ) : null}
         {employeeError ? (
           <Alert type="error" showIcon className="mb-3" message={employeeError} />
         ) : null}
@@ -557,10 +518,10 @@ export default function FieldJobFormModal({
             label={String(labels.customerName)}
             rules={[{ required: true, message: String(labels.customerRequired) }]}
           >
-            <Input disabled={isEmployeeOnlyEdit} />
+            <Input />
           </Form.Item>
           <Form.Item name="customerPhone" label={String(labels.customerPhone)}>
-            <Input disabled={isEmployeeOnlyEdit} />
+            <Input />
           </Form.Item>
         </div>
 
@@ -575,10 +536,9 @@ export default function FieldJobFormModal({
           }
         >
           <GoogleAddressAutocompleteInput
-            disabled={isEmployeeOnlyEdit}
             placeholder={String(labels.serviceAddressPlaceholder)}
-            onPlaceSelected={isEmployeeOnlyEdit ? undefined : applyGeoFromPlace}
-            onInputComplete={isEmployeeOnlyEdit ? undefined : handleAddressInputComplete}
+            onPlaceSelected={applyGeoFromPlace}
+            onInputComplete={handleAddressInputComplete}
           />
         </Form.Item>
 
@@ -592,7 +552,6 @@ export default function FieldJobFormModal({
             ]}
           >
             <Input
-              disabled={isEmployeeOnlyEdit}
               maxLength={64}
               placeholder={String(labels.serviceTypePlaceholder)}
             />
@@ -602,7 +561,7 @@ export default function FieldJobFormModal({
             label={String(labels.serviceDate)}
             rules={[{ required: true, message: String(labels.dateRequired) }]}
           >
-            <DatePicker className="w-full" format="YYYY-MM-DD" disabled={isEmployeeOnlyEdit} />
+            <DatePicker className="w-full" format="YYYY-MM-DD" />
           </Form.Item>
         </div>
 
@@ -615,7 +574,6 @@ export default function FieldJobFormModal({
           >
             <HourMinuteTimePicker
               className="w-full"
-              disabled={isEmployeeOnlyEdit}
               minuteStep={FIELD_JOB_TIME_MINUTE_STEP}
               locale={locale}
               value={timeValue(startTime)}
@@ -629,7 +587,6 @@ export default function FieldJobFormModal({
           >
             <HourMinuteTimePicker
               className="w-full"
-              disabled={isEmployeeOnlyEdit}
               minuteStep={FIELD_JOB_TIME_MINUTE_STEP}
               locale={locale}
               value={timeValue(endTime, getDefaultFieldJobEndTime(startTime))}
@@ -645,7 +602,7 @@ export default function FieldJobFormModal({
           help={employeeError || (
             <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
               {String(
-                isEmployeeOnlyEdit
+                isAssignedJob
                   ? labels.formEmployeeReassignHint
                   : labels.formEmployeeHint,
               )}
@@ -685,33 +642,27 @@ export default function FieldJobFormModal({
         ) : null}
 
         <Form.Item label={String(labels.geofenceRadius)}>
-          <div className={isEmployeeOnlyEdit ? "pointer-events-none opacity-70" : undefined}>
-            <GeoFenceMapPicker
-              value={geo}
-              compact
-              hideSearch
-              addressQuery={serviceAddress || ""}
-              preservedGeocodeAddress={preservedGeocodeAddress}
-              locateNow={isEmployeeOnlyEdit ? 0 : locateNow}
-              geofenceDesc={String(labels.geofenceDesc)}
-              onChange={
-                isEmployeeOnlyEdit
-                  ? undefined
-                  : (next) => {
-                      setGeo(next);
-                      form.setFieldsValue({
-                        latitude: next.latitude,
-                        longitude: next.longitude,
-                        geofenceRadius: next.geofenceRadius,
-                      });
-                    }
-              }
-            />
-          </div>
+          <GeoFenceMapPicker
+            value={geo}
+            compact
+            hideSearch
+            addressQuery={serviceAddress || ""}
+            preservedGeocodeAddress={preservedGeocodeAddress}
+            locateNow={locateNow}
+            geofenceDesc={String(labels.geofenceDesc)}
+            onChange={(next) => {
+              setGeo(next);
+              form.setFieldsValue({
+                latitude: next.latitude,
+                longitude: next.longitude,
+                geofenceRadius: next.geofenceRadius,
+              });
+            }}
+          />
         </Form.Item>
 
         <Form.Item name="notes" label={String(labels.notes)}>
-          <TextArea rows={3} disabled={isEmployeeOnlyEdit} />
+          <TextArea rows={3} />
         </Form.Item>
       </Form>
     </Modal>

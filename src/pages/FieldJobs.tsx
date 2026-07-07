@@ -18,9 +18,9 @@ import {
   getFieldJobEmployeeNamesLabel,
   isFieldJobAssigned,
   listActiveEmployeesForStore,
-  shouldSyncFieldJobAssignments,
 } from "../lib/fieldJobEmployees";
 import { filterJobsInWeek, getWeekStart } from "../lib/fieldJobSchedule";
+import { isFieldJobEditableByMerchant } from "../lib/fieldJobEditability";
 import { ApiError } from "../lib/apiClient";
 import { merchantApi } from "../lib/merchantApi";
 import type { FieldJobFormSubmitPayload, FieldJobAssignPayload, FieldJobStatus, FieldServiceJob } from "../types/fieldService";
@@ -184,11 +184,19 @@ export default function FieldJobs() {
   };
 
   const handleEdit = (job: FieldServiceJob) => {
+    if (!isFieldJobEditableByMerchant(job)) {
+      toast.error(labels.editLockedWithinHour);
+      return;
+    }
     setEditingJob(job);
     setFormOpen(true);
   };
 
   const handleAssign = (job: FieldServiceJob) => {
+    if (!isFieldJobEditableByMerchant(job)) {
+      toast.error(labels.editLockedWithinHour);
+      return;
+    }
     setAssigningJob(job);
     setAssignOpen(true);
   };
@@ -239,7 +247,12 @@ export default function FieldJobs() {
       return;
     }
 
-    const { merchantAdminIds = [], syncStoreClockIn, syncStoreClockOut, assignmentsOnly, ...upsert } = payload;
+    const { merchantAdminIds = [], syncStoreClockIn, syncStoreClockOut, ...upsert } = payload;
+
+    if (editingJob && !isFieldJobEditableByMerchant(editingJob)) {
+      toast.error(labels.editLockedWithinHour);
+      return;
+    }
 
     for (const employeeId of merchantAdminIds) {
       const blockMessage = getEmployeeBlockMessage(
@@ -255,34 +268,6 @@ export default function FieldJobs() {
 
     try {
       let jobId = editingJob?.id;
-
-      if (assignmentsOnly && editingJob) {
-        if (merchantAdminIds.length === 0) {
-          toast.error(labels.employeeRequired);
-          return;
-        }
-        const assignments = buildFieldJobAssignmentPayloads(editingJob, merchantAdminIds, {
-          syncStoreClockIn: merchantAdminIds.length === 1 ? !!syncStoreClockIn : false,
-          syncStoreClockOut: merchantAdminIds.length === 1 ? !!syncStoreClockOut : false,
-        });
-        const assignmentChanged = shouldSyncFieldJobAssignments(editingJob, assignments);
-        const synced = await applyFieldJobAssignments(
-          selectedStoreId,
-          editingJob.id,
-          editingJob,
-          assignments,
-          { force: true },
-        );
-        if (!synced) {
-          toast.message(labels.assignUnchanged);
-          return;
-        }
-        toast.success(assignmentChanged ? labels.reassignSuccess : labels.saveSuccess);
-        setFormOpen(false);
-        setEditingJob(null);
-        await loadJobs();
-        return;
-      }
 
       if (editingJob) {
         await merchantApi.updateFieldJob(selectedStoreId, editingJob.id, {
@@ -338,6 +323,11 @@ export default function FieldJobs() {
 
   const handleAssignSubmit = async (payload: { assignments: FieldJobAssignPayload[] }) => {
     if (!selectedStoreId || !assigningJob) return;
+
+    if (!isFieldJobEditableByMerchant(assigningJob)) {
+      toast.error(labels.editLockedWithinHour);
+      return;
+    }
 
     if (payload.assignments.length === 0) {
       toast.error(labels.employeeRequired);
@@ -449,10 +439,13 @@ export default function FieldJobs() {
       width: 220,
       render: (_, record) => (
         <div className="flex flex-wrap gap-2">
-          <Button size="small" onClick={() => handleEdit(record)}>
-            {labels.edit}
-          </Button>
-          {record.status === "pending" || record.status === "assigned" ? (
+          {isFieldJobEditableByMerchant(record) ? (
+            <Button size="small" onClick={() => handleEdit(record)}>
+              {labels.edit}
+            </Button>
+          ) : null}
+          {(record.status === "pending" || record.status === "assigned") &&
+          isFieldJobEditableByMerchant(record) ? (
             <Button size="small" type="primary" icon={<UserPlus size={14} />} onClick={() => handleAssign(record)}>
               {isFieldJobAssigned(record) ? labels.reassign : labels.assign}
             </Button>

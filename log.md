@@ -337,4 +337,6 @@
 
 - **外勤员工下拉与排班对齐**：改用 `DataContext` 在职员工，不再依赖 `active-brief` 的已激活限制。
 
+## 2026-07-08
 
+- **外勤工单编辑截止（开始前 1 小时）**：距计划开始不足 1 小时隐藏编辑/派单/改派，仅保留取消；`fieldJobEditability.ts` 与后端 `FieldJobMerchantEditRules` 对齐（60 分钟）。编辑表单取消「已派单仅改员工」限制，截止前可修改全部字段。`FieldJobs.tsx`、`FieldJobCalendarView.tsx`、`FieldJobFormModal.tsx`、`locales.ts`。
