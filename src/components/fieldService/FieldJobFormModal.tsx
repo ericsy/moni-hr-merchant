@@ -408,6 +408,7 @@ export default function FieldJobFormModal({
       return next;
     });
     setPreservedGeocodeAddress(place.formattedAddress.trim());
+    setLocateNow((tick) => tick + 1);
   };
 
   const handleAddressInputComplete = (address: string) => {

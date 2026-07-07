@@ -1,5 +1,8 @@
 ## 2026-07-08
 
+- **外勤工单 · 地图地址定位修复**：紧凑模式后输入/选择地址地图不移动——外部坐标变更时同步移动标记，地图容器尺寸变化时触发 Google Maps `resize`；地址变更时重置自动定位拦截状态。
+  - **`GeoFenceMapPicker.tsx`**、**`FieldJobFormModal.tsx`**。
+
 - **外勤工单 · 地图紧凑显示**：创建/编辑弹层内 Google 地图改为紧凑模式（高度 200px、隐藏坐标信息区），弹层内容限制最大高度以便一屏展示。
   - **`GeoFenceMapPicker.tsx`**：新增 **`compact`** / **`mapHeight`**；**`FieldJobFormModal.tsx`** 接入。
 

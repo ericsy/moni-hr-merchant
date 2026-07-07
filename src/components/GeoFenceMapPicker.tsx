@@ -130,12 +130,7 @@ export default function GeoFenceMapPicker({
   const [lng, setLng] = useState(initialLng);
   const [radius, setRadius] = useState(initialRadius);
 
-  // Sync external value changes
-  useEffect(() => {
-    if (value?.latitude !== undefined) setLat(value.latitude);
-    if (value?.longitude !== undefined) setLng(value.longitude);
-    if (value?.geofenceRadius !== undefined) setRadius(value.geofenceRadius);
-  }, [value?.latitude, value?.longitude, value?.geofenceRadius]);
+  const resolvedMapHeight = mapHeight ?? (compact ? 200 : 380);
 
   const notifyChange = useCallback(
     (newLat: number, newLng: number, newRadius: number) => {
@@ -159,6 +154,48 @@ export default function GeoFenceMapPicker({
     },
     []
   );
+
+  // Sync external value changes to state and map marker
+  useEffect(() => {
+    if (value?.latitude === undefined || value?.longitude === undefined) return;
+
+    const nextLat = value.latitude;
+    const nextLng = value.longitude;
+    const nextRadius = value.geofenceRadius ?? radius;
+
+    setLat(nextLat);
+    setLng(nextLng);
+    if (value.geofenceRadius !== undefined) {
+      setRadius(nextRadius);
+    }
+
+    if (mapsReady) {
+      updateCircle(nextLat, nextLng, nextRadius);
+    }
+  }, [
+    mapsReady,
+    radius,
+    updateCircle,
+    value?.geofenceRadius,
+    value?.latitude,
+    value?.longitude,
+  ]);
+
+  useEffect(() => {
+    if (!mapsReady || !googleMapRef.current) return;
+
+    const googleWindow = getGoogleMapsWindow();
+    const mapsEvent = googleWindow.google?.maps?.event;
+    if (!mapsEvent) return;
+
+    const map = googleMapRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      mapsEvent.trigger(map, "resize");
+      map.panTo({ lat, lng });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [lat, lng, mapsReady, resolvedMapHeight]);
 
   const geocodeAddress = useCallback(
     (query: string, showError = true) => {
@@ -339,6 +376,7 @@ export default function GeoFenceMapPicker({
     if (!query) return;
     if (lastAutoGeocodedQueryRef.current && query !== lastAutoGeocodedQueryRef.current) {
       userSelectedLocationRef.current = false;
+      lastAutoGeocodedQueryRef.current = "";
     }
   }, [addressQuery, hideSearch]);
 
@@ -389,11 +427,10 @@ export default function GeoFenceMapPicker({
 
   // Manual search button (geocoding fallback)
   const handleManualSearch = () => {
-    userSelectedLocationRef.current = true;
+    userSelectedLocationRef.current = false;
+    lastAutoGeocodedQueryRef.current = "";
     geocodeAddress(searchText);
   };
-
-  const resolvedMapHeight = mapHeight ?? (compact ? 200 : 380);
 
   return (
     <div
