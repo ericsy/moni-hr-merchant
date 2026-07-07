@@ -1,5 +1,8 @@
 ## 2026-07-08
 
+- **外勤工单 · 开始时间被重置**：创建/编辑时修改开始时间会跳回默认——弹层打开期间初始化 effect 重复执行会覆盖用户输入；时间选择器在父组件重渲染时因 dayjs 引用变化重置草稿。现仅在弹层首次打开（或切换不同工单）时初始化；时间选择器按 `HH:mm` 同步草稿。
+  - **`FieldJobFormModal.tsx`**、**`HourMinuteTimePicker.tsx`**。
+
 - **外勤工单 · 地图地址定位修复**：紧凑模式后输入/选择地址地图不移动——外部坐标变更时同步移动标记，地图容器尺寸变化时触发 Google Maps `resize`；地址变更时重置自动定位拦截状态。
   - **`GeoFenceMapPicker.tsx`**、**`FieldJobFormModal.tsx`**。
 

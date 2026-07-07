@@ -96,6 +96,8 @@ export default function HourMinuteTimePicker({
     return value.format("HH:mm");
   }, [value]);
 
+  const valueTimeKey = displayText;
+
   const syncDraftFromValue = () => {
     const parts = parseTimeParts(value);
     setDraftHour(parts.hour);
@@ -106,7 +108,8 @@ export default function HourMinuteTimePicker({
   useEffect(() => {
     if (!open) return;
     syncDraftFromValue();
-  }, [open, value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-sync when HH:mm changes, not dayjs reference
+  }, [open, valueTimeKey]);
 
   const handleConfirm = () => {
     const hour = Number(draftHour);

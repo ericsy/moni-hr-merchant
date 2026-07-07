@@ -1,6 +1,6 @@
 import { DatePicker, Alert, Form, Input, Modal, Select } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import HourMinuteTimePicker from "../HourMinuteTimePicker";
 import GeoFenceMapPicker from "../GeoFenceMapPicker";
 import GoogleAddressAutocompleteInput from "../GoogleAddressAutocompleteInput";
@@ -101,7 +101,7 @@ function getDefaultFieldJobTimes(now = dayjs()) {
 }
 
 function timeValue(value?: Dayjs | string | null, fallback?: string) {
-  const resolvedFallback = fallback ?? getDefaultFieldJobStartTime();
+  const resolvedFallback = fallback ?? "09:00";
   if (dayjs.isDayjs(value) && value.isValid()) {
     return dayjs(`${TIME_ONLY_DATE} ${value.format("HH:mm")}`, "YYYY-MM-DD HH:mm");
   }
@@ -208,6 +208,7 @@ export default function FieldJobFormModal({
     longitude: job?.longitude ?? 174.7633,
     geofenceRadius: job?.geofenceRadius ?? 100,
   });
+  const modalInitKeyRef = useRef<string | null>(null);
 
   const timeRangeError = useMemo(() => {
     if (isValidServiceTimeRange(startTime, endTime)) return "";
@@ -342,7 +343,14 @@ export default function FieldJobFormModal({
   }, [employeeAvailabilityMessage, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      modalInitKeyRef.current = null;
+      return;
+    }
+
+    const initKey = job?.id ?? "__create__";
+    if (modalInitKeyRef.current === initKey) return;
+    modalInitKeyRef.current = initKey;
 
     if (job) {
       const start = dayjs(job.scheduledStart);
