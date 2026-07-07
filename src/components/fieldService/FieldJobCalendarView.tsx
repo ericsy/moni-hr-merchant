@@ -9,7 +9,7 @@ import {
   getWeekDates,
 } from "../../lib/fieldJobSchedule";
 import { getFieldJobEmployeeNamesLabel, isFieldJobAssigned } from "../../lib/fieldJobEmployees";
-import { isFieldJobEditableByMerchant } from "../../lib/fieldJobEditability";
+import { isFieldJobEditableByMerchant, canAssignFieldJobByMerchant } from "../../lib/fieldJobEditability";
 import type { FieldJobStatus, FieldServiceJob } from "../../types/fieldService";
 
 interface FieldJobCalendarViewProps {
@@ -209,7 +209,7 @@ export default function FieldJobCalendarView({
                         </Button>
                       ) : null}
                       {(job.status === "pending" || job.status === "assigned") &&
-                      isFieldJobEditableByMerchant(job) ? (
+                      canAssignFieldJobByMerchant(job) ? (
                         <Button
                           size="small"
                           type="primary"

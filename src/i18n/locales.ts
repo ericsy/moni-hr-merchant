@@ -563,8 +563,8 @@ export const locales = {
       subtitle: "管理客户预约、派单与外勤打卡同步设置",
       create: "新建工单",
       edit: "编辑工单",
-      editLockedWithinHour: "距任务开始不足1小时，仅可取消工单",
-      editDeadlineHint: "任务开始前1小时内不可修改工单，仅可取消",
+      editLockedWithinHour: "距任务开始不足1小时，不可编辑或改派（新建工单及待分配首次派单除外）",
+      editDeadlineHint: "开始前1小时内不可编辑已有工单；可随时新建，待分配工单可首次派单",
       editAssignedTitle: "更换服务人员",
       editAssignedHint: "该工单已分配员工，仅可更换服务人员及相关同步设置，其他信息不可修改。",
       assign: "派单",
@@ -1213,8 +1213,10 @@ export const locales = {
       subtitle: "Manage customer bookings, assignments, and store punch sync settings",
       create: "New Job",
       edit: "Edit Job",
-      editLockedWithinHour: "Less than 1 hour before start — only cancellation is allowed",
-      editDeadlineHint: "Jobs cannot be edited within 1 hour of the scheduled start; cancel only",
+      editLockedWithinHour:
+        "Less than 1 hour before start — cannot edit or reassign (new jobs and first assign on pending jobs are allowed)",
+      editDeadlineHint:
+        "Existing jobs cannot be edited within 1 hour of start; you can always create new jobs and assign pending ones",
       editAssignedTitle: "Change Employee",
       editAssignedHint:
         "This job is already assigned. You can only change the assigned employee and related store punch sync settings.",

@@ -20,7 +20,7 @@ import {
   listActiveEmployeesForStore,
 } from "../lib/fieldJobEmployees";
 import { filterJobsInWeek, getWeekStart } from "../lib/fieldJobSchedule";
-import { isFieldJobEditableByMerchant } from "../lib/fieldJobEditability";
+import { isFieldJobEditableByMerchant, canAssignFieldJobByMerchant } from "../lib/fieldJobEditability";
 import { ApiError } from "../lib/apiClient";
 import { merchantApi } from "../lib/merchantApi";
 import type { FieldJobFormSubmitPayload, FieldJobAssignPayload, FieldJobStatus, FieldServiceJob } from "../types/fieldService";
@@ -193,7 +193,7 @@ export default function FieldJobs() {
   };
 
   const handleAssign = (job: FieldServiceJob) => {
-    if (!isFieldJobEditableByMerchant(job)) {
+    if (!canAssignFieldJobByMerchant(job)) {
       toast.error(labels.editLockedWithinHour);
       return;
     }
@@ -324,7 +324,7 @@ export default function FieldJobs() {
   const handleAssignSubmit = async (payload: { assignments: FieldJobAssignPayload[] }) => {
     if (!selectedStoreId || !assigningJob) return;
 
-    if (!isFieldJobEditableByMerchant(assigningJob)) {
+    if (!canAssignFieldJobByMerchant(assigningJob)) {
       toast.error(labels.editLockedWithinHour);
       return;
     }
@@ -445,7 +445,7 @@ export default function FieldJobs() {
             </Button>
           ) : null}
           {(record.status === "pending" || record.status === "assigned") &&
-          isFieldJobEditableByMerchant(record) ? (
+          canAssignFieldJobByMerchant(record) ? (
             <Button size="small" type="primary" icon={<UserPlus size={14} />} onClick={() => handleAssign(record)}>
               {isFieldJobAssigned(record) ? labels.reassign : labels.assign}
             </Button>
