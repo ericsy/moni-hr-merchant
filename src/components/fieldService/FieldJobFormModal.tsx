@@ -1,4 +1,4 @@
-import { DatePicker, Alert, Form, Input, Modal, Select } from "antd";
+import { DatePicker, Alert, Button, Form, Input, Modal, Select } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import HourMinuteTimePicker from "../HourMinuteTimePicker";
@@ -44,6 +44,7 @@ export interface FieldJobFormValues {
 interface FieldJobFormModalProps {
   open: boolean;
   job?: FieldServiceJob | null;
+  readOnly?: boolean;
   storeId: string;
   storeNameById: Record<string, string>;
   scheduleShifts: ScheduleShift[];
@@ -170,6 +171,7 @@ function isValidServiceTimeRange(start: string, end: string) {
 export default function FieldJobFormModal({
   open,
   job,
+  readOnly = false,
   storeId,
   storeNameById,
   scheduleShifts,
@@ -492,13 +494,28 @@ export default function FieldJobFormModal({
   return (
     <Modal
       open={open}
-      title={job ? String(labels.edit) : String(labels.create)}
+      title={
+        readOnly && job
+          ? String(labels.viewJob)
+          : job
+            ? String(labels.edit)
+            : String(labels.create)
+      }
       onCancel={onCancel}
-      onOk={handleOk}
+      onOk={readOnly ? undefined : handleOk}
       confirmLoading={submitting}
       width={760}
       destroyOnClose
-      maskClosable={false}
+      maskClosable={readOnly}
+      footer={
+        readOnly
+          ? [
+              <Button key="close" type="primary" onClick={onCancel}>
+                {String(labels.close)}
+              </Button>,
+            ]
+          : undefined
+      }
       styles={{
         body: {
           maxHeight: "calc(100vh - 160px)",
@@ -508,7 +525,10 @@ export default function FieldJobFormModal({
       }}
     >
       <Form form={form} layout="vertical" className="mt-1">
-        {employeeError ? (
+        {readOnly ? (
+          <Alert type="info" showIcon className="mb-3" message={String(labels.viewReadonlyHint)} />
+        ) : null}
+        {!readOnly && employeeError ? (
           <Alert type="error" showIcon className="mb-3" message={employeeError} />
         ) : null}
 
@@ -518,10 +538,10 @@ export default function FieldJobFormModal({
             label={String(labels.customerName)}
             rules={[{ required: true, message: String(labels.customerRequired) }]}
           >
-            <Input />
+            <Input disabled={readOnly} />
           </Form.Item>
           <Form.Item name="customerPhone" label={String(labels.customerPhone)}>
-            <Input />
+            <Input disabled={readOnly} />
           </Form.Item>
         </div>
 
@@ -536,9 +556,10 @@ export default function FieldJobFormModal({
           }
         >
           <GoogleAddressAutocompleteInput
+            disabled={readOnly}
             placeholder={String(labels.serviceAddressPlaceholder)}
-            onPlaceSelected={applyGeoFromPlace}
-            onInputComplete={handleAddressInputComplete}
+            onPlaceSelected={readOnly ? undefined : applyGeoFromPlace}
+            onInputComplete={readOnly ? undefined : handleAddressInputComplete}
           />
         </Form.Item>
 
@@ -552,6 +573,7 @@ export default function FieldJobFormModal({
             ]}
           >
             <Input
+              disabled={readOnly}
               maxLength={64}
               placeholder={String(labels.serviceTypePlaceholder)}
             />
@@ -561,7 +583,7 @@ export default function FieldJobFormModal({
             label={String(labels.serviceDate)}
             rules={[{ required: true, message: String(labels.dateRequired) }]}
           >
-            <DatePicker className="w-full" format="YYYY-MM-DD" />
+            <DatePicker className="w-full" format="YYYY-MM-DD" disabled={readOnly} />
           </Form.Item>
         </div>
 
@@ -574,6 +596,7 @@ export default function FieldJobFormModal({
           >
             <HourMinuteTimePicker
               className="w-full"
+              disabled={readOnly}
               minuteStep={FIELD_JOB_TIME_MINUTE_STEP}
               locale={locale}
               value={timeValue(startTime)}
@@ -587,6 +610,7 @@ export default function FieldJobFormModal({
           >
             <HourMinuteTimePicker
               className="w-full"
+              disabled={readOnly}
               minuteStep={FIELD_JOB_TIME_MINUTE_STEP}
               locale={locale}
               value={timeValue(endTime, getDefaultFieldJobEndTime(startTime))}
@@ -598,24 +622,29 @@ export default function FieldJobFormModal({
         <Form.Item
           name="merchantAdminIds"
           label={String(labels.employee)}
-          validateStatus={employeeError ? "error" : undefined}
-          help={employeeError || (
-            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-              {String(
-                isAssignedJob
-                  ? labels.formEmployeeReassignHint
-                  : labels.formEmployeeHint,
-              )}
-            </span>
-          )}
+          validateStatus={!readOnly && employeeError ? "error" : undefined}
+          help={
+            readOnly
+              ? undefined
+              : employeeError || (
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    {String(
+                      isAssignedJob
+                        ? labels.formEmployeeReassignHint
+                        : labels.formEmployeeHint,
+                    )}
+                  </span>
+                )
+          }
           getValueFromEvent={(value) =>
             normalizeEmployeeAdminIds(value as Array<string | number> | undefined)
           }
         >
           <Select
-            allowClear
+            allowClear={!readOnly}
             showSearch
             mode="multiple"
+            disabled={readOnly}
             className="w-full"
             placeholder={String(labels.selectEmployeeOptional)}
             options={availableEmployees.map((employee) => ({
@@ -635,7 +664,8 @@ export default function FieldJobFormModal({
             labels={labels}
             value={syncValue}
             onChange={setSyncValue}
-            validationErrors={syncErrors}
+            validationErrors={readOnly ? [] : syncErrors}
+            readOnly={readOnly}
           />
         ) : selectedEmployeeIds.length > 1 ? (
           <Alert type="info" showIcon message={String(labels.multiEmployeeAssignHint)} />
@@ -648,21 +678,25 @@ export default function FieldJobFormModal({
             hideSearch
             addressQuery={serviceAddress || ""}
             preservedGeocodeAddress={preservedGeocodeAddress}
-            locateNow={locateNow}
+            locateNow={readOnly ? 0 : locateNow}
             geofenceDesc={String(labels.geofenceDesc)}
-            onChange={(next) => {
-              setGeo(next);
-              form.setFieldsValue({
-                latitude: next.latitude,
-                longitude: next.longitude,
-                geofenceRadius: next.geofenceRadius,
-              });
-            }}
+            onChange={
+              readOnly
+                ? undefined
+                : (next) => {
+                    setGeo(next);
+                    form.setFieldsValue({
+                      latitude: next.latitude,
+                      longitude: next.longitude,
+                      geofenceRadius: next.geofenceRadius,
+                    });
+                  }
+            }
           />
         </Form.Item>
 
         <Form.Item name="notes" label={String(labels.notes)}>
-          <TextArea rows={3} />
+          <TextArea rows={3} disabled={readOnly} />
         </Form.Item>
       </Form>
     </Modal>

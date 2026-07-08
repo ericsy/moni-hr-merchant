@@ -65,6 +65,7 @@ export default function FieldJobs() {
   const [selectedDate, setSelectedDate] = useState<Dayjs>(() => dayjs().startOf("day"));
   const [weekStart, setWeekStart] = useState<Dayjs>(() => dayjs().startOf("isoWeek"));
   const [formOpen, setFormOpen] = useState(false);
+  const [formReadOnly, setFormReadOnly] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<FieldServiceJob | null>(null);
   const [assigningJob, setAssigningJob] = useState<FieldServiceJob | null>(null);
@@ -180,14 +181,18 @@ export default function FieldJobs() {
       return;
     }
     setEditingJob(null);
+    setFormReadOnly(false);
+    setFormOpen(true);
+  };
+
+  const handleView = (job: FieldServiceJob) => {
+    setEditingJob(job);
+    setFormReadOnly(true);
     setFormOpen(true);
   };
 
   const handleEdit = (job: FieldServiceJob) => {
-    if (!isFieldJobEditableByMerchant(job)) {
-      toast.error(labels.editLockedWithinHour);
-      return;
-    }
+    setFormReadOnly(false);
     setEditingJob(job);
     setFormOpen(true);
   };
@@ -303,6 +308,7 @@ export default function FieldJobs() {
       toast.success(labels.saveSuccess);
       setFormOpen(false);
       setEditingJob(null);
+      setFormReadOnly(false);
       await loadJobs();
     } catch (error) {
       console.log("[FieldJobs] save failed:", error);
@@ -443,7 +449,11 @@ export default function FieldJobs() {
             <Button size="small" onClick={() => handleEdit(record)}>
               {labels.edit}
             </Button>
-          ) : null}
+          ) : (
+            <Button size="small" onClick={() => handleView(record)}>
+              {labels.viewJob}
+            </Button>
+          )}
           {(record.status === "pending" || record.status === "assigned") &&
           canAssignFieldJobByMerchant(record) ? (
             <Button size="small" type="primary" icon={<UserPlus size={14} />} onClick={() => handleAssign(record)}>
@@ -536,6 +546,7 @@ export default function FieldJobs() {
           onSelectedDateChange={handleSelectedDateChange}
           onWeekChange={handleWeekChange}
           onEdit={handleEdit}
+          onView={handleView}
           onAssign={handleAssign}
           onCancel={handleCancel}
         />
@@ -544,6 +555,7 @@ export default function FieldJobs() {
       <FieldJobFormModal
         open={formOpen}
         job={editingJob}
+        readOnly={formReadOnly}
         storeId={selectedStoreId}
         storeNameById={storeNameById}
         scheduleShifts={scheduleShifts.filter((shift) => shift.storeId === selectedStoreId)}
@@ -556,6 +568,7 @@ export default function FieldJobs() {
         onCancel={() => {
           setFormOpen(false);
           setEditingJob(null);
+          setFormReadOnly(false);
         }}
         onSubmit={handleSave}
       />

@@ -25,6 +25,7 @@ interface FieldJobCalendarViewProps {
   onSelectedDateChange: (date: Dayjs) => void;
   onWeekChange: (weekStart: Dayjs) => void;
   onEdit: (job: FieldServiceJob) => void;
+  onView: (job: FieldServiceJob) => void;
   onAssign: (job: FieldServiceJob) => void;
   onCancel: (job: FieldServiceJob) => void;
 }
@@ -45,6 +46,7 @@ export default function FieldJobCalendarView({
   onSelectedDateChange,
   onWeekChange,
   onEdit,
+  onView,
   onAssign,
   onCancel,
 }: FieldJobCalendarViewProps) {
@@ -207,7 +209,11 @@ export default function FieldJobCalendarView({
                         <Button size="small" onClick={() => onEdit(job)}>
                           {String(labels.edit)}
                         </Button>
-                      ) : null}
+                      ) : (
+                        <Button size="small" onClick={() => onView(job)}>
+                          {String(labels.viewJob)}
+                        </Button>
+                      )}
                       {(job.status === "pending" || job.status === "assigned") &&
                       canAssignFieldJobByMerchant(job) ? (
                         <Button

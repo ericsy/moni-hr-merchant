@@ -563,6 +563,9 @@ export const locales = {
       subtitle: "管理客户预约、派单与外勤打卡同步设置",
       create: "新建工单",
       edit: "编辑工单",
+      viewJob: "查看工单",
+      close: "关闭",
+      viewReadonlyHint: "当前为只读查看；距任务开始不足1小时或工单已结束/已取消时不可修改。",
       editLockedWithinHour: "距任务开始不足1小时，不可编辑或改派（新建工单及待分配首次派单除外）",
       editDeadlineHint: "开始前1小时内不可编辑已有工单；可随时新建，待分配工单可首次派单",
       editAssignedTitle: "更换服务人员",
@@ -1213,6 +1216,10 @@ export const locales = {
       subtitle: "Manage customer bookings, assignments, and store punch sync settings",
       create: "New Job",
       edit: "Edit Job",
+      viewJob: "View Job",
+      close: "Close",
+      viewReadonlyHint:
+        "Read-only view. Jobs cannot be edited within 1 hour of start, or after completion/cancellation.",
       editLockedWithinHour:
         "Less than 1 hour before start — cannot edit or reassign (new jobs and first assign on pending jobs are allowed)",
       editDeadlineHint:

@@ -102,6 +102,7 @@ interface FieldJobStoreSyncFieldsProps {
   value: FieldJobStoreSyncValue;
   onChange: (next: FieldJobStoreSyncValue) => void;
   validationErrors?: string[];
+  readOnly?: boolean;
 }
 
 export function FieldJobStoreSyncFields({
@@ -113,6 +114,7 @@ export function FieldJobStoreSyncFields({
   value,
   onChange,
   validationErrors = [],
+  readOnly = false,
 }: FieldJobStoreSyncFieldsProps) {
   if (loading) {
     return (
@@ -154,7 +156,7 @@ export function FieldJobStoreSyncFields({
           <div className="flex flex-col gap-2">
             <Checkbox
               checked={value.syncStoreClockIn}
-              disabled={!syncInEligible}
+              disabled={readOnly || !syncInEligible}
               onChange={(event) =>
                 onChange({ ...value, syncStoreClockIn: event.target.checked })
               }
@@ -168,7 +170,7 @@ export function FieldJobStoreSyncFields({
             ) : null}
             <Checkbox
               checked={value.syncStoreClockOut}
-              disabled={!syncOutEligible}
+              disabled={readOnly || !syncOutEligible}
               onChange={(event) =>
                 onChange({ ...value, syncStoreClockOut: event.target.checked })
               }
