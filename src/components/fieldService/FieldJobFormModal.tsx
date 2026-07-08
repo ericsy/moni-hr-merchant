@@ -211,6 +211,7 @@ export default function FieldJobFormModal({
     geofenceRadius: job?.geofenceRadius ?? 100,
   });
   const modalInitKeyRef = useRef<string | null>(null);
+  const submitLockRef = useRef(false);
 
   const timeRangeError = useMemo(() => {
     if (isValidServiceTimeRange(startTime, endTime)) return "";
@@ -430,6 +431,11 @@ export default function FieldJobFormModal({
   };
 
   const handleOk = async () => {
+    if (readOnly || submitLockRef.current || submitting) {
+      return;
+    }
+    submitLockRef.current = true;
+    setSubmitting(true);
     try {
       const values = await form.validateFields();
       const scheduledStart = combineDateAndTime(values.serviceDate, startTime);
@@ -469,7 +475,6 @@ export default function FieldJobFormModal({
 
       const appliedSync = applyFieldJobStoreSyncForPreview(syncPreview, syncValue, scheduledWindow ?? undefined);
 
-      setSubmitting(true);
       await onSubmit({
         storeId: job?.storeId || storeId,
         customerName: values.customerName.trim(),
@@ -487,6 +492,7 @@ export default function FieldJobFormModal({
         syncStoreClockOut: selectedIds.length === 1 ? appliedSync.syncStoreClockOut : false,
       });
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   };

@@ -2,7 +2,7 @@ import { Button, Input, Segmented, Select, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import { CalendarDays, LayoutList, MapPin, Plus, RefreshCw, Search, UserPlus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import FieldJobAssignModal from "../components/fieldService/FieldJobAssignModal";
 import FieldJobCalendarView from "../components/fieldService/FieldJobCalendarView";
@@ -69,6 +69,7 @@ export default function FieldJobs() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<FieldServiceJob | null>(null);
   const [assigningJob, setAssigningJob] = useState<FieldServiceJob | null>(null);
+  const saveInFlightRef = useRef(false);
 
   const employees = useMemo(
     () => listActiveEmployeesForStore(contextEmployees, selectedStoreId),
@@ -247,6 +248,9 @@ export default function FieldJobs() {
   );
 
   const handleSave = async (payload: FieldJobFormSubmitPayload) => {
+    if (saveInFlightRef.current) {
+      return;
+    }
     if (!selectedStoreId) {
       toast.error(labels.storeRequired);
       return;
@@ -271,6 +275,7 @@ export default function FieldJobs() {
       }
     }
 
+    saveInFlightRef.current = true;
     try {
       let jobId = editingJob?.id;
 
@@ -324,6 +329,8 @@ export default function FieldJobs() {
         }
       }
       toast.error(getApiErrorMessage(error, labels.saveFailed));
+    } finally {
+      saveInFlightRef.current = false;
     }
   };
 

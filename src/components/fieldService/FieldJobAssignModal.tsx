@@ -1,6 +1,6 @@
 import { Alert, Modal, Select } from "antd";
 import dayjs from "dayjs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { validateAssignSyncOptions } from "../../lib/fieldServiceAssign";
 import { filterEmployeesAvailableForFieldJob, getEmployeeFieldJobBlockInfo } from "../../lib/employeeLeave";
 import {
@@ -65,6 +65,7 @@ export default function FieldJobAssignModal({
   });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const submitLockRef = useRef(false);
 
   const resetState = useCallback(() => {
     setEmployeeIds([]);
@@ -159,6 +160,9 @@ export default function FieldJobAssignModal({
   ]);
 
   const handleOk = async () => {
+    if (submitLockRef.current || submitting) {
+      return;
+    }
     if (employeeIds.length === 0) {
       setErrors([String(labels.employeeRequired)]);
       return;
@@ -205,10 +209,12 @@ export default function FieldJobAssignModal({
       syncStoreClockOut: singleEmployeeMode ? appliedSync.syncStoreClockOut : false,
     });
 
+    submitLockRef.current = true;
+    setSubmitting(true);
     try {
-      setSubmitting(true);
       await onSubmit({ assignments });
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   };
