@@ -1,5 +1,6 @@
 ## 2026-07-11
 
+- **创建员工邮箱二次确认**：新建员工点保存并通过校验后，弹出确认框展示邮箱地址，确认后再提交创建（编辑员工不弹）。
 - **强制打卡工时口径**：Stores「考勤设置」在开启「要求打卡」后增加单选——按下班打卡时间 / 按排班时间；字段 `clockPunchHoursBasis`（`punch` | `schedule`）读写与详情展示。
 - **Stores Radio 命名冲突**：antd `Radio` 与 lucide `Radio` 图标冲突导致 TS 报错；lucide 改为 `RadioIcon`。
 - **深链刷新白屏**：`vite.config.ts` 的 `base` 由相对路径 `./` 改为 `APP_BASE_PATH`（`/`），避免在 `/employee-statistics` 等路由刷新时资源路径变成 `/employee-statistics/assets/...` 导致空白页。

@@ -1317,6 +1317,43 @@ export function EmployeeModal({
         annualSalary: values.annualSalary ?? "",
         defaultHourlyRate: values.defaultHourlyRate ?? "",
       };
+
+      // 新建员工：保存前二次确认邮箱（创建后会发登录密码到该邮箱）
+      if (!isEdit) {
+        const email = String(saved.email || "").trim();
+        const confirmed = await new Promise<boolean>((resolve) => {
+          Modal.confirm({
+            title: (et.createEmailConfirmTitle as string) || t.confirm,
+            content: (
+              <div className="flex flex-col gap-2">
+                <div>
+                  {(et.createEmailConfirmDesc as string) ||
+                    (locale === "zh"
+                      ? "请确认新增员工的邮箱地址正确，系统将向该邮箱发送登录密码。"
+                      : "Please confirm the employee email is correct. A login password will be sent to this address.")}
+                </div>
+                <div
+                  className="rounded-md px-3 py-2 text-sm font-medium break-all"
+                  style={{
+                    background: "var(--muted)",
+                    color: "var(--foreground)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  {email || "-"}
+                </div>
+              </div>
+            ),
+            okText: (et.createEmailConfirmOk as string) || t.confirm,
+            cancelText: t.cancel,
+            centered: true,
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+          });
+        });
+        if (!confirmed) return;
+      }
+
       await onSave(saved);
     } catch (err) {
       const errorFields =
