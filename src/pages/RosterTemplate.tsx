@@ -300,6 +300,8 @@ function ShiftCell({
   const isEmployeeView = viewMode === "employee";
   const sc = getShiftColor(cell.color);
   const hrs = calcHours(cell.startTime, cell.endTime, cell.breakMinutes || 0);
+  const displayLabel = (cell.shiftId || "").trim() ? (cell.label || "").trim() : "";
+  const timeRangeLabel = `${formatTime12(cell.startTime)} - ${formatTime12(cell.endTime)}`;
   const rowEmpWarning =
     isEmployeeView && rowEmployeeId
       ? employees.find((emp) => emp.id === rowEmployeeId)?.availabilityWarning
@@ -363,14 +365,12 @@ function ShiftCell({
               className="text-xs font-semibold truncate"
               style={{ color: "var(--foreground)", fontSize: 14 }}
               title={
-                cell.label
-                  ? `${cell.label} (${formatTime12(cell.startTime)} - ${formatTime12(cell.endTime)})`
-                  : `${formatTime12(cell.startTime)} - ${formatTime12(cell.endTime)}`
+                displayLabel
+                  ? `${displayLabel} (${timeRangeLabel})`
+                  : timeRangeLabel
               }
             >
-              {cell.label
-                ? cell.label
-                : `${formatTime12(cell.startTime)} - ${formatTime12(cell.endTime)}`}
+              {displayLabel || timeRangeLabel}
             </span>
             {rowEmpWarning ? (
               <Tooltip title={rowEmpWarning}>
@@ -1389,14 +1389,19 @@ export default function RosterTemplatePage({
     setCellModalMode(useEmployeeModal ? "employee" : "area");
     setLockedEmployeeId(useEmployeeModal ? rowEmployeeId : "");
 
-    const presetKey = makeShiftPresetKey({
-      shiftType: "store",
-      storeId: activeTemplateStoreId,
-      shiftName: cell.label,
-      startTime: cell.startTime,
-      endTime: cell.endTime,
-      color: cell.color,
-    });
+    const hasShift = Boolean((cell.shiftId || "").trim());
+    const shiftLabel = hasShift ? cell.label || "" : "";
+    // 无班次时不要写入 makeShiftPresetKey，否则 Select 会直接显示 store::... 拼接串
+    const presetKey = hasShift
+      ? makeShiftPresetKey({
+          shiftType: "store",
+          storeId: activeTemplateStoreId,
+          shiftName: shiftLabel,
+          startTime: cell.startTime,
+          endTime: cell.endTime,
+          color: cell.color,
+        })
+      : "";
 
     setEditingCell(cell);
     setEditingAreaId(cell.areaId);
@@ -1407,7 +1412,7 @@ export default function RosterTemplatePage({
       startTime: cell.startTime,
       endTime: cell.endTime,
       breakMinutes: cell.breakMinutes ?? 0,
-      label: cell.label,
+      label: shiftLabel,
       color: cell.color,
       employeeIds: [...cell.employeeIds],
     });

@@ -523,6 +523,10 @@ function ShiftEntry({
   const rowEmp = isEmployeeView ? displayEmployees[0] : undefined;
   const cs = getColorStyle(shift.color);
   const hrs = calcHours(shift.startTime, shift.endTime, shift.breakMinutes);
+  const displayShiftName = (shift.shiftId || "").trim()
+    ? (shift.shiftName || "").trim()
+    : "";
+  const timeRangeLabel = `${formatTime12(shift.startTime)} - ${formatTime12(shift.endTime)}`;
   const areaAvailabilityWarnings = !isEmployeeView
     ? displayEmployees
         .filter((emp) => emp.availabilityWarning)
@@ -591,14 +595,12 @@ function ShiftEntry({
               className="text-xs font-semibold truncate"
               style={{ color: "var(--foreground)", fontSize: 14 }}
               title={
-                shift.shiftName
-                  ? `${shift.shiftName} (${formatTime12(shift.startTime)} - ${formatTime12(shift.endTime)})`
-                  : `${formatTime12(shift.startTime)} - ${formatTime12(shift.endTime)}`
+                displayShiftName
+                  ? `${displayShiftName} (${timeRangeLabel})`
+                  : timeRangeLabel
               }
             >
-              {shift.shiftName
-                ? shift.shiftName
-                : `${formatTime12(shift.startTime)} - ${formatTime12(shift.endTime)}`}
+              {displayShiftName || timeRangeLabel}
             </span>
             {shift.isSubstitution && !isEmployeeView ? (
               <span
@@ -2670,14 +2672,18 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     setShiftModalMode(useEmployeeModal ? "employee" : "area");
     setLockedEmployeeId(useEmployeeModal ? rowEmployeeId : "");
 
-    const presetKey = makeShiftPresetKey({
-      shiftType: shift.shiftType || "store",
-      storeId: shift.storeId,
-      shiftName: shift.shiftName,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      color: shift.color,
-    });
+    const hasShift = Boolean((shift.shiftId || "").trim());
+    const shiftName = hasShift ? shift.shiftName || "" : "";
+    const presetKey = hasShift
+      ? makeShiftPresetKey({
+          shiftType: shift.shiftType || "store",
+          storeId: shift.storeId,
+          shiftName,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          color: shift.color,
+        })
+      : "";
 
     setEditingShift(shift);
     setShiftForm({
@@ -2691,7 +2697,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       startTime: shift.startTime,
       endTime: shift.endTime,
       breakMinutes: shift.breakMinutes,
-      shiftName: shift.shiftName,
+      shiftName,
       color: shift.color,
       note: shift.note,
       storeId: shift.storeId,
