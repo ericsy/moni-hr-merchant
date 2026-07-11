@@ -226,6 +226,11 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
 
   const renderShiftCard = (item: AttendanceConfirmItem) => {
     const attended = item.attended === 1;
+    const labelStyle = {
+      color: "var(--muted-foreground)",
+      flexShrink: 0,
+      width: 22,
+    } as const;
     return (
       <div
         key={itemKey(item)}
@@ -265,59 +270,79 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
           {[item.areaName, item.shiftName].filter(Boolean).join(" · ") ||
             `${item.plannedStartTime}-${item.plannedEndTime}`}
         </div>
-        <TimePicker
-          size="small"
-          format="HH:mm"
-          allowClear={false}
-          inputReadOnly
-          suffixIcon={null}
-          disabled={!attended}
-          value={dayjs(item.confirmedStartTime, "HH:mm") as Dayjs}
-          onChange={(v) =>
-            updateItem(item.publishedCellId, item.merchantAdminId, {
-              confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
-            })
-          }
-          style={{ width: "100%" }}
-        />
-        <TimePicker
-          size="small"
-          format="HH:mm"
-          allowClear={false}
-          inputReadOnly
-          suffixIcon={null}
-          disabled={!attended}
-          value={dayjs(item.confirmedEndTime, "HH:mm") as Dayjs}
-          onChange={(v) =>
-            updateItem(item.publishedCellId, item.merchantAdminId, {
-              confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
-            })
-          }
-          style={{ width: "100%" }}
-        />
-        <InputNumber
-          size="small"
-          min={0}
-          disabled={!attended}
-          value={item.confirmedBreakMinutes}
-          onChange={(v) =>
-            updateItem(item.publishedCellId, item.merchantAdminId, {
-              confirmedBreakMinutes: typeof v === "number" ? v : 0,
-            })
-          }
-          placeholder={isZh ? "休m" : "brk"}
-          style={{ width: "100%" }}
-        />
-        <Input
-          size="small"
-          placeholder={isZh ? "备注" : "Note"}
-          value={item.note || ""}
-          onChange={(e) =>
-            updateItem(item.publishedCellId, item.merchantAdminId, {
-              note: e.target.value,
-            })
-          }
-        />
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="text-[10px]" style={labelStyle}>
+            {isZh ? "起" : "In"}
+          </span>
+          <TimePicker
+            size="small"
+            format="HH:mm"
+            allowClear={false}
+            inputReadOnly
+            suffixIcon={null}
+            disabled={!attended}
+            value={dayjs(item.confirmedStartTime, "HH:mm") as Dayjs}
+            onChange={(v) =>
+              updateItem(item.publishedCellId, item.merchantAdminId, {
+                confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
+              })
+            }
+            style={{ width: 58, flex: "0 0 auto" }}
+          />
+        </div>
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="text-[10px]" style={labelStyle}>
+            {isZh ? "止" : "Out"}
+          </span>
+          <TimePicker
+            size="small"
+            format="HH:mm"
+            allowClear={false}
+            inputReadOnly
+            suffixIcon={null}
+            disabled={!attended}
+            value={dayjs(item.confirmedEndTime, "HH:mm") as Dayjs}
+            onChange={(v) =>
+              updateItem(item.publishedCellId, item.merchantAdminId, {
+                confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
+              })
+            }
+            style={{ width: 58, flex: "0 0 auto" }}
+          />
+        </div>
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="text-[10px]" style={labelStyle}>
+            {isZh ? "休" : "Brk"}
+          </span>
+          <InputNumber
+            size="small"
+            min={0}
+            disabled={!attended}
+            value={item.confirmedBreakMinutes}
+            onChange={(v) =>
+              updateItem(item.publishedCellId, item.merchantAdminId, {
+                confirmedBreakMinutes: typeof v === "number" ? v : 0,
+              })
+            }
+            style={{ width: 58 }}
+          />
+        </div>
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="text-[10px]" style={labelStyle}>
+            {isZh ? "注" : "Note"}
+          </span>
+          <Input
+            size="small"
+            placeholder={isZh ? "备注" : "Note"}
+            value={item.note || ""}
+            onChange={(e) =>
+              updateItem(item.publishedCellId, item.merchantAdminId, {
+                note: e.target.value,
+              })
+            }
+            style={{ flex: 1, minWidth: 0 }}
+          />
+        </div>
       </div>
     );
   };
@@ -524,7 +549,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                       </th>
                     ))}
                     <th
-                      className="px-1 py-2 text-right text-[11px] font-semibold"
+                      className="px-1 py-2 text-center text-[11px] font-semibold"
                       style={{
                         color: "var(--foreground)",
                         borderBottom: "1px solid var(--border)",
@@ -578,7 +603,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                         );
                       })}
                       <td
-                        className="px-1 py-1.5 align-top text-right text-[11px] font-medium"
+                        className="px-1 py-1.5 align-top text-center text-[11px] font-medium"
                         style={{
                           color: "var(--primary)",
                           borderBottom: "1px solid var(--border)",
