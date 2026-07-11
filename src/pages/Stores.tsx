@@ -816,7 +816,13 @@ function StoreModal({
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      // 关闭时清掉门店相关本地状态，避免切换到另一家店时串状态
+      setBlockPublicHolidays(false);
+      setClockPunchEnabled(true);
+      setActiveTab("basic");
+      return;
+    }
     form.resetFields();
     form.setFieldsValue(initialValues);
     queueMicrotask(() => {
@@ -830,7 +836,16 @@ function StoreModal({
       setStoreEmployees([]);
       setStoreEmployeesLoading(false);
     });
-  }, [form, initialHolidayDates, initialHolidayPayRate, initialValues, open]);
+  }, [
+    form,
+    initialHolidayDates,
+    initialHolidayPayRate,
+    initialValues,
+    open,
+    store?.id,
+    store?.blockPublicHolidays,
+    store?.clockPunchEnabled,
+  ]);
 
   useEffect(() => {
     if (!open || activeTab !== "staff" || !staffStoreId) return;
@@ -1217,7 +1232,7 @@ function StoreModal({
     },
   ];
 
-  const visibleTabItems = blockPublicHolidays
+  const visibleTabItems = blockPublicHolidays === true
     ? tabItems.filter((item) => item.key !== "holiday")
     : tabItems;
 
@@ -1602,7 +1617,7 @@ function StoreDetailPanel({
     },
   ];
 
-  const visibleTabItems = store.blockPublicHolidays
+  const visibleTabItems = store.blockPublicHolidays === true
     ? tabItems.filter((item) => item.key !== "holiday")
     : tabItems;
 
@@ -1888,6 +1903,7 @@ export default function Stores() {
         >
           {selectedStore ? (
             <StoreDetailPanel
+              key={selectedStore.id}
               store={selectedStore}
               employeeCount={getEmployeeCount(selectedStore.id)}
               employees={employees}

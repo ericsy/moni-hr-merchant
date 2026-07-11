@@ -758,14 +758,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         saved.holidayPayMultiplier ??
         store.publicHolidayPayRate ??
         store.holidayPayMultiplier,
-      clockPunchEnabled: saved.clockPunchEnabled ?? store.clockPunchEnabled ?? true,
-      blockPublicHolidays: saved.blockPublicHolidays ?? store.blockPublicHolidays ?? false,
+      blockPublicHolidays: saved.blockPublicHolidays === true,
+      clockPunchEnabled: saved.clockPunchEnabled !== false,
       syncPublicHolidaysFromSameCountry:
         saved.syncPublicHolidaysFromSameCountry ??
         store.syncPublicHolidaysFromSameCountry,
     };
     setStores((prev) => existingId
-      ? prev.map((item) => item.id === existingId ? normalizedSaved : item)
+      ? prev.map((item) =>
+          String(item.id) === String(existingId) ? normalizedSaved : item,
+        )
       : [...prev, normalizedSaved]);
     return normalizedSaved;
   }, []);
