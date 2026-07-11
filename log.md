@@ -1,6 +1,7 @@
 ## 2026-07-11
 
 - **强制打卡工时口径**：Stores「考勤设置」在开启「要求打卡」后增加单选——按下班打卡时间 / 按排班时间；字段 `clockPunchHoursBasis`（`punch` | `schedule`）读写与详情展示。
+- **Stores Radio 命名冲突**：antd `Radio` 与 lucide `Radio` 图标冲突导致 TS 报错；lucide 改为 `RadioIcon`。
 
 ## 2026-07-10
 

@@ -11,6 +11,7 @@ import {
   Switch,
   InputNumber,
   Tooltip,
+  Radio,
 } from "antd";
 import {
   Plus,
@@ -19,7 +20,7 @@ import {
   Trash2,
   MapPin,
   Users,
-  Radio,
+  Radio as RadioIcon,
   ChevronRight,
   Building2,
   Phone,
@@ -1528,18 +1529,18 @@ function StoreDetailPanel({
           {hasGeofence ? (
             <>
               <div className="flex items-center gap-2">
-                <Radio size={14} style={{ color: "var(--primary)" }} />
+                <RadioIcon size={14} style={{ color: "var(--primary)" }} />
                 <span className="text-sm font-medium" style={{ color: "var(--primary)" }}>
                   {st.geofenceSet}
                 </span>
               </div>
               <StoreInfoRow icon={<MapPin size={13} />} label={st.geofenceLat} value={`${store.latitude}`} />
               <StoreInfoRow icon={<MapPin size={13} />} label={st.geofenceLng} value={`${store.longitude}`} />
-              <StoreInfoRow icon={<Radio size={13} />} label={st.geofenceRadius} value={`${store.geofenceRadius} m`} />
+              <StoreInfoRow icon={<RadioIcon size={13} />} label={st.geofenceRadius} value={`${store.geofenceRadius} m`} />
             </>
           ) : (
             <div className="flex items-center gap-2 py-4" style={{ color: "var(--muted-foreground)" }}>
-              <Radio size={14} />
+              <RadioIcon size={14} />
               <span className="text-sm">{st.geofenceNotSet}</span>
             </div>
           )}
