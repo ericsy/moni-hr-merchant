@@ -1121,7 +1121,15 @@ function StoreModal({
                 {st.blockPublicHolidaysHint}
               </div>
             </div>
-            <Switch checked={blockPublicHolidays} onChange={setBlockPublicHolidays} />
+            <Switch
+              checked={blockPublicHolidays}
+              onChange={(checked) => {
+                setBlockPublicHolidays(checked);
+                if (checked && activeTab === "holiday") {
+                  setActiveTab("attendance");
+                }
+              }}
+            />
           </div>
         </div>
       ),
@@ -1209,6 +1217,10 @@ function StoreModal({
     },
   ];
 
+  const visibleTabItems = blockPublicHolidays
+    ? tabItems.filter((item) => item.key !== "holiday")
+    : tabItems;
+
   return (
     <Modal
       open={open}
@@ -1243,7 +1255,7 @@ function StoreModal({
       <Tabs
         activeKey={activeTab}
         onChange={(k) => { setActiveTab(k); }}
-        items={tabItems}
+        items={visibleTabItems}
         style={{ minHeight: 480 }}
       />
     </Modal>
@@ -1590,6 +1602,10 @@ function StoreDetailPanel({
     },
   ];
 
+  const visibleTabItems = store.blockPublicHolidays
+    ? tabItems.filter((item) => item.key !== "holiday")
+    : tabItems;
+
   return (
     <div data-cmp="StoreDetailPanel" className="flex flex-col h-full">
       {/* Header */}
@@ -1642,7 +1658,7 @@ function StoreDetailPanel({
 
       {/* Tabs */}
       <div className="flex-1 overflow-auto px-4 py-2">
-        <Tabs defaultActiveKey="info" items={tabItems} size="small" />
+        <Tabs defaultActiveKey="info" items={visibleTabItems} size="small" />
       </div>
     </div>
   );
