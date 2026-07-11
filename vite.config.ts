@@ -62,7 +62,9 @@ export default defineConfig(({ mode }) => {
   const proxyTarget = env.VITE_API_PROXY_TARGET?.trim();
 
   return {
-    base: `./`,
+    // SPA 深链刷新必须用绝对 base；相对 `./` 会在 /employee-statistics 等路径下把
+    // assets 解析成 /employee-statistics/assets/... 导致白屏。
+    base: APP_BASE_PATH.endsWith("/") ? APP_BASE_PATH : `${APP_BASE_PATH}/`,
     plugins: [
       react(),
       tailwindcss(),
