@@ -35,6 +35,12 @@ const statusStyles: Record<
     dot: "#8b5cf6",
     text: "#7c3aed",
   },
+  punch_exempt: {
+    bg: "#f8fafc",
+    border: "#94a3b8",
+    dot: "#94a3b8",
+    text: "#64748b",
+  },
 };
 
 const statusOrder: Record<MerchantTodayAttendanceStatus, number> = {
@@ -42,6 +48,7 @@ const statusOrder: Record<MerchantTodayAttendanceStatus, number> = {
   clocked_in: 1,
   completed: 2,
   on_leave: 3,
+  punch_exempt: 4,
 };
 
 function getInitials(item: MerchantTodayAttendanceItem) {
@@ -104,6 +111,8 @@ export default function TodayAttendancePanel({
         return ta.statusCompleted;
       case "on_leave":
         return ta.statusOnLeave;
+      case "punch_exempt":
+        return ta.statusPunchExempt;
       default:
         return status;
     }

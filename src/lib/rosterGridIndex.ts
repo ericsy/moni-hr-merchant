@@ -101,21 +101,19 @@ export type ShiftModalMode = "area" | "employee";
 export function makeScheduleShiftSlotKey(
   shift: Pick<
     ScheduleShift,
-    "areaId" | "date" | "startTime" | "endTime" | "shiftId" | "shiftName"
+    "areaId" | "date" | "startTime" | "endTime"
   >,
 ): string {
-  const shiftPart = (shift.shiftId || shift.shiftName || "").trim();
-  return `${shift.areaId}|${shift.date}|${shift.startTime}|${shift.endTime}|${shiftPart}`;
+  return `${shift.areaId}|${shift.date}|${shift.startTime}|${shift.endTime}`;
 }
 
 export function makeTemplateCellSlotKey(
   cell: Pick<
     RosterTemplateCell,
-    "areaId" | "dayIndex" | "startTime" | "endTime" | "shiftId" | "label"
+    "areaId" | "dayIndex" | "startTime" | "endTime"
   >,
 ): string {
-  const shiftPart = (cell.shiftId || cell.label || "").trim();
-  return `${cell.areaId}|${cell.dayIndex}|${cell.startTime}|${cell.endTime}|${shiftPart}`;
+  return `${cell.areaId}|${cell.dayIndex}|${cell.startTime}|${cell.endTime}`;
 }
 
 export function mergeUniqueEmployeeIds(

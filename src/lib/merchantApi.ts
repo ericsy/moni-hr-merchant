@@ -256,7 +256,8 @@ export type MerchantTodayAttendanceStatus =
   | "not_punched"
   | "clocked_in"
   | "completed"
-  | "on_leave";
+  | "on_leave"
+  | "punch_exempt";
 
 export interface MerchantTodayAttendanceShift {
   startTime?: string | null;
@@ -1537,6 +1538,14 @@ export function mapApiStore(input: unknown): Store {
           ? undefined
           : asNumber(raw.holidayPayMultiplier)
         : asNumber(raw.publicHolidayPayRate),
+    clockPunchEnabled:
+      raw.clockPunchEnabled === undefined || raw.clockPunchEnabled === null
+        ? true
+        : asBoolean(raw.clockPunchEnabled),
+    blockPublicHolidays:
+      raw.blockPublicHolidays === undefined || raw.blockPublicHolidays === null
+        ? false
+        : asBoolean(raw.blockPublicHolidays),
     latitude: raw.latitude === undefined || raw.latitude === null ? undefined : asNumber(raw.latitude),
     longitude: raw.longitude === undefined || raw.longitude === null ? undefined : asNumber(raw.longitude),
     geofenceRadius: raw.geofenceRadius === undefined || raw.geofenceRadius === null ? undefined : asNumber(raw.geofenceRadius),
@@ -1560,6 +1569,8 @@ export function storeToApiPayload(store: Store) {
     weeklyHours: serializeStoreWeekdayHours(store.weeklyHours),
     publicHolidays: serializePublicHolidays(store.publicHolidays),
     publicHolidayPayRate: store.publicHolidayPayRate ?? store.holidayPayMultiplier,
+    clockPunchEnabled: store.clockPunchEnabled ?? true,
+    blockPublicHolidays: store.blockPublicHolidays ?? false,
     latitude: store.latitude,
     longitude: store.longitude,
     geofenceRadius: store.geofenceRadius,
@@ -1826,10 +1837,15 @@ export function mapApiScheduleCell(input: unknown, storeId: string): ScheduleShi
   const employeeIds = asArray(raw.employees).map((employee) => asString(asRecord(employee).id));
   const areaId = asString(raw.areaId);
   const date = asString(raw.date_str || raw.dateStr);
-  const shiftId = asString(raw.shiftId || raw.shiftsId);
+  const shiftIdRaw = raw.shiftId ?? raw.shiftsId;
+  const shiftId = shiftIdRaw != null && String(shiftIdRaw).trim() !== ""
+    ? asString(shiftIdRaw)
+    : undefined;
 
   return {
-    id: raw.id ? `schedule-${raw.id}` : `schedule-${storeId}-${areaId}-${date}-${shiftId}`,
+    id: raw.id
+      ? `schedule-${raw.id}`
+      : `schedule-${storeId}-${areaId}-${date}-${shiftId || `${asString(raw.startTime)}-${asString(raw.endTime)}`}`,
     shiftId,
     employeeId: employeeIds[0] || "",
     employeeIds,
@@ -1876,6 +1892,76 @@ function mapSchedulePublishResult(input: unknown): MerchantSchedulePublishResult
   };
 }
 
+export type AttendanceConfirmItem = {
+  id?: number | string;
+  merchantAdminId: number | string;
+  employeeName: string;
+  publishedCellId: number | string;
+  scheduleDate: string;
+  areaId?: number | string;
+  areaName: string;
+  shiftName: string;
+  plannedStartTime: string;
+  plannedEndTime: string;
+  plannedBreakMinutes: number;
+  plannedNetMinutes: number;
+  attended: number;
+  confirmedStartTime: string;
+  confirmedEndTime: string;
+  confirmedBreakMinutes: number;
+  confirmedNetMinutes: number;
+  status: string;
+  note?: string;
+};
+
+export type AttendanceConfirmWeek = {
+  storeId?: number | string;
+  clockPunchEnabled: boolean;
+  weekStart: string;
+  weekEnd: string;
+  editable: boolean;
+  allConfirmed: boolean;
+  items: AttendanceConfirmItem[];
+};
+
+function mapAttendanceConfirmItem(input: unknown): AttendanceConfirmItem {
+  const raw = asRecord(input);
+  return {
+    id: raw.id as number | string | undefined,
+    merchantAdminId: (raw.merchantAdminId ?? raw.merchant_admin_id) as number | string,
+    employeeName: asString(raw.employeeName || raw.employee_name),
+    publishedCellId: (raw.publishedCellId ?? raw.published_cell_id) as number | string,
+    scheduleDate: asString(raw.scheduleDate || raw.schedule_date).slice(0, 10),
+    areaId: (raw.areaId ?? raw.area_id) as number | string | undefined,
+    areaName: asString(raw.areaName || raw.area_name),
+    shiftName: asString(raw.shiftName || raw.shift_name),
+    plannedStartTime: asString(raw.plannedStartTime || raw.planned_start_time, "09:00"),
+    plannedEndTime: asString(raw.plannedEndTime || raw.planned_end_time, "17:00"),
+    plannedBreakMinutes: asNumber(raw.plannedBreakMinutes ?? raw.planned_break_minutes, 0),
+    plannedNetMinutes: asNumber(raw.plannedNetMinutes ?? raw.planned_net_minutes, 0),
+    attended: asNumber(raw.attended, 1),
+    confirmedStartTime: asString(raw.confirmedStartTime || raw.confirmed_start_time, "09:00"),
+    confirmedEndTime: asString(raw.confirmedEndTime || raw.confirmed_end_time, "17:00"),
+    confirmedBreakMinutes: asNumber(raw.confirmedBreakMinutes ?? raw.confirmed_break_minutes, 0),
+    confirmedNetMinutes: asNumber(raw.confirmedNetMinutes ?? raw.confirmed_net_minutes, 0),
+    status: asString(raw.status, "draft"),
+    note: asString(raw.note) || undefined,
+  };
+}
+
+function mapAttendanceConfirmWeek(input: unknown): AttendanceConfirmWeek {
+  const raw = asRecord(input);
+  return {
+    storeId: raw.storeId as number | string | undefined,
+    clockPunchEnabled: asBoolean(raw.clockPunchEnabled ?? raw.clock_punch_enabled, true),
+    weekStart: asString(raw.weekStart || raw.week_start).slice(0, 10),
+    weekEnd: asString(raw.weekEnd || raw.week_end).slice(0, 10),
+    editable: raw.editable === true,
+    allConfirmed: raw.allConfirmed === true || raw.all_confirmed === true,
+    items: asArray(raw.items).map(mapAttendanceConfirmItem),
+  };
+}
+
 function mapTemplateCell(input: unknown): RosterTemplateCell {
   const raw = asRecord(input);
   const employeeIds = asArray(raw.employees).map((employee) => asString(asRecord(employee).id));
@@ -1891,7 +1977,11 @@ function mapTemplateCell(input: unknown): RosterTemplateCell {
 
   return {
     id: asString(raw.id),
-    shiftId: asString(raw.shiftsId || raw.shiftId),
+    shiftId: (() => {
+      const rawId = raw.shiftsId ?? raw.shiftId;
+      if (rawId == null || String(rawId).trim() === "") return undefined;
+      return asString(rawId);
+    })(),
     areaId: asString(raw.areaId),
     dayIndex,
     cycleWeek,
@@ -2334,6 +2424,42 @@ export const merchantApi = {
       storeId,
       body: payload,
     }),
+  getAttendanceConfirmWeek: async (storeId: string, weekStart: string) => {
+    const data = await apiRequest<unknown>(
+      appendEndpointPath(getMerchantEndpoint("schedule"), "attendance-confirm"),
+      {
+        storeId,
+        query: { weekStart },
+      },
+    );
+    return mapAttendanceConfirmWeek(data);
+  },
+  saveAttendanceConfirmWeek: async (
+    storeId: string,
+    payload: {
+      weekStart: string;
+      confirm: boolean;
+      items: Array<{
+        publishedCellId: number;
+        merchantAdminId: number;
+        attended?: number;
+        confirmedStartTime?: string;
+        confirmedEndTime?: string;
+        confirmedBreakMinutes?: number;
+        note?: string;
+      }>;
+    },
+  ) => {
+    const data = await apiRequest<unknown>(
+      appendEndpointPath(getMerchantEndpoint("schedule"), "attendance-confirm"),
+      {
+        method: "PUT",
+        storeId,
+        body: payload,
+      },
+    );
+    return mapAttendanceConfirmWeek(data);
+  },
   publishSchedule: async (storeId: string) => {
     const data = await apiRequest<unknown>(appendEndpointPath(getMerchantEndpoint("schedule"), "publish"), {
       method: "POST",

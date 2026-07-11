@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
+import { AttendanceConfirmPanel } from "./AttendanceConfirmPanel";
 import {
   ColorSwatchPicker,
   DEFAULT_COLOR_KEY,
@@ -588,9 +589,15 @@ function ShiftEntry({
             <span
               className="text-xs font-semibold truncate"
               style={{ color: "var(--foreground)", fontSize: 14 }}
-              title={shift.shiftName || ""}
+              title={
+                shift.shiftName
+                  ? `${shift.shiftName} (${formatTime12(shift.startTime)} - ${formatTime12(shift.endTime)})`
+                  : `${formatTime12(shift.startTime)} - ${formatTime12(shift.endTime)}`
+              }
             >
-              {shift.shiftName || formatTime12(shift.startTime)}
+              {shift.shiftName
+                ? shift.shiftName
+                : `${formatTime12(shift.startTime)} - ${formatTime12(shift.endTime)}`}
             </span>
             {shift.isSubstitution && !isEmployeeView ? (
               <span
@@ -1475,20 +1482,26 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
   const todayStr = dayjs().format("YYYY-MM-DD");
   const selectedStore =
     stores.find((store) => store.id === selectedStoreId) || stores[0];
+  const isPunchExemptStore = selectedStore?.clockPunchEnabled === false;
   const dateFormatCountry = selectedStore?.country;
   const isStoreClosedDate = (date: dayjs.Dayjs) =>
     isStoreClosedOnWeekday(selectedStore, date.isoWeekday());
   const publicHolidayNameByDate = useMemo(() => {
     const map = new Map<string, string>();
+    // 屏蔽公共假期：排班中不展示已配置假期
+    if (selectedStore?.blockPublicHolidays === true) {
+      return map;
+    }
     (selectedStore?.publicHolidays || []).forEach((holiday) => {
       const dateStr = (holiday?.date || "").slice(0, 10);
       if (!dateStr) return;
       map.set(dateStr, holiday?.name || "");
     });
     return map;
-  }, [selectedStore?.publicHolidays]);
+  }, [selectedStore?.publicHolidays, selectedStore?.blockPublicHolidays]);
 
   // ── Left panel state ────────────────────────────────────────────────────────
+  const [mainTab, setMainTab] = useState<"roster" | "attendanceConfirm">("roster");
   const [leftTab, setLeftTab] = useState<"templates" | "employees">(
     "templates",
   );
@@ -2073,12 +2086,21 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       return {
         shiftId: cell.shiftId,
         breakMinutes: matchedById?.breakMinutes ?? 30,
-        shiftName: matchedById?.shiftName || cell.label || cell.startTime,
+        shiftName: matchedById?.shiftName || cell.label || "",
         color: cell.color || matchedById?.color || DEFAULT_COLOR_KEY,
       };
     }
 
-    const cellLabel = (cell.label || cell.startTime).trim();
+    const cellLabel = (cell.label || "").trim();
+    if (!cellLabel) {
+      return {
+        shiftId: undefined,
+        breakMinutes: 0,
+        shiftName: "",
+        color: cell.color || DEFAULT_COLOR_KEY,
+      };
+    }
+
     const matchedPreset = scheduleShifts.find((shift) => {
       if (!shift.isGlobalPreset || !shift.shiftId) return false;
       const shiftType = shift.shiftType || "store";
@@ -2093,8 +2115,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
     return {
       shiftId: matchedPreset?.shiftId,
-      breakMinutes: matchedPreset?.breakMinutes ?? 30,
-      shiftName: matchedPreset?.shiftName || cell.label || cell.startTime,
+      breakMinutes: matchedPreset?.breakMinutes ?? 0,
+      shiftName: matchedPreset?.shiftName || cellLabel,
       color: cell.color || matchedPreset?.color || DEFAULT_COLOR_KEY,
     };
   };
@@ -2687,8 +2709,16 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       toast.error(isZh ? "请选择区域" : "Please select an area");
       return;
     }
-    if (!shiftForm.shiftName.trim()) {
-      toast.error(locale === "zh" ? "请选择班次" : "Please choose a shift");
+    if (!shiftForm.startTime || !shiftForm.endTime) {
+      toast.error(isZh ? "请选择开始和结束时间" : "Please select start and end time");
+      return;
+    }
+    if (shiftForm.endTime <= shiftForm.startTime) {
+      toast.error(
+        isZh
+          ? "结束时间须晚于开始时间"
+          : "End time must be after start time",
+      );
       return;
     }
 
@@ -2728,8 +2758,6 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       date: shiftForm.date,
       startTime: shiftForm.startTime,
       endTime: shiftForm.endTime,
-      shiftId: shiftForm.shiftId,
-      shiftName: shiftForm.shiftName,
     });
 
     const checkEmployeeConflicts = (
@@ -2779,7 +2807,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           (id) => id !== empId,
         );
         const newShiftFields = {
-          shiftId: shiftForm.shiftId || editingShift.shiftId,
+          shiftId: (shiftForm.shiftId || "").trim() || undefined,
           areaId: shiftForm.areaId,
           storeId: storeIdToUse,
           shiftType: shiftForm.shiftType,
@@ -2787,7 +2815,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           startTime: shiftForm.startTime,
           endTime: shiftForm.endTime,
           breakMinutes: shiftForm.breakMinutes,
-          shiftName: shiftForm.shiftName,
+          shiftName: (shiftForm.shiftId || "").trim()
+            ? shiftForm.shiftName
+            : "",
           color: shiftForm.color,
           note: shiftForm.note,
           status: "draft" as const,
@@ -2912,7 +2942,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
       const data: ScheduleShift = {
         ...editingShift,
-        shiftId: shiftForm.shiftId || editingShift.shiftId,
+        shiftId: (shiftForm.shiftId || "").trim() || undefined,
         employeeId: employeeIdsToSave[0] || "",
         employeeIds: employeeIdsToSave,
         areaId: shiftForm.areaId,
@@ -2922,7 +2952,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         startTime: shiftForm.startTime,
         endTime: shiftForm.endTime,
         breakMinutes: shiftForm.breakMinutes,
-        shiftName: shiftForm.shiftName,
+        shiftName: (shiftForm.shiftId || "").trim() ? shiftForm.shiftName : "",
         color: shiftForm.color,
         note: shiftForm.note,
         status: "draft",
@@ -2959,7 +2989,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
             shift.id === existing.id
               ? {
                   ...shift,
-                  shiftId: shiftForm.shiftId || shift.shiftId,
+                  shiftId: (shiftForm.shiftId || "").trim() || undefined,
                   employeeId: mergedEmployeeIds[0] || "",
                   employeeIds: mergedEmployeeIds,
                   areaId: shiftForm.areaId,
@@ -2969,7 +2999,9 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   startTime: shiftForm.startTime,
                   endTime: shiftForm.endTime,
                   breakMinutes: shiftForm.breakMinutes,
-                  shiftName: shiftForm.shiftName,
+                  shiftName: (shiftForm.shiftId || "").trim()
+                    ? shiftForm.shiftName
+                    : "",
                   color: shiftForm.color,
                   note: shiftForm.note,
                   status: "draft" as const,
@@ -2994,7 +3026,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         nextCreatedShiftIdRef.current += 1;
         const newShift: ScheduleShift = {
           id: `sh-new-${nextCreatedShiftIdRef.current}`,
-          shiftId: shiftForm.shiftId || undefined,
+          shiftId: (shiftForm.shiftId || "").trim() || undefined,
           employeeId: empIds[0],
           employeeIds: empIds,
           areaId: shiftForm.areaId,
@@ -3004,7 +3036,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           startTime: shiftForm.startTime,
           endTime: shiftForm.endTime,
           breakMinutes: shiftForm.breakMinutes,
-          shiftName: shiftForm.shiftName,
+          shiftName: (shiftForm.shiftId || "").trim() ? shiftForm.shiftName : "",
           color: shiftForm.color,
           note: shiftForm.note,
           status: "draft",
@@ -3304,6 +3336,12 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     }
   };
 
+  useEffect(() => {
+    if (!isPunchExemptStore && mainTab === "attendanceConfirm") {
+      setMainTab("roster");
+    }
+  }, [isPunchExemptStore, mainTab]);
+
   const dayLabels = locale === "zh" ? WEEK_DAY_LABELS_ZH : WEEK_DAY_LABELS_EN;
 
   console.log(
@@ -3321,6 +3359,51 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       className="flex flex-col"
       style={{ height: "calc(100vh - 88px)", overflow: "hidden" }}
     >
+      {isPunchExemptStore ? (
+        <div
+          className="flex items-center gap-1 px-5 py-2 flex-shrink-0"
+          style={{
+            background: "var(--card)",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          {(
+            [
+              { key: "roster" as const, zh: "排班", en: "Roster" },
+              {
+                key: "attendanceConfirm" as const,
+                zh: "确认出勤",
+                en: "Confirm attendance",
+              },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setMainTab(tab.key)}
+              className="rounded-md px-3 py-1.5 text-sm font-medium transition-all"
+              style={{
+                background:
+                  mainTab === tab.key ? "var(--secondary)" : "transparent",
+                color:
+                  mainTab === tab.key
+                    ? "var(--primary)"
+                    : "var(--muted-foreground)",
+              }}
+            >
+              {isZh ? tab.zh : tab.en}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {mainTab === "attendanceConfirm" && isPunchExemptStore ? (
+        <AttendanceConfirmPanel
+          storeId={String(selectedStoreId || selectedStore?.id || "")}
+          dateFormatCountry={dateFormatCountry}
+        />
+      ) : (
+      <>
       {/* ── Top toolbar ───────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-5 py-2.5 flex-shrink-0"
@@ -4316,18 +4399,28 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
         width={500}
       >
         <div className="flex flex-col gap-4 py-3">
-          {/* Preset select */}
+          {/* Preset select（可选） */}
           <div>
             <div
               className="text-sm mb-1.5"
               style={{ color: "var(--foreground)" }}
             >
-              {isZh ? "选择班次" : "Select Shift"}
+              {isZh ? "班次（可选）" : "Shift (optional)"}
             </div>
             <Select
+              allowClear
               showSearch
               value={shiftForm.presetKey || undefined}
               onChange={(value) => {
+                if (!value) {
+                  setShiftForm((form) => ({
+                    ...form,
+                    presetKey: "",
+                    shiftId: "",
+                    shiftName: "",
+                  }));
+                  return;
+                }
                 const preset = modalShiftPresetOptions.find(
                   (option) => option.key === value,
                 );
@@ -4352,7 +4445,11 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                   color: preset.color,
                 }));
               }}
-              placeholder={isZh ? "请选择班次" : "Please choose a shift"}
+              placeholder={
+                isZh
+                  ? "不选则直接填写时间"
+                  : "Leave empty to set times directly"
+              }
               style={{ width: "100%" }}
               optionFilterProp="label"
               options={modalShiftPresetOptions.map((option) => ({
@@ -4366,8 +4463,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                 style={{ color: "var(--muted-foreground)" }}
               >
                 {isZh
-                  ? "暂无可选班次，请先到班次管理创建班次"
-                  : "No shifts available yet. Create shifts in Shift Management first."}
+                  ? "暂无班次预设，可直接填写开始/结束时间；也可到班次管理创建预设"
+                  : "No shift presets yet. Set start/end times directly, or create presets in Shift Management."}
               </div>
             )}
           </div>
@@ -4455,7 +4552,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                 {isZh ? "开始时间" : "Start Time"}
               </div>
               <TimePicker
-                disabled
+                disabled={Boolean((shiftForm.shiftId || "").trim())}
                 format="HH:mm"
                 value={dayjs(shiftForm.startTime, "HH:mm")}
                 onChange={(v) =>
@@ -4475,7 +4572,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                 {isZh ? "结束时间" : "End Time"}
               </div>
               <TimePicker
-                disabled
+                disabled={Boolean((shiftForm.shiftId || "").trim())}
                 format="HH:mm"
                 value={dayjs(shiftForm.endTime, "HH:mm")}
                 onChange={(v) =>
@@ -4875,6 +4972,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
           </div>
         )}
       </Modal>
+      </>
+      )}
     </div>
   );
 }

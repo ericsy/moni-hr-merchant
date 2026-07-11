@@ -362,9 +362,15 @@ function ShiftCell({
             <span
               className="text-xs font-semibold truncate"
               style={{ color: "var(--foreground)", fontSize: 14 }}
-              title={cell.label || ""}
+              title={
+                cell.label
+                  ? `${cell.label} (${formatTime12(cell.startTime)} - ${formatTime12(cell.endTime)})`
+                  : `${formatTime12(cell.startTime)} - ${formatTime12(cell.endTime)}`
+              }
             >
-              {cell.label || formatTime12(cell.startTime)}
+              {cell.label
+                ? cell.label
+                : `${formatTime12(cell.startTime)} - ${formatTime12(cell.endTime)}`}
             </span>
             {rowEmpWarning ? (
               <Tooltip title={rowEmpWarning}>
@@ -1403,12 +1409,24 @@ export default function RosterTemplatePage({
   };
 
   const handleSaveCell = () => {
-    if (!cellForm.label.trim()) {
-      toast.error(locale === "zh" ? "请选择班次" : "Please choose a shift");
-      return;
-    }
     if (!editingAreaId) {
       toast.error(locale === "zh" ? "请选择区域" : "Please select an area");
+      return;
+    }
+    if (!cellForm.startTime || !cellForm.endTime) {
+      toast.error(
+        locale === "zh"
+          ? "请选择开始和结束时间"
+          : "Please select start and end time",
+      );
+      return;
+    }
+    if (cellForm.endTime <= cellForm.startTime) {
+      toast.error(
+        locale === "zh"
+          ? "结束时间须晚于开始时间"
+          : "End time must be after start time",
+      );
       return;
     }
 
@@ -1431,8 +1449,6 @@ export default function RosterTemplatePage({
       dayIndex: editingDayIndex,
       startTime: cellForm.startTime,
       endTime: cellForm.endTime,
-      shiftId: cellForm.shiftId,
-      label: cellForm.label,
     });
 
     const checkEmployeeConflicts = (
@@ -1488,18 +1504,17 @@ export default function RosterTemplatePage({
           dayIndex: editingDayIndex,
           startTime: cellForm.startTime,
           endTime: cellForm.endTime,
-          shiftId: cellForm.shiftId,
-          label: cellForm.label,
         });
         const isSameSlot =
           newSlotKey === makeTemplateCellSlotKey(editingCell);
         const remainingIds = editingCell.employeeIds.filter((id) => id !== empId);
+        const hasShift = Boolean((cellForm.shiftId || "").trim());
         const newCellFields = {
           areaId: editingAreaId,
-          shiftId: cellForm.shiftId || undefined,
+          shiftId: hasShift ? cellForm.shiftId : undefined,
           startTime: cellForm.startTime,
           endTime: cellForm.endTime,
-          label: cellForm.label,
+          label: hasShift ? cellForm.label : "",
           color: cellForm.color,
         };
 
@@ -1612,10 +1627,10 @@ export default function RosterTemplatePage({
                 ? {
                     ...c,
                     areaId: editingAreaId,
-                    shiftId: cellForm.shiftId || undefined,
+                    shiftId: (cellForm.shiftId || "").trim() || undefined,
                     startTime: cellForm.startTime,
                     endTime: cellForm.endTime,
-                    label: cellForm.label,
+                    label: (cellForm.shiftId || "").trim() ? cellForm.label : "",
                     color: cellForm.color,
                     employeeIds: employeeIdsToSave,
                   }
@@ -1652,10 +1667,10 @@ export default function RosterTemplatePage({
                   ? {
                       ...c,
                       areaId: editingAreaId,
-                      shiftId: cellForm.shiftId || undefined,
+                      shiftId: (cellForm.shiftId || "").trim() || undefined,
                       startTime: cellForm.startTime,
                       endTime: cellForm.endTime,
-                      label: cellForm.label,
+                      label: (cellForm.shiftId || "").trim() ? cellForm.label : "",
                       color: cellForm.color,
                       employeeIds: mergedEmployeeIds,
                     }
@@ -1677,13 +1692,13 @@ export default function RosterTemplatePage({
       nextCreatedCellIdRef.current += 1;
       const newCell: RosterShiftCell = {
         id: `cell-new-${nextCreatedCellIdRef.current}`,
-        shiftId: cellForm.shiftId || undefined,
+        shiftId: (cellForm.shiftId || "").trim() || undefined,
         areaId: editingAreaId,
         dayIndex: editingDayIndex,
         cycleWeek: getCycleWeek(editingDayIndex),
         startTime: cellForm.startTime,
         endTime: cellForm.endTime,
-        label: cellForm.label,
+        label: (cellForm.shiftId || "").trim() ? cellForm.label : "",
         color: cellForm.color,
         employeeIds,
       };
@@ -3021,18 +3036,28 @@ export default function RosterTemplatePage({
         width={500}
       >
         <div className="flex flex-col gap-4 py-3">
-          {/* Preset select */}
+          {/* Preset select（可选） */}
           <div>
             <div
               className="text-sm mb-1.5"
               style={{ color: "var(--foreground)" }}
             >
-              {locale === "zh" ? "选择班次" : "Select Shift"}
+              {locale === "zh" ? "班次（可选）" : "Shift (optional)"}
             </div>
             <Select
+              allowClear
               showSearch
               value={cellForm.presetKey || undefined}
               onChange={(value) => {
+                if (!value) {
+                  setCellForm((form) => ({
+                    ...form,
+                    presetKey: "",
+                    shiftId: "",
+                    label: "",
+                  }));
+                  return;
+                }
                 const preset = modalShiftPresetOptions.find(
                   (option) => option.key === value,
                 );
@@ -3052,7 +3077,9 @@ export default function RosterTemplatePage({
                 }));
               }}
               placeholder={
-                locale === "zh" ? "请选择班次" : "Please choose a shift"
+                locale === "zh"
+                  ? "不选则直接填写时间"
+                  : "Leave empty to set times directly"
               }
               style={{ width: "100%" }}
               optionFilterProp="label"
@@ -3067,8 +3094,8 @@ export default function RosterTemplatePage({
                 style={{ color: "var(--muted-foreground)" }}
               >
                 {locale === "zh"
-                  ? "暂无可选班次，请先到班次管理创建班次"
-                  : "No shifts available yet. Create shifts in Shift Management first."}
+                  ? "暂无班次预设，可直接填写开始/结束时间；也可到班次管理创建预设"
+                  : "No shift presets yet. Set start/end times directly, or create presets in Shift Management."}
               </div>
             )}
           </div>
@@ -3143,7 +3170,7 @@ export default function RosterTemplatePage({
                 {locale === "zh" ? "开始时间" : "Start Time"}
               </div>
               <TimePicker
-                disabled
+                disabled={Boolean((cellForm.shiftId || "").trim())}
                 format="HH:mm"
                 value={dayjs(cellForm.startTime, "HH:mm")}
                 onChange={(v) =>
@@ -3163,7 +3190,7 @@ export default function RosterTemplatePage({
                 {locale === "zh" ? "结束时间" : "End Time"}
               </div>
               <TimePicker
-                disabled
+                disabled={Boolean((cellForm.shiftId || "").trim())}
                 format="HH:mm"
                 value={dayjs(cellForm.endTime, "HH:mm")}
                 onChange={(v) =>

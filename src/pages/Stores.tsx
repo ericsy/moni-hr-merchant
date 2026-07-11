@@ -765,6 +765,8 @@ function StoreModal({
   const [holidayDates, setHolidayDates] = useState<PublicHoliday[]>([]);
   const [payMultiplier, setPayMultiplier] = useState(1.5);
   const [syncPublicHolidaysFromSameCountry, setSyncPublicHolidaysFromSameCountry] = useState(false);
+  const [clockPunchEnabled, setClockPunchEnabled] = useState(true);
+  const [blockPublicHolidays, setBlockPublicHolidays] = useState(false);
   const [storeEmployees, setStoreEmployees] = useState<Employee[]>([]);
   const [storeEmployeesLoading, setStoreEmployeesLoading] = useState(false);
   const managerId = Form.useWatch("managerId", form) as string | undefined;
@@ -822,6 +824,8 @@ function StoreModal({
       setHolidayDates(initialHolidayDates);
       setPayMultiplier(initialHolidayPayRate);
       setSyncPublicHolidaysFromSameCountry(false);
+      setClockPunchEnabled(store?.clockPunchEnabled !== false);
+      setBlockPublicHolidays(store?.blockPublicHolidays === true);
       setActiveTab("basic");
       setStoreEmployees([]);
       setStoreEmployeesLoading(false);
@@ -878,6 +882,8 @@ function StoreModal({
         publicHolidayPayRate: payMultiplier,
         syncPublicHolidaysFromSameCountry: !isEdit ? syncPublicHolidaysFromSameCountry : undefined,
         holidayPayMultiplier: payMultiplier,
+        clockPunchEnabled,
+        blockPublicHolidays,
         storeOfficers: {
           storeManager: values.managerId
             ? {
@@ -1071,6 +1077,52 @@ function StoreModal({
             t={t}
             locale={locale}
           />
+        </div>
+      ),
+    },
+    {
+      key: "attendance",
+      label: st.tabAttendance,
+      children: (
+        <div className="mt-2 flex flex-col gap-4">
+          <div
+            className="rounded-md px-4 py-3 text-xs"
+            style={{
+              background: "var(--muted)",
+              border: "1px solid var(--border)",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            {st.attendanceDesc}
+          </div>
+          <div
+            className="flex items-start justify-between gap-4 rounded-md px-4 py-3"
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                {st.clockPunchEnabled}
+              </div>
+              <div className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {st.clockPunchEnabledHint}
+              </div>
+            </div>
+            <Switch checked={clockPunchEnabled} onChange={setClockPunchEnabled} />
+          </div>
+          <div
+            className="flex items-start justify-between gap-4 rounded-md px-4 py-3"
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                {st.blockPublicHolidays}
+              </div>
+              <div className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {st.blockPublicHolidaysHint}
+              </div>
+            </div>
+            <Switch checked={blockPublicHolidays} onChange={setBlockPublicHolidays} />
+          </div>
         </div>
       ),
     },
@@ -1425,17 +1477,35 @@ function StoreDetailPanel({
       label: st.tabHoliday,
       children: (
         <div className="flex flex-col gap-4 py-2">
+          {store.blockPublicHolidays ? (
+            <div
+              className="rounded-md px-3 py-2 text-xs"
+              style={{
+                background: "var(--muted)",
+                border: "1px solid var(--border)",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              {st.blockPublicHolidaysHint}
+            </div>
+          ) : null}
           <StoreInfoRow
             icon={<CalendarDays size={13} />}
             label={st.holidayPayMultiplier}
-            value={getHolidayPayRate(store) ? `${getHolidayPayRate(store)}×` : "-"}
+            value={
+              store.blockPublicHolidays
+                ? "-"
+                : getHolidayPayRate(store)
+                  ? `${getHolidayPayRate(store)}×`
+                  : "-"
+            }
           />
           <div>
             <div className="flex items-center gap-1.5 mb-2">
               <CalendarDays size={13} style={{ color: "var(--primary)" }} />
               <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
                 {st.holidaySelectedDates}
-                {sortedHolidays.length > 0 ? (
+                {!store.blockPublicHolidays && sortedHolidays.length > 0 ? (
                   <span
                     className="ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[11px]"
                     style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
@@ -1445,8 +1515,32 @@ function StoreDetailPanel({
                 ) : null}
               </span>
             </div>
-            <HolidayCalendarReadonly selectedDates={sortedHolidays} locale={locale} />
+            {store.blockPublicHolidays ? (
+              <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+                {st.holidayNoDates}
+              </div>
+            ) : (
+              <HolidayCalendarReadonly selectedDates={sortedHolidays} locale={locale} />
+            )}
           </div>
+        </div>
+      ),
+    },
+    {
+      key: "attendance",
+      label: st.tabAttendance,
+      children: (
+        <div className="flex flex-col gap-3 py-2">
+          <StoreInfoRow
+            icon={<Clock size={13} />}
+            label={st.clockPunchEnabled}
+            value={store.clockPunchEnabled === false ? t.disabled : t.enabled}
+          />
+          <StoreInfoRow
+            icon={<CalendarDays size={13} />}
+            label={st.blockPublicHolidays}
+            value={store.blockPublicHolidays ? t.enabled : t.disabled}
+          />
         </div>
       ),
     },

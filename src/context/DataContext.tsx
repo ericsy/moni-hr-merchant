@@ -137,6 +137,10 @@ export interface Store {
   syncPublicHolidaysFromSameCountry?: boolean;
   syncToSameCountryStores?: boolean;
   holidayPayMultiplier?: number;
+  /** true=要求打卡；false=本店免打卡（店班+外勤） */
+  clockPunchEnabled?: boolean;
+  /** true=屏蔽公共假期：排班/工时不再显示已配置假期（数据保留） */
+  blockPublicHolidays?: boolean;
 }
 
 export interface PublicHoliday {
@@ -465,7 +469,7 @@ const buildEmptyScheduleDraft = () => ({
   overlayDates: [] as string[],
   cells: [] as {
     areaId: number;
-    shiftId: number;
+    shiftId?: number;
     date_str: string;
     startTime: string;
     endTime: string;
@@ -754,6 +758,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         saved.holidayPayMultiplier ??
         store.publicHolidayPayRate ??
         store.holidayPayMultiplier,
+      clockPunchEnabled: saved.clockPunchEnabled ?? store.clockPunchEnabled ?? true,
+      blockPublicHolidays: saved.blockPublicHolidays ?? store.blockPublicHolidays ?? false,
       syncPublicHolidaysFromSameCountry:
         saved.syncPublicHolidaysFromSameCountry ??
         store.syncPublicHolidaysFromSameCountry,
@@ -887,18 +893,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       // 否则每次保存草稿/发布都会把替班“复制”为一条正常排班。
       if (shift.isSubstitution || shift.originType === "substitution" || shift.substitutionId) continue;
 
-      const shiftId = requireNumericId(shift.shiftId || "", "班次");
-      payload.cells.push({
+      const shiftIdRaw = (shift.shiftId || "").trim();
+      const cell: (typeof payload.cells)[number] = {
         areaId: requireNumericId(shift.areaId, "区域"),
-        shiftId,
         date_str: shift.date,
         startTime: shift.startTime,
         endTime: shift.endTime,
         employeesIds: (shift.employeeIds || []).map((id) => requireNumericId(id, "员工")),
-        shiftsName: shift.shiftName,
         breakMinutes: shift.breakMinutes,
         color: shift.color,
-      });
+      };
+      if (shiftIdRaw) {
+        cell.shiftId = requireNumericId(shiftIdRaw, "班次");
+        cell.shiftsName = shift.shiftName;
+      }
+      payload.cells.push(cell);
     }
 
     return payload;
@@ -969,11 +978,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const cells = [];
     for (const cell of template.cells) {
       if (cell.dayIndex < 0 || cell.dayIndex >= template.totalDays) continue;
-      const shiftId = requireNumericId(cell.shiftId || "", "班次");
+      const shiftIdRaw = (cell.shiftId || "").trim();
       const cycleWeek = Math.floor(cell.dayIndex / 7) + 1;
-      cells.push({
+      const payloadCell: {
+        areaId: number;
+        shiftsId?: number;
+        dayIndex: number;
+        weekDay: number;
+        cycleWeek?: number;
+        startTime: string;
+        endTime: string;
+        employeeIds: number[];
+        color?: string;
+        shiftsName?: string;
+        breakMinutes?: number;
+      } = {
         areaId: requireNumericId(cell.areaId, "区域"),
-        shiftsId: shiftId,
         dayIndex: cell.dayIndex,
         weekDay: ((cell.dayIndex % 7) + 7) % 7 + 1,
         ...(template.totalDays > 7 ? { cycleWeek } : {}),
@@ -981,7 +1001,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         endTime: cell.endTime,
         employeeIds: (cell.employeeIds || []).map((id) => requireNumericId(id, "员工")),
         color: cell.color,
-      });
+      };
+      if (shiftIdRaw) {
+        payloadCell.shiftsId = requireNumericId(shiftIdRaw, "班次");
+        payloadCell.shiftsName = cell.label;
+      }
+      cells.push(payloadCell);
     }
 
     return {
