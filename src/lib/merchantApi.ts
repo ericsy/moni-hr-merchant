@@ -1542,6 +1542,10 @@ export function mapApiStore(input: unknown): Store {
       raw.clockPunchEnabled === undefined || raw.clockPunchEnabled === null
         ? true
         : asBoolean(raw.clockPunchEnabled),
+    clockPunchHoursBasis:
+      String(raw.clockPunchHoursBasis ?? raw.clock_punch_hours_basis ?? "punch").toLowerCase() === "schedule"
+        ? "schedule"
+        : "punch",
     blockPublicHolidays:
       raw.blockPublicHolidays === undefined || raw.blockPublicHolidays === null
         ? false
@@ -1570,6 +1574,7 @@ export function storeToApiPayload(store: Store) {
     publicHolidays: serializePublicHolidays(store.publicHolidays),
     publicHolidayPayRate: store.publicHolidayPayRate ?? store.holidayPayMultiplier,
     clockPunchEnabled: store.clockPunchEnabled ?? true,
+    clockPunchHoursBasis: store.clockPunchHoursBasis === "schedule" ? "schedule" : "punch",
     blockPublicHolidays: store.blockPublicHolidays ?? false,
     latitude: store.latitude,
     longitude: store.longitude,

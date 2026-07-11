@@ -766,6 +766,7 @@ function StoreModal({
   const [payMultiplier, setPayMultiplier] = useState(1.5);
   const [syncPublicHolidaysFromSameCountry, setSyncPublicHolidaysFromSameCountry] = useState(false);
   const [clockPunchEnabled, setClockPunchEnabled] = useState(true);
+  const [clockPunchHoursBasis, setClockPunchHoursBasis] = useState<"punch" | "schedule">("punch");
   const [blockPublicHolidays, setBlockPublicHolidays] = useState(false);
   const [storeEmployees, setStoreEmployees] = useState<Employee[]>([]);
   const [storeEmployeesLoading, setStoreEmployeesLoading] = useState(false);
@@ -820,6 +821,7 @@ function StoreModal({
       // 关闭时清掉门店相关本地状态，避免切换到另一家店时串状态
       setBlockPublicHolidays(false);
       setClockPunchEnabled(true);
+      setClockPunchHoursBasis("punch");
       setActiveTab("basic");
       return;
     }
@@ -831,6 +833,7 @@ function StoreModal({
       setPayMultiplier(initialHolidayPayRate);
       setSyncPublicHolidaysFromSameCountry(false);
       setClockPunchEnabled(store?.clockPunchEnabled !== false);
+      setClockPunchHoursBasis(store?.clockPunchHoursBasis === "schedule" ? "schedule" : "punch");
       setBlockPublicHolidays(store?.blockPublicHolidays === true);
       setActiveTab("basic");
       setStoreEmployees([]);
@@ -845,6 +848,7 @@ function StoreModal({
     store?.id,
     store?.blockPublicHolidays,
     store?.clockPunchEnabled,
+    store?.clockPunchHoursBasis,
   ]);
 
   useEffect(() => {
@@ -898,6 +902,7 @@ function StoreModal({
         syncPublicHolidaysFromSameCountry: !isEdit ? syncPublicHolidaysFromSameCountry : undefined,
         holidayPayMultiplier: payMultiplier,
         clockPunchEnabled,
+        clockPunchHoursBasis,
         blockPublicHolidays,
         storeOfficers: {
           storeManager: values.managerId
@@ -1122,8 +1127,50 @@ function StoreModal({
                 {st.clockPunchEnabledHint}
               </div>
             </div>
-            <Switch checked={clockPunchEnabled} onChange={setClockPunchEnabled} />
+            <Switch
+              checked={clockPunchEnabled}
+              onChange={setClockPunchEnabled}
+            />
           </div>
+          {clockPunchEnabled ? (
+            <div
+              className="rounded-md px-4 py-3"
+              style={{ border: "1px solid var(--border)" }}
+            >
+              <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                {st.clockPunchHoursBasis}
+              </div>
+              <div className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {st.clockPunchHoursBasisHint}
+              </div>
+              <Radio.Group
+                className="mt-3 flex flex-col gap-2"
+                value={clockPunchHoursBasis}
+                onChange={(e) => setClockPunchHoursBasis(e.target.value)}
+              >
+                <Radio value="punch">
+                  <div>
+                    <div className="text-sm" style={{ color: "var(--foreground)" }}>
+                      {st.clockPunchHoursBasisPunch}
+                    </div>
+                    <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      {st.clockPunchHoursBasisPunchHint}
+                    </div>
+                  </div>
+                </Radio>
+                <Radio value="schedule">
+                  <div>
+                    <div className="text-sm" style={{ color: "var(--foreground)" }}>
+                      {st.clockPunchHoursBasisSchedule}
+                    </div>
+                    <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      {st.clockPunchHoursBasisScheduleHint}
+                    </div>
+                  </div>
+                </Radio>
+              </Radio.Group>
+            </div>
+          ) : null}
           <div
             className="flex items-start justify-between gap-4 rounded-md px-4 py-3"
             style={{ border: "1px solid var(--border)" }}
@@ -1563,6 +1610,17 @@ function StoreDetailPanel({
             label={st.clockPunchEnabled}
             value={store.clockPunchEnabled === false ? t.disabled : t.enabled}
           />
+          {store.clockPunchEnabled !== false ? (
+            <StoreInfoRow
+              icon={<Clock size={13} />}
+              label={st.clockPunchHoursBasis}
+              value={
+                store.clockPunchHoursBasis === "schedule"
+                  ? st.clockPunchHoursBasisSchedule
+                  : st.clockPunchHoursBasisPunch
+              }
+            />
+          ) : null}
           <StoreInfoRow
             icon={<CalendarDays size={13} />}
             label={st.blockPublicHolidays}

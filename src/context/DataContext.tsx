@@ -139,6 +139,11 @@ export interface Store {
   holidayPayMultiplier?: number;
   /** true=要求打卡；false=本店免打卡（店班+外勤） */
   clockPunchEnabled?: boolean;
+  /**
+   * 强制打卡实际工时口径：punch=打卡时段；schedule=排班净时长。
+   * 仅 clockPunchEnabled=true 时生效。
+   */
+  clockPunchHoursBasis?: "punch" | "schedule";
   /** true=屏蔽公共假期：排班/工时不再显示已配置假期（数据保留） */
   blockPublicHolidays?: boolean;
 }
@@ -762,6 +767,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         store.holidayPayMultiplier,
       blockPublicHolidays: saved.blockPublicHolidays === true,
       clockPunchEnabled: saved.clockPunchEnabled !== false,
+      clockPunchHoursBasis: saved.clockPunchHoursBasis === "schedule" ? "schedule" : "punch",
       syncPublicHolidaysFromSameCountry:
         saved.syncPublicHolidaysFromSameCountry ??
         store.syncPublicHolidaysFromSameCountry,
