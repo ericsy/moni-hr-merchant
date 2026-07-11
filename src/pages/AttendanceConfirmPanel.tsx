@@ -229,63 +229,72 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
     return (
       <div
         key={itemKey(item)}
-        className="rounded-md p-2 flex flex-col gap-1.5"
+        className="rounded-md p-1 flex flex-col gap-1 min-w-0"
         style={{
           background: attended ? "var(--secondary)" : "var(--muted)",
           border: `1px solid ${attended ? "var(--border)" : "transparent"}`,
           opacity: attended ? 1 : 0.72,
         }}
       >
-        <div className="flex items-center justify-between gap-1">
-          <Checkbox
-            checked={attended}
-            onChange={(e) =>
-              updateItem(item.publishedCellId, item.merchantAdminId, {
-                attended: e.target.checked ? 1 : 0,
-              })
-            }
+        <div className="flex items-center justify-between gap-0.5 min-w-0">
+          <Tooltip title={isZh ? "出勤" : "Attended"}>
+            <Checkbox
+              checked={attended}
+              onChange={(e) =>
+                updateItem(item.publishedCellId, item.merchantAdminId, {
+                  attended: e.target.checked ? 1 : 0,
+                })
+              }
+            />
+          </Tooltip>
+          <span
+            className="text-[10px] font-medium truncate"
+            style={{ color: "var(--primary)" }}
           >
-            <span className="text-xs">{isZh ? "出勤" : "In"}</span>
-          </Checkbox>
-          <span className="text-[11px] font-medium" style={{ color: "var(--primary)" }}>
             {minutesToHoursLabel(item.confirmedNetMinutes || 0, isZh)}
           </span>
         </div>
-        <div className="text-[10px] truncate" style={{ color: "var(--muted-foreground)" }}>
+        <div
+          className="text-[9px] truncate leading-tight"
+          style={{ color: "var(--muted-foreground)" }}
+          title={
+            [item.areaName, item.shiftName].filter(Boolean).join(" · ") ||
+            `${item.plannedStartTime}-${item.plannedEndTime}`
+          }
+        >
           {[item.areaName, item.shiftName].filter(Boolean).join(" · ") ||
             `${item.plannedStartTime}-${item.plannedEndTime}`}
         </div>
-        <div className="flex items-center gap-1">
-          <TimePicker
-            size="small"
-            format="HH:mm"
-            allowClear={false}
-            disabled={!attended}
-            value={dayjs(item.confirmedStartTime, "HH:mm") as Dayjs}
-            onChange={(v) =>
-              updateItem(item.publishedCellId, item.merchantAdminId, {
-                confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
-              })
-            }
-            style={{ width: 78 }}
-          />
-          <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
-            –
-          </span>
-          <TimePicker
-            size="small"
-            format="HH:mm"
-            allowClear={false}
-            disabled={!attended}
-            value={dayjs(item.confirmedEndTime, "HH:mm") as Dayjs}
-            onChange={(v) =>
-              updateItem(item.publishedCellId, item.merchantAdminId, {
-                confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
-              })
-            }
-            style={{ width: 78 }}
-          />
-        </div>
+        <TimePicker
+          size="small"
+          format="HH:mm"
+          allowClear={false}
+          inputReadOnly
+          suffixIcon={null}
+          disabled={!attended}
+          value={dayjs(item.confirmedStartTime, "HH:mm") as Dayjs}
+          onChange={(v) =>
+            updateItem(item.publishedCellId, item.merchantAdminId, {
+              confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
+            })
+          }
+          style={{ width: "100%" }}
+        />
+        <TimePicker
+          size="small"
+          format="HH:mm"
+          allowClear={false}
+          inputReadOnly
+          suffixIcon={null}
+          disabled={!attended}
+          value={dayjs(item.confirmedEndTime, "HH:mm") as Dayjs}
+          onChange={(v) =>
+            updateItem(item.publishedCellId, item.merchantAdminId, {
+              confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
+            })
+          }
+          style={{ width: "100%" }}
+        />
         <InputNumber
           size="small"
           min={0}
@@ -296,7 +305,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
               confirmedBreakMinutes: typeof v === "number" ? v : 0,
             })
           }
-          addonAfter={isZh ? "休m" : "brk"}
+          placeholder={isZh ? "休m" : "brk"}
           style={{ width: "100%" }}
         />
         <Input
@@ -316,7 +325,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div
-        className="flex items-center justify-between px-5 py-2.5 flex-shrink-0 gap-3 flex-wrap"
+        className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 gap-3 flex-wrap"
         style={{
           background: "var(--card)",
           borderBottom: "1px solid var(--border)",
@@ -426,7 +435,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto px-5 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3">
         {loading ? (
           <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
             {isZh ? "加载中…" : "Loading…"}
@@ -448,7 +457,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
             {isZh ? "该周没有已发布排班。" : "No published shifts in this week."}
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 min-w-0">
             {dirty ? (
               <div
                 className="rounded-lg px-3 py-2 text-xs"
@@ -465,23 +474,32 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
             ) : null}
 
             <div
-              className="rounded-xl overflow-auto"
+              className="rounded-xl overflow-hidden min-w-0 w-full"
               style={{
                 border: "1px solid var(--border)",
                 background: "var(--card)",
               }}
             >
-              <table className="border-collapse" style={{ minWidth: "100%" }}>
+              <table
+                className="border-collapse w-full"
+                style={{ tableLayout: "fixed", width: "100%" }}
+              >
+                <colgroup>
+                  <col style={{ width: "11%" }} />
+                  {weekDates.map((date) => (
+                    <col key={date.format("YYYY-MM-DD")} style={{ width: "12%" }} />
+                  ))}
+                  <col style={{ width: "5%" }} />
+                </colgroup>
                 <thead>
                   <tr style={{ background: "var(--muted)" }}>
                     <th
-                      className="sticky left-0 z-20 px-3 py-2 text-left text-xs font-semibold"
+                      className="px-1.5 py-2 text-left text-xs font-semibold"
                       style={{
                         color: "var(--foreground)",
                         borderBottom: "1px solid var(--border)",
                         borderRight: "1px solid var(--border)",
                         background: "var(--muted)",
-                        minWidth: 120,
                       }}
                     >
                       {isZh ? "员工" : "Employee"}
@@ -489,26 +507,27 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                     {weekDates.map((date, index) => (
                       <th
                         key={date.format("YYYY-MM-DD")}
-                        className="px-2 py-2 text-center text-xs font-semibold"
+                        className="px-0.5 py-2 text-center text-[11px] font-semibold"
                         style={{
                           color: "var(--foreground)",
                           borderBottom: "1px solid var(--border)",
                           borderRight: "1px solid var(--border)",
-                          minWidth: 188,
                         }}
                       >
                         <div>{dayLabels[index]}</div>
-                        <div className="font-normal" style={{ color: "var(--muted-foreground)" }}>
+                        <div
+                          className="font-normal truncate"
+                          style={{ color: "var(--muted-foreground)" }}
+                        >
                           {formatCountryDate(date, dateFormatCountry)}
                         </div>
                       </th>
                     ))}
                     <th
-                      className="px-3 py-2 text-right text-xs font-semibold"
+                      className="px-1 py-2 text-right text-[11px] font-semibold"
                       style={{
                         color: "var(--foreground)",
                         borderBottom: "1px solid var(--border)",
-                        minWidth: 72,
                       }}
                     >
                       {isZh ? "合计" : "Total"}
@@ -519,12 +538,13 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                   {employeeRows.map((row) => (
                     <tr key={row.merchantAdminId}>
                       <td
-                        className="sticky left-0 z-10 px-3 py-2 align-top text-sm font-semibold"
+                        className="px-1.5 py-1.5 align-top text-xs font-semibold break-words"
                         style={{
                           color: "var(--foreground)",
                           borderBottom: "1px solid var(--border)",
                           borderRight: "1px solid var(--border)",
                           background: "var(--card)",
+                          wordBreak: "break-word",
                         }}
                       >
                         {row.employeeName}
@@ -535,7 +555,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                         return (
                           <td
                             key={dateKey}
-                            className="px-1.5 py-1.5 align-top"
+                            className="px-0.5 py-1 align-top min-w-0"
                             style={{
                               borderBottom: "1px solid var(--border)",
                               borderRight: "1px solid var(--border)",
@@ -550,7 +570,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                                 —
                               </div>
                             ) : (
-                              <div className="flex flex-col gap-1.5">
+                              <div className="flex flex-col gap-1 min-w-0">
                                 {cells.map((item) => renderShiftCard(item))}
                               </div>
                             )}
@@ -558,7 +578,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                         );
                       })}
                       <td
-                        className="px-3 py-2 align-top text-right text-xs font-medium"
+                        className="px-1 py-1.5 align-top text-right text-[11px] font-medium"
                         style={{
                           color: "var(--primary)",
                           borderBottom: "1px solid var(--border)",

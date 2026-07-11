@@ -3398,10 +3398,38 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       ) : null}
 
       {mainTab === "attendanceConfirm" && isPunchExemptStore ? (
-        <AttendanceConfirmPanel
-          storeId={String(selectedStoreId || selectedStore?.id || "")}
-          dateFormatCountry={dateFormatCountry}
-        />
+        <div className="flex flex-1 overflow-hidden min-w-0">
+          {/* 与排班页相同的左侧栏宽度，保证右侧列表可视宽度一致 */}
+          <div
+            className="flex flex-col flex-shrink-0 px-4 py-4 gap-2"
+            style={{
+              width: 256,
+              background: "var(--card)",
+              borderRight: "1px solid var(--border)",
+            }}
+          >
+            <div
+              className="text-sm font-semibold"
+              style={{ color: "var(--foreground)" }}
+            >
+              {isZh ? "确认出勤" : "Confirm attendance"}
+            </div>
+            <div
+              className="text-xs leading-relaxed"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {isZh
+                ? "按员工 × 日期调整实际出勤后确认；净工时计入员工统计。"
+                : "Adjust actual attendance by employee × date, then confirm. Net hours feed employee statistics."}
+            </div>
+          </div>
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <AttendanceConfirmPanel
+              storeId={String(selectedStoreId || selectedStore?.id || "")}
+              dateFormatCountry={dateFormatCountry}
+            />
+          </div>
+        </div>
       ) : (
       <>
       {/* ── Top toolbar ───────────────────────────────────────────────────── */}
