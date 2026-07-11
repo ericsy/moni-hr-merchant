@@ -1,5 +1,5 @@
-import { Button, Checkbox, Input, InputNumber, TimePicker, Tooltip } from "antd";
-import dayjs, { type Dayjs } from "dayjs";
+import { Button, Checkbox, Input, InputNumber, Tooltip } from "antd";
+import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import {
   CalendarDays,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import HourMinuteTimePicker from "../components/HourMinuteTimePicker";
 import { useLocale } from "../context/LocaleContext";
 import {
   merchantApi,
@@ -274,34 +275,32 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
 
         <div className="attendance-confirm-fields">
           <div className="attendance-confirm-time-row">
-            <TimePicker
-              size="small"
-              format="HH:mm"
-              allowClear={false}
-              inputReadOnly
-              suffixIcon={null}
+            <HourMinuteTimePicker
+              locale={isZh ? "zh" : "en"}
               disabled={!attended}
-              value={dayjs(item.confirmedStartTime, "HH:mm") as Dayjs}
+              value={dayjs(item.confirmedStartTime, "HH:mm")}
               onChange={(v) =>
                 updateItem(item.publishedCellId, item.merchantAdminId, {
-                  confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
+                  confirmedStartTime: v
+                    ? v.format("HH:mm")
+                    : item.confirmedStartTime,
                 })
               }
+              className="attendance-confirm-time"
             />
             <span className="attendance-confirm-sep">–</span>
-            <TimePicker
-              size="small"
-              format="HH:mm"
-              allowClear={false}
-              inputReadOnly
-              suffixIcon={null}
+            <HourMinuteTimePicker
+              locale={isZh ? "zh" : "en"}
               disabled={!attended}
-              value={dayjs(item.confirmedEndTime, "HH:mm") as Dayjs}
+              value={dayjs(item.confirmedEndTime, "HH:mm")}
               onChange={(v) =>
                 updateItem(item.publishedCellId, item.merchantAdminId, {
-                  confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
+                  confirmedEndTime: v
+                    ? v.format("HH:mm")
+                    : item.confirmedEndTime,
                 })
               }
+              className="attendance-confirm-time"
             />
           </div>
           <span className="attendance-confirm-label">{isZh ? "休" : "Br"}</span>
@@ -371,7 +370,24 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
         .attendance-confirm-cell .ant-checkbox {
           top: 0;
         }
-        .attendance-confirm-cell .ant-picker,
+        .attendance-confirm-cell .attendance-confirm-time {
+          height: 24px !important;
+          min-width: 0 !important;
+          padding: 0 4px !important;
+          font-size: 11px !important;
+          gap: 2px !important;
+        }
+        .attendance-confirm-cell .attendance-confirm-time svg {
+          width: 11px;
+          height: 11px;
+          flex-shrink: 0;
+        }
+        .attendance-confirm-cell .attendance-confirm-time > span {
+          text-align: center;
+          font-variant-numeric: tabular-nums;
+          overflow: hidden;
+          text-overflow: clip;
+        }
         .attendance-confirm-cell .ant-input-number,
         .attendance-confirm-cell .ant-input {
           width: 100% !important;
@@ -379,10 +395,6 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
           height: 24px !important;
           padding-inline: 0 !important;
         }
-        .attendance-confirm-cell .ant-picker-input {
-          width: 100%;
-        }
-        .attendance-confirm-cell .ant-picker-input > input,
         .attendance-confirm-cell .ant-input-number-input,
         .attendance-confirm-cell .ant-input {
           font-size: 11px !important;
@@ -390,11 +402,6 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
           text-align: center;
           padding: 0 1px !important;
           font-variant-numeric: tabular-nums;
-          letter-spacing: 0;
-        }
-        .attendance-confirm-cell .ant-picker-suffix,
-        .attendance-confirm-cell .ant-picker-clear {
-          display: none !important;
         }
         .attendance-confirm-cell .ant-input-number-handler-wrap {
           display: none !important;
@@ -570,7 +577,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                 <thead>
                   <tr style={{ background: "var(--muted)" }}>
                     <th
-                      className="px-1.5 py-2 text-left text-xs font-semibold"
+                      className="px-1.5 py-2 text-center text-xs font-semibold"
                       style={{
                         color: "var(--foreground)",
                         borderBottom: "1px solid var(--border)",
@@ -614,7 +621,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                   {employeeRows.map((row) => (
                     <tr key={row.merchantAdminId}>
                       <td
-                        className="px-1.5 py-1.5 align-top text-xs font-semibold break-words"
+                        className="px-1.5 py-1.5 align-middle text-center text-xs font-semibold break-words"
                         style={{
                           color: "var(--foreground)",
                           borderBottom: "1px solid var(--border)",
