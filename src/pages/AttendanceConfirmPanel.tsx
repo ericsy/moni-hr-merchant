@@ -226,22 +226,27 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
 
   const renderShiftCard = (item: AttendanceConfirmItem) => {
     const attended = item.attended === 1;
-    const labelStyle = {
-      color: "var(--muted-foreground)",
-      flexShrink: 0,
-      width: 22,
-    } as const;
+    const meta =
+      [item.areaName, item.shiftName].filter(Boolean).join(" · ") ||
+      `${item.plannedStartTime}-${item.plannedEndTime}`;
     return (
       <div
         key={itemKey(item)}
-        className="rounded-md p-1 flex flex-col gap-1 min-w-0"
+        className="attendance-confirm-cell rounded-md min-w-0"
         style={{
+          padding: 6,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
           background: attended ? "var(--secondary)" : "var(--muted)",
           border: `1px solid ${attended ? "var(--border)" : "transparent"}`,
-          opacity: attended ? 1 : 0.72,
+          opacity: attended ? 1 : 0.7,
         }}
       >
-        <div className="flex items-center justify-between gap-0.5 min-w-0">
+        <div
+          className="flex items-center gap-1 min-w-0"
+          style={{ height: 20 }}
+        >
           <Tooltip title={isZh ? "出勤" : "Attended"}>
             <Checkbox
               checked={attended}
@@ -253,27 +258,22 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
             />
           </Tooltip>
           <span
-            className="text-[10px] font-medium truncate"
+            className="truncate flex-1 text-[10px] leading-none"
+            style={{ color: "var(--muted-foreground)" }}
+            title={meta}
+          >
+            {meta}
+          </span>
+          <span
+            className="text-[10px] font-semibold tabular-nums flex-shrink-0"
             style={{ color: "var(--primary)" }}
           >
             {minutesToHoursLabel(item.confirmedNetMinutes || 0, isZh)}
           </span>
         </div>
-        <div
-          className="text-[9px] truncate leading-tight"
-          style={{ color: "var(--muted-foreground)" }}
-          title={
-            [item.areaName, item.shiftName].filter(Boolean).join(" · ") ||
-            `${item.plannedStartTime}-${item.plannedEndTime}`
-          }
-        >
-          {[item.areaName, item.shiftName].filter(Boolean).join(" · ") ||
-            `${item.plannedStartTime}-${item.plannedEndTime}`}
-        </div>
-        <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[10px]" style={labelStyle}>
-            {isZh ? "起" : "In"}
-          </span>
+
+        <div className="attendance-confirm-fields">
+          <span className="attendance-confirm-label">{isZh ? "起" : "In"}</span>
           <TimePicker
             size="small"
             format="HH:mm"
@@ -287,13 +287,8 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                 confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
               })
             }
-            style={{ width: 58, flex: "0 0 auto" }}
           />
-        </div>
-        <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[10px]" style={labelStyle}>
-            {isZh ? "止" : "Out"}
-          </span>
+          <span className="attendance-confirm-label">{isZh ? "止" : "Out"}</span>
           <TimePicker
             size="small"
             format="HH:mm"
@@ -307,41 +302,35 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                 confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
               })
             }
-            style={{ width: 58, flex: "0 0 auto" }}
           />
-        </div>
-        <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[10px]" style={labelStyle}>
-            {isZh ? "休" : "Brk"}
-          </span>
-          <InputNumber
-            size="small"
-            min={0}
-            disabled={!attended}
-            value={item.confirmedBreakMinutes}
-            onChange={(v) =>
-              updateItem(item.publishedCellId, item.merchantAdminId, {
-                confirmedBreakMinutes: typeof v === "number" ? v : 0,
-              })
-            }
-            style={{ width: 58 }}
-          />
-        </div>
-        <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[10px]" style={labelStyle}>
-            {isZh ? "注" : "Note"}
-          </span>
-          <Input
-            size="small"
-            placeholder={isZh ? "备注" : "Note"}
-            value={item.note || ""}
-            onChange={(e) =>
-              updateItem(item.publishedCellId, item.merchantAdminId, {
-                note: e.target.value,
-              })
-            }
-            style={{ flex: 1, minWidth: 0 }}
-          />
+          <span className="attendance-confirm-label">{isZh ? "休" : "Br"}</span>
+          <div className="attendance-confirm-span">
+            <InputNumber
+              size="small"
+              min={0}
+              controls={false}
+              disabled={!attended}
+              value={item.confirmedBreakMinutes}
+              onChange={(v) =>
+                updateItem(item.publishedCellId, item.merchantAdminId, {
+                  confirmedBreakMinutes: typeof v === "number" ? v : 0,
+                })
+              }
+            />
+          </div>
+          <span className="attendance-confirm-label">{isZh ? "注" : "Nt"}</span>
+          <div className="attendance-confirm-span">
+            <Input
+              size="small"
+              placeholder="—"
+              value={item.note || ""}
+              onChange={(e) =>
+                updateItem(item.publishedCellId, item.merchantAdminId, {
+                  note: e.target.value,
+                })
+              }
+            />
+          </div>
         </div>
       </div>
     );
@@ -349,6 +338,55 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      <style>{`
+        .attendance-confirm-fields {
+          display: grid;
+          grid-template-columns: 14px minmax(0, 1fr) 14px minmax(0, 1fr);
+          column-gap: 4px;
+          row-gap: 4px;
+          align-items: center;
+        }
+        .attendance-confirm-span {
+          grid-column: 2 / -1;
+          min-width: 0;
+        }
+        .attendance-confirm-label {
+          font-size: 10px;
+          line-height: 1;
+          color: var(--muted-foreground);
+          text-align: center;
+          user-select: none;
+        }
+        .attendance-confirm-cell .ant-checkbox-wrapper {
+          margin-inline-end: 0;
+          line-height: 1;
+        }
+        .attendance-confirm-cell .ant-checkbox {
+          top: 0;
+        }
+        .attendance-confirm-cell .ant-picker,
+        .attendance-confirm-cell .ant-input-number,
+        .attendance-confirm-cell .ant-input {
+          width: 100% !important;
+          min-width: 0 !important;
+          height: 24px !important;
+        }
+        .attendance-confirm-cell .ant-picker-input > input,
+        .attendance-confirm-cell .ant-input-number-input,
+        .attendance-confirm-cell .ant-input {
+          font-size: 11px !important;
+          line-height: 22px !important;
+          text-align: center;
+          padding: 0 4px !important;
+        }
+        .attendance-confirm-cell .ant-picker-suffix,
+        .attendance-confirm-cell .ant-picker-clear {
+          display: none !important;
+        }
+        .attendance-confirm-cell .ant-input-number-handler-wrap {
+          display: none !important;
+        }
+      `}</style>
       <div
         className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 gap-3 flex-wrap"
         style={{
