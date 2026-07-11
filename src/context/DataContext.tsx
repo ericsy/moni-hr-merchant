@@ -223,6 +223,8 @@ export interface RosterTemplateCell {
   cycleWeek?: number;
   startTime: string;
   endTime: string;
+  /** 休息分钟；有班次时通常来自班次预设，自由时段可手填 */
+  breakMinutes?: number;
   employeeIds: string[];
   color: string;
   label: string;
@@ -1003,6 +1005,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         endTime: cell.endTime,
         employeeIds: (cell.employeeIds || []).map((id) => requireNumericId(id, "员工")),
         color: cell.color,
+        breakMinutes: cell.breakMinutes ?? 0,
       };
       if (shiftIdRaw) {
         payloadCell.shiftsId = requireNumericId(shiftIdRaw, "班次");

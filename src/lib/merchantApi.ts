@@ -1987,6 +1987,10 @@ function mapTemplateCell(input: unknown): RosterTemplateCell {
     cycleWeek,
     startTime: asString(raw.startTime, "09:00"),
     endTime: asString(raw.endTime, "17:00"),
+    breakMinutes: asNumber(
+      raw.breakMinutes ?? raw.shiftBreakMinutes ?? raw.shift_break_minutes,
+      0,
+    ),
     employeeIds,
     color: asString(raw.color, "blue"),
     label: asString(raw.shiftsName || raw.shiftName),

@@ -7,7 +7,6 @@ import {
   Popconfirm,
   Select,
   Tag,
-  TimePicker,
   Tooltip,
 } from "antd";
 import dayjs from "dayjs";
@@ -45,6 +44,7 @@ import {
 } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
+import HourMinuteTimePicker from "../components/HourMinuteTimePicker";
 import { getTemplateShiftAvailabilityWarning } from "../lib/employeeAvailability";
 import {
   getEmployeeAvatarUrl,
@@ -81,8 +81,8 @@ type RosterShiftCell = RosterTemplateCell;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const calcHours = (start: string, end: string) =>
-  Number.parseFloat(calcShiftHours(start, end, 0));
+const calcHours = (start: string, end: string, brk = 0) =>
+  Number.parseFloat(calcShiftHours(start, end, brk));
 
 const WEEKDAY_LABELS_ZH = [
   "周一",
@@ -299,7 +299,7 @@ function ShiftCell({
 
   const isEmployeeView = viewMode === "employee";
   const sc = getShiftColor(cell.color);
-  const hrs = calcHours(cell.startTime, cell.endTime);
+  const hrs = calcHours(cell.startTime, cell.endTime, cell.breakMinutes || 0);
   const rowEmpWarning =
     isEmployeeView && rowEmployeeId
       ? employees.find((emp) => emp.id === rowEmployeeId)?.availabilityWarning
@@ -734,6 +734,7 @@ export default function RosterTemplatePage({
     shiftId: "",
     startTime: "09:00",
     endTime: "17:00",
+    breakMinutes: 0,
     label: "",
     color: DEFAULT_COLOR_KEY,
     employeeIds: [] as string[],
@@ -830,6 +831,7 @@ export default function RosterTemplatePage({
       shiftName: string;
       startTime: string;
       endTime: string;
+      breakMinutes: number;
       color: string;
       shiftType: "store" | "general";
     }
@@ -862,6 +864,7 @@ export default function RosterTemplatePage({
         shiftName,
         startTime: shift.startTime,
         endTime: shift.endTime,
+        breakMinutes: shift.breakMinutes ?? 0,
         color: shift.color,
         shiftType,
       };
@@ -896,6 +899,7 @@ export default function RosterTemplatePage({
         shiftName: currentShiftName,
         startTime: cellForm.startTime,
         endTime: cellForm.endTime,
+        breakMinutes: cellForm.breakMinutes,
         color: cellForm.color,
         shiftType: "store",
       });
@@ -944,7 +948,7 @@ export default function RosterTemplatePage({
     );
   });
   activeTemplateVisibleCells.forEach((cell) => {
-    const hrs = calcHours(cell.startTime, cell.endTime);
+    const hrs = calcHours(cell.startTime, cell.endTime, cell.breakMinutes || 0);
     cell.employeeIds.forEach((eid) => {
       if (empHoursMap[eid]) {
         empHoursMap[eid][cell.dayIndex] += hrs;
@@ -1364,6 +1368,7 @@ export default function RosterTemplatePage({
       shiftId: "",
       startTime: "09:00",
       endTime: "17:00",
+      breakMinutes: 0,
       label: "",
       color: DEFAULT_COLOR_KEY,
       employeeIds: [...presetEmployeeIds],
@@ -1401,6 +1406,7 @@ export default function RosterTemplatePage({
       shiftId: cell.shiftId || "",
       startTime: cell.startTime,
       endTime: cell.endTime,
+      breakMinutes: cell.breakMinutes ?? 0,
       label: cell.label,
       color: cell.color,
       employeeIds: [...cell.employeeIds],
@@ -1514,6 +1520,7 @@ export default function RosterTemplatePage({
           shiftId: hasShift ? cellForm.shiftId : undefined,
           startTime: cellForm.startTime,
           endTime: cellForm.endTime,
+          breakMinutes: cellForm.breakMinutes ?? 0,
           label: hasShift ? cellForm.label : "",
           color: cellForm.color,
         };
@@ -1524,6 +1531,7 @@ export default function RosterTemplatePage({
             cellForm.label === editingCell.label &&
             cellForm.startTime === editingCell.startTime &&
             cellForm.endTime === editingCell.endTime &&
+            (cellForm.breakMinutes ?? 0) === (editingCell.breakMinutes ?? 0) &&
             (cellForm.shiftId || "") === (editingCell.shiftId || "");
 
           if (unchanged) {
@@ -1630,6 +1638,7 @@ export default function RosterTemplatePage({
                     shiftId: (cellForm.shiftId || "").trim() || undefined,
                     startTime: cellForm.startTime,
                     endTime: cellForm.endTime,
+                    breakMinutes: cellForm.breakMinutes ?? 0,
                     label: (cellForm.shiftId || "").trim() ? cellForm.label : "",
                     color: cellForm.color,
                     employeeIds: employeeIdsToSave,
@@ -1670,6 +1679,7 @@ export default function RosterTemplatePage({
                       shiftId: (cellForm.shiftId || "").trim() || undefined,
                       startTime: cellForm.startTime,
                       endTime: cellForm.endTime,
+                      breakMinutes: cellForm.breakMinutes ?? 0,
                       label: (cellForm.shiftId || "").trim() ? cellForm.label : "",
                       color: cellForm.color,
                       employeeIds: mergedEmployeeIds,
@@ -1698,6 +1708,7 @@ export default function RosterTemplatePage({
         cycleWeek: getCycleWeek(editingDayIndex),
         startTime: cellForm.startTime,
         endTime: cellForm.endTime,
+        breakMinutes: cellForm.breakMinutes ?? 0,
         label: (cellForm.shiftId || "").trim() ? cellForm.label : "",
         color: cellForm.color,
         employeeIds,
@@ -3055,6 +3066,7 @@ export default function RosterTemplatePage({
                     presetKey: "",
                     shiftId: "",
                     label: "",
+                    breakMinutes: 0,
                   }));
                   return;
                 }
@@ -3073,6 +3085,7 @@ export default function RosterTemplatePage({
                   label: preset.shiftName,
                   startTime: preset.startTime,
                   endTime: preset.endTime,
+                  breakMinutes: preset.breakMinutes ?? 0,
                   color: preset.color,
                 }));
               }}
@@ -3169,9 +3182,10 @@ export default function RosterTemplatePage({
               >
                 {locale === "zh" ? "开始时间" : "Start Time"}
               </div>
-              <TimePicker
+              <HourMinuteTimePicker
+                className="w-full"
                 disabled={Boolean((cellForm.shiftId || "").trim())}
-                format="HH:mm"
+                locale={locale === "zh" ? "zh" : "en"}
                 value={dayjs(cellForm.startTime, "HH:mm")}
                 onChange={(v) =>
                   setCellForm((f) => ({
@@ -3179,7 +3193,6 @@ export default function RosterTemplatePage({
                     startTime: v ? v.format("HH:mm") : "09:00",
                   }))
                 }
-                style={{ width: "100%" }}
               />
             </div>
             <div className="flex-1">
@@ -3189,9 +3202,10 @@ export default function RosterTemplatePage({
               >
                 {locale === "zh" ? "结束时间" : "End Time"}
               </div>
-              <TimePicker
+              <HourMinuteTimePicker
+                className="w-full"
                 disabled={Boolean((cellForm.shiftId || "").trim())}
-                format="HH:mm"
+                locale={locale === "zh" ? "zh" : "en"}
                 value={dayjs(cellForm.endTime, "HH:mm")}
                 onChange={(v) =>
                   setCellForm((f) => ({
@@ -3199,9 +3213,40 @@ export default function RosterTemplatePage({
                     endTime: v ? v.format("HH:mm") : "17:00",
                   }))
                 }
-                style={{ width: "100%" }}
               />
             </div>
+          </div>
+
+          <div>
+            <div
+              className="text-sm mb-1.5"
+              style={{ color: "var(--foreground)" }}
+            >
+              {locale === "zh" ? "休息时长（分钟）" : "Break (minutes)"}
+            </div>
+            <InputNumber
+              min={0}
+              step={5}
+              disabled={Boolean((cellForm.shiftId || "").trim())}
+              value={cellForm.breakMinutes}
+              onChange={(value) =>
+                setCellForm((f) => ({
+                  ...f,
+                  breakMinutes: typeof value === "number" ? value : 0,
+                }))
+              }
+              style={{ width: "100%" }}
+            />
+            {Boolean((cellForm.shiftId || "").trim()) ? (
+              <div
+                className="text-xs mt-1"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {locale === "zh"
+                  ? "已选班次，休息时长来自班次预设"
+                  : "Break comes from the selected shift preset"}
+              </div>
+            ) : null}
           </div>
 
           {/* Duration preview */}
@@ -3211,7 +3256,11 @@ export default function RosterTemplatePage({
           >
             <Clock size={14} style={{ color: "var(--primary)" }} />
             <span className="text-sm" style={{ color: "var(--primary)" }}>
-              {calcHours(cellForm.startTime, cellForm.endTime)}
+              {calcHours(
+                cellForm.startTime,
+                cellForm.endTime,
+                cellForm.breakMinutes,
+              )}
               {locale === "zh" ? " 小时" : " hours"}
             </span>
           </div>

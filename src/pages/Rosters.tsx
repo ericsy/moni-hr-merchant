@@ -2,11 +2,11 @@ import {
   Avatar,
   Button,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Radio,
   Select,
-  TimePicker,
   Tooltip,
 } from "antd";
 import dayjs from "dayjs";
@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
+import HourMinuteTimePicker from "../components/HourMinuteTimePicker";
 import { AttendanceConfirmPanel } from "./AttendanceConfirmPanel";
 import {
   ColorSwatchPicker,
@@ -1548,7 +1549,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     shiftType: "store" as "store" | "general",
     startTime: "09:00",
     endTime: "17:00",
-    breakMinutes: 30,
+    breakMinutes: 0,
     shiftName: "",
     color: DEFAULT_COLOR_KEY,
     note: "",
@@ -2085,7 +2086,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       );
       return {
         shiftId: cell.shiftId,
-        breakMinutes: matchedById?.breakMinutes ?? 30,
+        breakMinutes:
+          matchedById?.breakMinutes ?? cell.breakMinutes ?? 0,
         shiftName: matchedById?.shiftName || cell.label || "",
         color: cell.color || matchedById?.color || DEFAULT_COLOR_KEY,
       };
@@ -2095,7 +2097,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
     if (!cellLabel) {
       return {
         shiftId: undefined,
-        breakMinutes: 0,
+        breakMinutes: cell.breakMinutes ?? 0,
         shiftName: "",
         color: cell.color || DEFAULT_COLOR_KEY,
       };
@@ -2115,7 +2117,8 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
 
     return {
       shiftId: matchedPreset?.shiftId,
-      breakMinutes: matchedPreset?.breakMinutes ?? 0,
+      breakMinutes:
+        matchedPreset?.breakMinutes ?? cell.breakMinutes ?? 0,
       shiftName: matchedPreset?.shiftName || cellLabel,
       color: cell.color || matchedPreset?.color || DEFAULT_COLOR_KEY,
     };
@@ -2558,7 +2561,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
       shiftType: "store",
       startTime: "09:00",
       endTime: "17:00",
-      breakMinutes: 30,
+      breakMinutes: 0,
       shiftName: "",
       color: DEFAULT_COLOR_KEY,
       note: "",
@@ -4418,6 +4421,7 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     presetKey: "",
                     shiftId: "",
                     shiftName: "",
+                    breakMinutes: 0,
                   }));
                   return;
                 }
@@ -4551,9 +4555,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               >
                 {isZh ? "开始时间" : "Start Time"}
               </div>
-              <TimePicker
+              <HourMinuteTimePicker
+                className="w-full"
                 disabled={Boolean((shiftForm.shiftId || "").trim())}
-                format="HH:mm"
+                locale={isZh ? "zh" : "en"}
                 value={dayjs(shiftForm.startTime, "HH:mm")}
                 onChange={(v) =>
                   setShiftForm((f) => ({
@@ -4561,7 +4566,6 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     startTime: v ? v.format("HH:mm") : "09:00",
                   }))
                 }
-                style={{ width: "100%" }}
               />
             </div>
             <div className="flex-1">
@@ -4571,9 +4575,10 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
               >
                 {isZh ? "结束时间" : "End Time"}
               </div>
-              <TimePicker
+              <HourMinuteTimePicker
+                className="w-full"
                 disabled={Boolean((shiftForm.shiftId || "").trim())}
-                format="HH:mm"
+                locale={isZh ? "zh" : "en"}
                 value={dayjs(shiftForm.endTime, "HH:mm")}
                 onChange={(v) =>
                   setShiftForm((f) => ({
@@ -4581,9 +4586,41 @@ export default function Rosters({ onSave = () => {} }: RostersProps) {
                     endTime: v ? v.format("HH:mm") : "17:00",
                   }))
                 }
-                style={{ width: "100%" }}
               />
             </div>
+          </div>
+
+          {/* Break：未选班次时可编辑；选中班次时沿用预设休息 */}
+          <div>
+            <div
+              className="text-sm mb-1.5"
+              style={{ color: "var(--foreground)" }}
+            >
+              {isZh ? "休息时长（分钟）" : "Break (minutes)"}
+            </div>
+            <InputNumber
+              min={0}
+              step={5}
+              disabled={Boolean((shiftForm.shiftId || "").trim())}
+              value={shiftForm.breakMinutes}
+              onChange={(value) =>
+                setShiftForm((f) => ({
+                  ...f,
+                  breakMinutes: typeof value === "number" ? value : 0,
+                }))
+              }
+              style={{ width: "100%" }}
+            />
+            {Boolean((shiftForm.shiftId || "").trim()) ? (
+              <div
+                className="text-xs mt-1"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {isZh
+                  ? "已选班次，休息时长来自班次预设"
+                  : "Break comes from the selected shift preset"}
+              </div>
+            ) : null}
           </div>
 
           {/* Duration preview */}
