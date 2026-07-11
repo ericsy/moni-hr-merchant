@@ -591,17 +591,15 @@ function ShiftEntry({
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
         <div className="min-w-0 w-full overflow-hidden">
           <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
-            <span
-              className="text-xs font-semibold truncate"
-              style={{ color: "var(--foreground)", fontSize: 14 }}
-              title={
-                displayShiftName
-                  ? `${displayShiftName} (${timeRangeLabel})`
-                  : timeRangeLabel
-              }
-            >
-              {displayShiftName || timeRangeLabel}
-            </span>
+            {displayShiftName ? (
+              <span
+                className="text-xs font-semibold truncate"
+                style={{ color: "var(--foreground)", fontSize: 14 }}
+                title={`${displayShiftName} (${timeRangeLabel})`}
+              >
+                {displayShiftName}
+              </span>
+            ) : null}
             {shift.isSubstitution && !isEmployeeView ? (
               <span
                 className="rounded px-1 font-bold flex-shrink-0"

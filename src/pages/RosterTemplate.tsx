@@ -361,17 +361,15 @@ function ShiftCell({
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
         <div className="min-w-0 w-full overflow-hidden">
           <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
-            <span
-              className="text-xs font-semibold truncate"
-              style={{ color: "var(--foreground)", fontSize: 14 }}
-              title={
-                displayLabel
-                  ? `${displayLabel} (${timeRangeLabel})`
-                  : timeRangeLabel
-              }
-            >
-              {displayLabel || timeRangeLabel}
-            </span>
+            {displayLabel ? (
+              <span
+                className="text-xs font-semibold truncate"
+                style={{ color: "var(--foreground)", fontSize: 14 }}
+                title={`${displayLabel} (${timeRangeLabel})`}
+              >
+                {displayLabel}
+              </span>
+            ) : null}
             {rowEmpWarning ? (
               <Tooltip title={rowEmpWarning}>
                 <AlertTriangle
