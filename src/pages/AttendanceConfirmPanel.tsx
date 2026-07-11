@@ -273,64 +273,61 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
         </div>
 
         <div className="attendance-confirm-fields">
-          <span className="attendance-confirm-label">{isZh ? "起" : "In"}</span>
-          <TimePicker
-            size="small"
-            format="HH:mm"
-            allowClear={false}
-            inputReadOnly
-            suffixIcon={null}
-            disabled={!attended}
-            value={dayjs(item.confirmedStartTime, "HH:mm") as Dayjs}
-            onChange={(v) =>
-              updateItem(item.publishedCellId, item.merchantAdminId, {
-                confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
-              })
-            }
-          />
-          <span className="attendance-confirm-label">{isZh ? "止" : "Out"}</span>
-          <TimePicker
-            size="small"
-            format="HH:mm"
-            allowClear={false}
-            inputReadOnly
-            suffixIcon={null}
-            disabled={!attended}
-            value={dayjs(item.confirmedEndTime, "HH:mm") as Dayjs}
-            onChange={(v) =>
-              updateItem(item.publishedCellId, item.merchantAdminId, {
-                confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
-              })
-            }
-          />
-          <span className="attendance-confirm-label">{isZh ? "休" : "Br"}</span>
-          <div className="attendance-confirm-span">
-            <InputNumber
+          <div className="attendance-confirm-time-row">
+            <TimePicker
               size="small"
-              min={0}
-              controls={false}
+              format="HH:mm"
+              allowClear={false}
+              inputReadOnly
+              suffixIcon={null}
               disabled={!attended}
-              value={item.confirmedBreakMinutes}
+              value={dayjs(item.confirmedStartTime, "HH:mm") as Dayjs}
               onChange={(v) =>
                 updateItem(item.publishedCellId, item.merchantAdminId, {
-                  confirmedBreakMinutes: typeof v === "number" ? v : 0,
+                  confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
                 })
               }
             />
-          </div>
-          <span className="attendance-confirm-label">{isZh ? "注" : "Nt"}</span>
-          <div className="attendance-confirm-span">
-            <Input
+            <span className="attendance-confirm-sep">–</span>
+            <TimePicker
               size="small"
-              placeholder="—"
-              value={item.note || ""}
-              onChange={(e) =>
+              format="HH:mm"
+              allowClear={false}
+              inputReadOnly
+              suffixIcon={null}
+              disabled={!attended}
+              value={dayjs(item.confirmedEndTime, "HH:mm") as Dayjs}
+              onChange={(v) =>
                 updateItem(item.publishedCellId, item.merchantAdminId, {
-                  note: e.target.value,
+                  confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
                 })
               }
             />
           </div>
+          <span className="attendance-confirm-label">{isZh ? "休" : "Br"}</span>
+          <InputNumber
+            size="small"
+            min={0}
+            controls={false}
+            disabled={!attended}
+            value={item.confirmedBreakMinutes}
+            onChange={(v) =>
+              updateItem(item.publishedCellId, item.merchantAdminId, {
+                confirmedBreakMinutes: typeof v === "number" ? v : 0,
+              })
+            }
+          />
+          <span className="attendance-confirm-label">{isZh ? "注" : "Nt"}</span>
+          <Input
+            size="small"
+            placeholder="—"
+            value={item.note || ""}
+            onChange={(e) =>
+              updateItem(item.publishedCellId, item.merchantAdminId, {
+                note: e.target.value,
+              })
+            }
+          />
         </div>
       </div>
     );
@@ -341,14 +338,24 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
       <style>{`
         .attendance-confirm-fields {
           display: grid;
-          grid-template-columns: 14px minmax(0, 1fr) 14px minmax(0, 1fr);
+          grid-template-columns: 14px minmax(0, 1fr);
           column-gap: 4px;
           row-gap: 4px;
           align-items: center;
         }
-        .attendance-confirm-span {
-          grid-column: 2 / -1;
-          min-width: 0;
+        .attendance-confirm-time-row {
+          grid-column: 1 / -1;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 10px minmax(0, 1fr);
+          column-gap: 2px;
+          align-items: center;
+        }
+        .attendance-confirm-sep {
+          font-size: 11px;
+          line-height: 1;
+          color: var(--muted-foreground);
+          text-align: center;
+          user-select: none;
         }
         .attendance-confirm-label {
           font-size: 10px;
@@ -370,6 +377,10 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
           width: 100% !important;
           min-width: 0 !important;
           height: 24px !important;
+          padding-inline: 0 !important;
+        }
+        .attendance-confirm-cell .ant-picker-input {
+          width: 100%;
         }
         .attendance-confirm-cell .ant-picker-input > input,
         .attendance-confirm-cell .ant-input-number-input,
@@ -377,7 +388,9 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
           font-size: 11px !important;
           line-height: 22px !important;
           text-align: center;
-          padding: 0 4px !important;
+          padding: 0 1px !important;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: 0;
         }
         .attendance-confirm-cell .ant-picker-suffix,
         .attendance-confirm-cell .ant-picker-clear {
