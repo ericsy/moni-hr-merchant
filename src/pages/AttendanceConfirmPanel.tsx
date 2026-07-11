@@ -26,14 +26,28 @@ type Props = {
   dateFormatCountry?: string;
 };
 
+type EmployeeRow = {
+  merchantAdminId: string;
+  employeeName: string;
+  byDate: Map<string, AttendanceConfirmItem[]>;
+  totalMinutes: number;
+};
+
 function minutesToHoursLabel(minutes: number, isZh: boolean) {
   const h = Math.round((Math.max(0, minutes) / 60) * 10) / 10;
   return isZh ? `${h} 小时` : `${h} h`;
 }
 
+function itemKey(item: Pick<AttendanceConfirmItem, "publishedCellId" | "merchantAdminId">) {
+  return `${item.publishedCellId}|${item.merchantAdminId}`;
+}
+
 export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
   const { locale } = useLocale();
   const isZh = locale === "zh";
+  const dayLabels = isZh
+    ? ["一", "二", "三", "四", "五", "六", "日"]
+    : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   /** 默认展示上一周（当周之前） */
   const [weekStart, setWeekStart] = useState(() =>
@@ -46,6 +60,11 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
 
   const currentWeekMonday = dayjs().startOf("isoWeek");
   const isPastWeek = weekStart.isBefore(currentWeekMonday, "day");
+
+  const weekDates = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => weekStart.add(i, "day")),
+    [weekStart],
+  );
 
   const loadWeek = useCallback(async () => {
     if (!storeId) return;
@@ -77,8 +96,9 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
   const dirty = useMemo(() => {
     if (!weekData) return false;
     if (weekData.items.length !== draftItems.length) return true;
-    return draftItems.some((item, index) => {
-      const origin = weekData.items[index];
+    const originByKey = new Map(weekData.items.map((item) => [itemKey(item), item]));
+    return draftItems.some((item) => {
+      const origin = originByKey.get(itemKey(item));
       if (!origin) return true;
       return (
         item.attended !== origin.attended ||
@@ -167,20 +187,131 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
     }
   };
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, AttendanceConfirmItem[]>();
+  /** 员工行 × 日期列 */
+  const employeeRows = useMemo(() => {
+    const byEmp = new Map<string, EmployeeRow>();
     for (const item of draftItems) {
-      const key = item.scheduleDate;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
+      const empId = String(item.merchantAdminId);
+      let row = byEmp.get(empId);
+      if (!row) {
+        row = {
+          merchantAdminId: empId,
+          employeeName: item.employeeName || "—",
+          byDate: new Map(),
+          totalMinutes: 0,
+        };
+        byEmp.set(empId, row);
+      }
+      const dateKey = item.scheduleDate;
+      const list = row.byDate.get(dateKey) || [];
+      list.push(item);
+      row.byDate.set(dateKey, list);
+      if (item.attended === 1) {
+        row.totalMinutes += item.confirmedNetMinutes || 0;
+      }
     }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [draftItems]);
+    for (const row of byEmp.values()) {
+      for (const list of row.byDate.values()) {
+        list.sort((a, b) =>
+          (a.confirmedStartTime || "").localeCompare(b.confirmedStartTime || ""),
+        );
+      }
+    }
+    return Array.from(byEmp.values()).sort((a, b) =>
+      a.employeeName.localeCompare(b.employeeName, locale === "zh" ? "zh" : "en"),
+    );
+  }, [draftItems, locale]);
 
-  const totalConfirmedMinutes = draftItems.reduce(
-    (sum, item) => sum + (item.attended === 1 ? item.confirmedNetMinutes || 0 : 0),
-    0,
-  );
+  const totalConfirmedMinutes = employeeRows.reduce((sum, row) => sum + row.totalMinutes, 0);
+
+  const renderShiftCard = (item: AttendanceConfirmItem) => {
+    const attended = item.attended === 1;
+    return (
+      <div
+        key={itemKey(item)}
+        className="rounded-md p-2 flex flex-col gap-1.5"
+        style={{
+          background: attended ? "var(--secondary)" : "var(--muted)",
+          border: `1px solid ${attended ? "var(--border)" : "transparent"}`,
+          opacity: attended ? 1 : 0.72,
+        }}
+      >
+        <div className="flex items-center justify-between gap-1">
+          <Checkbox
+            checked={attended}
+            onChange={(e) =>
+              updateItem(item.publishedCellId, item.merchantAdminId, {
+                attended: e.target.checked ? 1 : 0,
+              })
+            }
+          >
+            <span className="text-xs">{isZh ? "出勤" : "In"}</span>
+          </Checkbox>
+          <span className="text-[11px] font-medium" style={{ color: "var(--primary)" }}>
+            {minutesToHoursLabel(item.confirmedNetMinutes || 0, isZh)}
+          </span>
+        </div>
+        <div className="text-[10px] truncate" style={{ color: "var(--muted-foreground)" }}>
+          {[item.areaName, item.shiftName].filter(Boolean).join(" · ") ||
+            `${item.plannedStartTime}-${item.plannedEndTime}`}
+        </div>
+        <div className="flex items-center gap-1">
+          <TimePicker
+            size="small"
+            format="HH:mm"
+            allowClear={false}
+            disabled={!attended}
+            value={dayjs(item.confirmedStartTime, "HH:mm") as Dayjs}
+            onChange={(v) =>
+              updateItem(item.publishedCellId, item.merchantAdminId, {
+                confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
+              })
+            }
+            style={{ width: 78 }}
+          />
+          <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
+            –
+          </span>
+          <TimePicker
+            size="small"
+            format="HH:mm"
+            allowClear={false}
+            disabled={!attended}
+            value={dayjs(item.confirmedEndTime, "HH:mm") as Dayjs}
+            onChange={(v) =>
+              updateItem(item.publishedCellId, item.merchantAdminId, {
+                confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
+              })
+            }
+            style={{ width: 78 }}
+          />
+        </div>
+        <InputNumber
+          size="small"
+          min={0}
+          disabled={!attended}
+          value={item.confirmedBreakMinutes}
+          onChange={(v) =>
+            updateItem(item.publishedCellId, item.merchantAdminId, {
+              confirmedBreakMinutes: typeof v === "number" ? v : 0,
+            })
+          }
+          addonAfter={isZh ? "休m" : "brk"}
+          style={{ width: "100%" }}
+        />
+        <Input
+          size="small"
+          placeholder={isZh ? "备注" : "Note"}
+          value={item.note || ""}
+          onChange={(e) =>
+            updateItem(item.publishedCellId, item.merchantAdminId, {
+              note: e.target.value,
+            })
+          }
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -210,11 +341,8 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
               type="button"
               onClick={() => {
                 const next = weekStart.add(1, "week");
-                if (next.isBefore(currentWeekMonday, "day") || next.isSame(currentWeekMonday, "day")) {
-                  // 不允许进入当周及以后：最多到上周
-                  if (next.isBefore(currentWeekMonday, "day")) {
-                    setWeekStart(next);
-                  }
+                if (next.isBefore(currentWeekMonday, "day")) {
+                  setWeekStart(next);
                 }
               }}
               className="flex items-center justify-center rounded-lg transition-all hover:opacity-80"
@@ -320,7 +448,7 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
             {isZh ? "该周没有已发布排班。" : "No published shifts in this week."}
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             {dirty ? (
               <div
                 className="rounded-lg px-3 py-2 text-xs"
@@ -335,117 +463,114 @@ export function AttendanceConfirmPanel({ storeId, dateFormatCountry }: Props) {
                   : "You have unsaved changes. Save draft or confirm the week."}
               </div>
             ) : null}
-            {grouped.map(([date, items]) => (
-              <div
-                key={date}
-                className="rounded-xl overflow-hidden"
-                style={{
-                  border: "1px solid var(--border)",
-                  background: "var(--card)",
-                }}
-              >
-                <div
-                  className="px-4 py-2 text-sm font-semibold"
-                  style={{
-                    background: "var(--muted)",
-                    color: "var(--foreground)",
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  {formatCountryDate(dayjs(date), dateFormatCountry)}
-                </div>
-                <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-                  {items.map((item) => (
-                    <div
-                      key={`${item.publishedCellId}-${item.merchantAdminId}`}
-                      className="px-4 py-3 grid gap-3"
+
+            <div
+              className="rounded-xl overflow-auto"
+              style={{
+                border: "1px solid var(--border)",
+                background: "var(--card)",
+              }}
+            >
+              <table className="border-collapse" style={{ minWidth: "100%" }}>
+                <thead>
+                  <tr style={{ background: "var(--muted)" }}>
+                    <th
+                      className="sticky left-0 z-20 px-3 py-2 text-left text-xs font-semibold"
                       style={{
-                        gridTemplateColumns: "minmax(120px,1.2fr) minmax(100px,1fr) auto auto auto auto minmax(100px,1fr)",
-                        alignItems: "center",
+                        color: "var(--foreground)",
+                        borderBottom: "1px solid var(--border)",
+                        borderRight: "1px solid var(--border)",
+                        background: "var(--muted)",
+                        minWidth: 120,
                       }}
                     >
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
-                          {item.employeeName || "—"}
-                        </div>
-                        <div className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-                          {[item.areaName, item.shiftName].filter(Boolean).join(" · ") ||
-                            `${item.plannedStartTime}-${item.plannedEndTime}`}
-                        </div>
-                      </div>
-                      <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                        {isZh ? "计划" : "Planned"}{" "}
-                        {item.plannedStartTime}-{item.plannedEndTime}
-                        {item.plannedBreakMinutes
-                          ? ` (−${item.plannedBreakMinutes}m)`
-                          : ""}
-                      </div>
-                      <Checkbox
-                        checked={item.attended === 1}
-                        onChange={(e) =>
-                          updateItem(item.publishedCellId, item.merchantAdminId, {
-                            attended: e.target.checked ? 1 : 0,
-                          })
-                        }
+                      {isZh ? "员工" : "Employee"}
+                    </th>
+                    {weekDates.map((date, index) => (
+                      <th
+                        key={date.format("YYYY-MM-DD")}
+                        className="px-2 py-2 text-center text-xs font-semibold"
+                        style={{
+                          color: "var(--foreground)",
+                          borderBottom: "1px solid var(--border)",
+                          borderRight: "1px solid var(--border)",
+                          minWidth: 188,
+                        }}
                       >
-                        {isZh ? "出勤" : "Attended"}
-                      </Checkbox>
-                      <TimePicker
-                        format="HH:mm"
-                        allowClear={false}
-                        disabled={item.attended !== 1}
-                        value={dayjs(item.confirmedStartTime, "HH:mm") as Dayjs}
-                        onChange={(v) =>
-                          updateItem(item.publishedCellId, item.merchantAdminId, {
-                            confirmedStartTime: v ? v.format("HH:mm") : item.confirmedStartTime,
-                          })
-                        }
-                        style={{ width: 96 }}
-                      />
-                      <TimePicker
-                        format="HH:mm"
-                        allowClear={false}
-                        disabled={item.attended !== 1}
-                        value={dayjs(item.confirmedEndTime, "HH:mm") as Dayjs}
-                        onChange={(v) =>
-                          updateItem(item.publishedCellId, item.merchantAdminId, {
-                            confirmedEndTime: v ? v.format("HH:mm") : item.confirmedEndTime,
-                          })
-                        }
-                        style={{ width: 96 }}
-                      />
-                      <InputNumber
-                        min={0}
-                        disabled={item.attended !== 1}
-                        value={item.confirmedBreakMinutes}
-                        onChange={(v) =>
-                          updateItem(item.publishedCellId, item.merchantAdminId, {
-                            confirmedBreakMinutes: typeof v === "number" ? v : 0,
-                          })
-                        }
-                        addonAfter="m"
-                        style={{ width: 100 }}
-                      />
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-medium" style={{ color: "var(--primary)" }}>
-                          {minutesToHoursLabel(item.confirmedNetMinutes || 0, isZh)}
-                        </span>
-                        <Input
-                          size="small"
-                          placeholder={isZh ? "备注" : "Note"}
-                          value={item.note || ""}
-                          onChange={(e) =>
-                            updateItem(item.publishedCellId, item.merchantAdminId, {
-                              note: e.target.value,
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
+                        <div>{dayLabels[index]}</div>
+                        <div className="font-normal" style={{ color: "var(--muted-foreground)" }}>
+                          {formatCountryDate(date, dateFormatCountry)}
+                        </div>
+                      </th>
+                    ))}
+                    <th
+                      className="px-3 py-2 text-right text-xs font-semibold"
+                      style={{
+                        color: "var(--foreground)",
+                        borderBottom: "1px solid var(--border)",
+                        minWidth: 72,
+                      }}
+                    >
+                      {isZh ? "合计" : "Total"}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employeeRows.map((row) => (
+                    <tr key={row.merchantAdminId}>
+                      <td
+                        className="sticky left-0 z-10 px-3 py-2 align-top text-sm font-semibold"
+                        style={{
+                          color: "var(--foreground)",
+                          borderBottom: "1px solid var(--border)",
+                          borderRight: "1px solid var(--border)",
+                          background: "var(--card)",
+                        }}
+                      >
+                        {row.employeeName}
+                      </td>
+                      {weekDates.map((date) => {
+                        const dateKey = date.format("YYYY-MM-DD");
+                        const cells = row.byDate.get(dateKey) || [];
+                        return (
+                          <td
+                            key={dateKey}
+                            className="px-1.5 py-1.5 align-top"
+                            style={{
+                              borderBottom: "1px solid var(--border)",
+                              borderRight: "1px solid var(--border)",
+                              verticalAlign: "top",
+                            }}
+                          >
+                            {cells.length === 0 ? (
+                              <div
+                                className="text-[11px] text-center py-3"
+                                style={{ color: "var(--muted-foreground)" }}
+                              >
+                                —
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-1.5">
+                                {cells.map((item) => renderShiftCard(item))}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td
+                        className="px-3 py-2 align-top text-right text-xs font-medium"
+                        style={{
+                          color: "var(--primary)",
+                          borderBottom: "1px solid var(--border)",
+                        }}
+                      >
+                        {minutesToHoursLabel(row.totalMinutes, isZh)}
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </div>
-            ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
