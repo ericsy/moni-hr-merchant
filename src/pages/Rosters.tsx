@@ -525,8 +525,11 @@ function ShiftEntry({
   const hrs = calcHours(shift.startTime, shift.endTime, shift.breakMinutes);
   const displayShiftName = (shift.shiftId || "").trim()
     ? (shift.shiftName || "").trim()
-    : "";
+    : locale === "zh"
+      ? "自定义"
+      : "Custom";
   const timeRangeLabel = `${formatTime12(shift.startTime)} - ${formatTime12(shift.endTime)}`;
+  const hasNamedShift = Boolean((shift.shiftId || "").trim());
   const areaAvailabilityWarnings = !isEmployeeView
     ? displayEmployees
         .filter((emp) => emp.availabilityWarning)
@@ -594,8 +597,18 @@ function ShiftEntry({
             {displayShiftName ? (
               <span
                 className="text-xs font-semibold truncate"
-                style={{ color: "var(--foreground)", fontSize: 14 }}
-                title={`${displayShiftName} (${timeRangeLabel})`}
+                style={{
+                  color: hasNamedShift
+                    ? "var(--foreground)"
+                    : "var(--muted-foreground)",
+                  fontSize: 14,
+                  fontWeight: hasNamedShift ? 600 : 500,
+                }}
+                title={
+                  hasNamedShift
+                    ? `${displayShiftName} (${timeRangeLabel})`
+                    : timeRangeLabel
+                }
               >
                 {displayShiftName}
               </span>

@@ -300,8 +300,13 @@ function ShiftCell({
   const isEmployeeView = viewMode === "employee";
   const sc = getShiftColor(cell.color);
   const hrs = calcHours(cell.startTime, cell.endTime, cell.breakMinutes || 0);
-  const displayLabel = (cell.shiftId || "").trim() ? (cell.label || "").trim() : "";
+  const displayLabel = (cell.shiftId || "").trim()
+    ? (cell.label || "").trim()
+    : locale === "zh"
+      ? "自定义"
+      : "Custom";
   const timeRangeLabel = `${formatTime12(cell.startTime)} - ${formatTime12(cell.endTime)}`;
+  const hasNamedShift = Boolean((cell.shiftId || "").trim());
   const rowEmpWarning =
     isEmployeeView && rowEmployeeId
       ? employees.find((emp) => emp.id === rowEmployeeId)?.availabilityWarning
@@ -364,8 +369,18 @@ function ShiftCell({
             {displayLabel ? (
               <span
                 className="text-xs font-semibold truncate"
-                style={{ color: "var(--foreground)", fontSize: 14 }}
-                title={`${displayLabel} (${timeRangeLabel})`}
+                style={{
+                  color: hasNamedShift
+                    ? "var(--foreground)"
+                    : "var(--muted-foreground)",
+                  fontSize: 14,
+                  fontWeight: hasNamedShift ? 600 : 500,
+                }}
+                title={
+                  hasNamedShift
+                    ? `${displayLabel} (${timeRangeLabel})`
+                    : timeRangeLabel
+                }
               >
                 {displayLabel}
               </span>
