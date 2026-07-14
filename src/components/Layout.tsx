@@ -7,6 +7,7 @@ import {
   Input,
   Menu,
   Modal,
+  Segmented,
   Select,
   Space,
   Tooltip,
@@ -50,6 +51,7 @@ import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { usePermissions } from "../context/PermissionsContext";
 import { useStore } from "../context/StoreContext";
+import { useUiMode, type UiMode } from "../context/UiModeContext";
 import { merchantApi, type MerchantFeatureTreeNode } from "../lib/merchantApi";
 
 const { Option } = Select;
@@ -91,6 +93,7 @@ export default function AppLayout({
   const { selectedStoreId, setSelectedStoreId } = useStore();
   const { logout, user } = useAuth();
   const { permissions } = usePermissions();
+  const { canUseSimpleUi, isSimpleUi, uiMode, setUiMode } = useUiMode();
   const [collapsed, setCollapsed] = useState(false);
   const [openMenuKeys, setOpenMenuKeys] = useState<string[]>([]);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
@@ -406,89 +409,92 @@ export default function AppLayout({
       style={{ width: "100%", minWidth: 0 }}
     >
       <AntLayout style={{ minHeight: "100vh", width: "100%" }}>
-        {/* Sidebar */}
-        <Sider
-          width={240}
-          collapsedWidth={72}
-          collapsed={collapsed}
-          style={{
-            background: "var(--sidebar)",
-            borderRight: "1px solid var(--sidebar-border)",
-            position: "fixed",
-            height: "100vh",
-            left: 0,
-            top: 0,
-            zIndex: 100,
-            overflow: "auto",
-          }}
-        >
-          {/* Logo */}
-          <div
-            className="flex items-center px-4 py-5"
+        {/* Sidebar — 简易版隐藏权限菜单 */}
+        {!isSimpleUi ? (
+          <Sider
+            width={240}
+            collapsedWidth={72}
+            collapsed={collapsed}
             style={{
-              borderBottom: "1px solid var(--sidebar-border)",
-              minHeight: 64,
-              overflow: "hidden",
+              background: "var(--sidebar)",
+              borderRight: "1px solid var(--sidebar-border)",
+              position: "fixed",
+              height: "100vh",
+              left: 0,
+              top: 0,
+              zIndex: 100,
+              overflow: "auto",
             }}
           >
-            <MoniHrLogo size={36} rounded="lg" />
-            {!collapsed && (
-              <div className="ml-3 overflow-hidden">
-                <div
-                  className="font-bold text-base leading-tight"
-                  style={{ color: "var(--foreground)" }}
-                >
-                  MONI-MERCHANT
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Menu */}
-          <Menu
-            mode="inline"
-            selectedKeys={[currentPage]}
-            openKeys={openMenuKeys}
-            onOpenChange={setOpenMenuKeys}
-            items={menuItems}
-            onClick={({ key }) => handlePageChange(key as PageKey)}
-            style={{
-              background: "transparent",
-              border: "none",
-              padding: "8px 0",
-            }}
-          />
-
-          {/* Collapse button */}
-          <div
-            className="absolute bottom-4 flex items-center justify-center cursor-pointer w-full"
-            onClick={() => setCollapsed(!collapsed)}
-          >
+            {/* Logo */}
             <div
-              className="flex items-center justify-center rounded-lg px-2 py-1"
+              className="flex items-center px-4 py-5 cursor-pointer"
               style={{
-                color: "var(--muted-foreground)",
-                background: "var(--muted)",
-                fontSize: 12,
-                gap: 4,
+                borderBottom: "1px solid var(--sidebar-border)",
+                minHeight: 64,
+                overflow: "hidden",
               }}
+              onClick={() => handlePageChange("home")}
             >
-              {collapsed ? (
-                <ChevronRight size={16} />
-              ) : (
-                <span className="flex items-center gap-1">
-                  <ChevronLeft size={16} />
-                  {locale === "zh" ? "收起" : "Collapse"}
-                </span>
+              <MoniHrLogo size={36} rounded="lg" />
+              {!collapsed && (
+                <div className="ml-3 overflow-hidden">
+                  <div
+                    className="font-bold text-base leading-tight"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    MONI-MERCHANT
+                  </div>
+                </div>
               )}
             </div>
-          </div>
-        </Sider>
+
+            {/* Menu */}
+            <Menu
+              mode="inline"
+              selectedKeys={[currentPage]}
+              openKeys={openMenuKeys}
+              onOpenChange={setOpenMenuKeys}
+              items={menuItems}
+              onClick={({ key }) => handlePageChange(key as PageKey)}
+              style={{
+                background: "transparent",
+                border: "none",
+                padding: "8px 0",
+              }}
+            />
+
+            {/* Collapse button */}
+            <div
+              className="absolute bottom-4 flex items-center justify-center cursor-pointer w-full"
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <div
+                className="flex items-center justify-center rounded-lg px-2 py-1"
+                style={{
+                  color: "var(--muted-foreground)",
+                  background: "var(--muted)",
+                  fontSize: 12,
+                  gap: 4,
+                }}
+              >
+                {collapsed ? (
+                  <ChevronRight size={16} />
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <ChevronLeft size={16} />
+                    {locale === "zh" ? "收起" : "Collapse"}
+                  </span>
+                )}
+              </div>
+            </div>
+          </Sider>
+        ) : null}
 
         {/* Main area */}
         <AntLayout
           style={{
-            marginLeft: collapsed ? 72 : 240,
+            marginLeft: isSimpleUi ? 0 : collapsed ? 72 : 240,
             transition: "margin 0.2s",
           }}
         >
@@ -511,15 +517,40 @@ export default function AppLayout({
             }}
           >
             <div
-              className="flex items-center gap-4"
+              className="flex items-center gap-3"
               style={{ minWidth: 0, flex: "1 1 auto" }}
             >
+              {isSimpleUi ? (
+                <button
+                  type="button"
+                  className="flex items-center gap-2 cursor-pointer border-0 bg-transparent p-0"
+                  onClick={() => handlePageChange("home")}
+                >
+                  <MoniHrLogo size={32} rounded="lg" />
+                  <span
+                    className="font-bold text-sm"
+                    style={{ color: "var(--foreground)", whiteSpace: "nowrap" }}
+                  >
+                    MONI-MERCHANT
+                  </span>
+                </button>
+              ) : null}
               <div
                 className="font-semibold text-lg"
                 style={{ color: "var(--foreground)", whiteSpace: "nowrap" }}
               >
                 {currentPageLabel}
               </div>
+              {isSimpleUi && currentPage !== "home" ? (
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => handlePageChange("home")}
+                  style={{ paddingInline: 0 }}
+                >
+                  {t.home.simple.backToHome}
+                </Button>
+              ) : null}
             </div>
             <div style={{ display: "flex", justifyContent: "center", flex: 1 }}>
               {storeSelector}
@@ -527,6 +558,18 @@ export default function AppLayout({
             <div style={{ flex: "1 1 auto" }} />
 
             <Space size={12}>
+              {canUseSimpleUi ? (
+                <Segmented
+                  size="small"
+                  value={uiMode}
+                  onChange={(value) => setUiMode(value as UiMode)}
+                  options={[
+                    { label: t.home.simple.modeSimple, value: "simple" },
+                    { label: t.home.simple.modeStandard, value: "standard" },
+                  ]}
+                />
+              ) : null}
+
               {/* Language switch */}
               <Button
                 type="default"
@@ -568,7 +611,7 @@ export default function AppLayout({
                   >
                     {user?.name?.[0]?.toUpperCase() ?? "A"}
                   </Avatar>
-                  {!collapsed && (
+                  {(isSimpleUi || !collapsed) && (
                     <span
                       className="text-sm font-medium"
                       style={{ color: "var(--foreground)" }}

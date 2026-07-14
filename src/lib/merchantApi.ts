@@ -168,6 +168,33 @@ export function isMerchantAdminPrincipal(principal?: MerchantPrincipal | null) {
   return ["1", "admin", "owner", "super_admin", "merchant_admin", "main_admin", "primary_admin"].includes(adminType);
 }
 
+/** 店长 / 副店长等非店主门店管理人员（用于默认简易版 UI） */
+export function isStoreManagerLikePrincipal(principal?: MerchantPrincipal | null) {
+  if (!principal || isMerchantAdminPrincipal(principal)) return false;
+
+  if ((principal.storeManagerStores?.length ?? 0) > 0) return true;
+  if ((principal.deputyManagerStores?.length ?? 0) > 0) return true;
+
+  const portalRole = normalizePrincipalType(principal.portalRole);
+  if (
+    [
+      "store_manager",
+      "storemanager",
+      "manager",
+      "deputy_manager",
+      "deputy",
+      "assistant_manager",
+      "assistantmanager",
+      "店长",
+      "副店长",
+    ].includes(portalRole)
+  ) {
+    return true;
+  }
+
+  return (principal.managedStores?.length ?? 0) > 0;
+}
+
 export interface MerchantFeatureTreeNode {
   id?: number | string | null;
   nameZh?: string | null;

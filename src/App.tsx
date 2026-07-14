@@ -24,6 +24,7 @@ import {
   usePermissions,
 } from "./context/PermissionsContext";
 import { StoreProvider } from "./context/StoreContext";
+import { UiModeProvider } from "./context/UiModeContext";
 import Activate from "./pages/Activate";
 import Home from "./pages/Home";
 import Landing from "./pages/Landing";
@@ -199,17 +200,19 @@ const App = () => (
         <PermissionsProvider>
           <DataProvider>
             <StoreProvider>
-              <BrowserRouter basename={APP_BASE_PATH}>
-                <ErrorBoundary>
-                  <AuthGate />
-                </ErrorBoundary>
-              </BrowserRouter>
-              <Toaster
-                position="top-center"
-                className="app-toast-center"
-                richColors
-                duration={2000}
-              />
+              <UiModeProvider>
+                <BrowserRouter basename={APP_BASE_PATH}>
+                  <ErrorBoundary>
+                    <AuthGate />
+                  </ErrorBoundary>
+                </BrowserRouter>
+                <Toaster
+                  position="top-center"
+                  className="app-toast-center"
+                  richColors
+                  duration={2000}
+                />
+              </UiModeProvider>
             </StoreProvider>
           </DataProvider>
         </PermissionsProvider>

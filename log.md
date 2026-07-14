@@ -12,6 +12,11 @@
 - **今日出勤**：支持后端 `punch_exempt`（免打卡）状态展示。
 
 
+## 2026-07-15
+
+- **店长/副店长默认简易版 UI**：非店主（店长/副店长）登录默认简易版——隐藏左侧权限菜单；控制台改为权限快捷按钮（排班管理 → 申请管理 → 打卡记录 → 排班模版 → 员工管理 → 店面管理 → 外勤工单）；顶栏可切换标准版恢复现有侧栏与看板。偏好存 `localStorage`（`moni_hr_ui_mode:{adminId}`）。
+  - **`merchantApi.ts`**：`isStoreManagerLikePrincipal`；**`UiModeContext.tsx`**；**`SimpleHomeLauncher.tsx`**；**`Layout.tsx`** / **`Home.tsx`** / **`App.tsx`** / **`locales.ts`**。
+
 ## 2026-07-08
 
 - **外勤工单 · 开始时间被重置**：创建/编辑时修改开始时间会跳回默认——弹层打开期间初始化 effect 重复执行会覆盖用户输入；时间选择器在父组件重渲染时因 dayjs 引用变化重置草稿。现仅在弹层首次打开（或切换不同工单）时初始化；时间选择器按 `HH:mm` 同步草稿。

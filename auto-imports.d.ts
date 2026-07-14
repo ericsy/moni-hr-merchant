@@ -118,6 +118,7 @@ declare global {
   const Plus: typeof import('lucide-react').Plus
   const PlusCircleIcon: typeof import('lucide-react').PlusCircleIcon
   const Radio: typeof import('lucide-react').Radio
+  const RadioIcon: typeof import('lucide-react').RadioIcon
   const Radius: typeof import('lucide-react').Radius
   const RefreshCw: typeof import('lucide-react').RefreshCw
   const RefreshCwIcon: typeof import('lucide-react').RefreshCwIcon
