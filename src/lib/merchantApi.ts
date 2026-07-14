@@ -239,6 +239,36 @@ export interface MerchantInvoiceList {
   nextStartingAfter?: string | null;
 }
 
+export interface DutyTemplateApi {
+  id?: number | string;
+  storeId?: number | string;
+  title?: string;
+  description?: string | null;
+  triggerType?: string;
+  intervalMinutes?: number | null;
+  required?: boolean;
+  assignmentMode?: string;
+  sortOrder?: number;
+  status?: number;
+  fixedAssigneeIds?: number[];
+}
+
+export interface DutyCompletionApi {
+  id?: number | string;
+  templateId?: number | string;
+  title?: string;
+  triggerType?: string;
+  merchantAdminId?: number | string;
+  publishedCellId?: number | string;
+  sequenceNo?: number;
+  status?: string;
+  required?: boolean;
+  windowStart?: string | null;
+  windowEnd?: string | null;
+  dueAt?: string | null;
+  completedAt?: string | null;
+}
+
 export interface MerchantUploadResult {
   key?: string;
   downloadUrl?: string;
@@ -2721,6 +2751,69 @@ export const merchantApi = {
     );
     return mapApiFieldJob(data);
   },
+
+  listDutyTemplates: async (storeId: string) => {
+    const data = await apiRequest<{ items?: DutyTemplateApi[] }>(
+      appendEndpointPath("/api/v1/merchant/stores", storeId, "duty-templates"),
+      { storeId },
+    );
+    return data?.items || [];
+  },
+  createDutyTemplate: async (
+    storeId: string,
+    payload: {
+      title: string;
+      description?: string;
+      triggerType: string;
+      intervalMinutes?: number;
+      required?: boolean;
+      assignmentMode?: string;
+      sortOrder?: number;
+    },
+  ) =>
+    apiRequest<DutyTemplateApi>(appendEndpointPath("/api/v1/merchant/stores", storeId, "duty-templates"), {
+      method: "POST",
+      storeId,
+      body: { storeId: Number(storeId), ...payload },
+    }),
+  patchDutyTemplate: async (id: string, payload: Record<string, unknown>) =>
+    apiRequest<DutyTemplateApi>(`/api/v1/merchant/duty-templates/${id}`, {
+      method: "PATCH",
+      body: payload,
+    }),
+  deleteDutyTemplate: (id: string) =>
+    apiRequest(`/api/v1/merchant/duty-templates/${id}`, { method: "DELETE" }),
+  replaceDutyFixedAssignees: async (id: string, merchantAdminIds: Array<number | string>) =>
+    apiRequest<DutyTemplateApi>(`/api/v1/merchant/duty-templates/${id}/fixed-assignees`, {
+      method: "PUT",
+      body: { merchantAdminIds: merchantAdminIds.map((x) => Number(x)).filter((n) => n > 0) },
+    }),
+  listDutyDailyAssignees: async (id: string, date: string) => {
+    const data = await apiRequest<{ merchantAdminIds?: number[] }>(
+      `/api/v1/merchant/duty-templates/${id}/daily-assignees`,
+      { query: { date } },
+    );
+    return data?.merchantAdminIds || [];
+  },
+  replaceDutyDailyAssignees: async (id: string, date: string, merchantAdminIds: Array<number | string>) => {
+    const data = await apiRequest<{ merchantAdminIds?: number[] }>(
+      `/api/v1/merchant/duty-templates/${id}/daily-assignees`,
+      {
+        method: "PUT",
+        query: { date },
+        body: { merchantAdminIds: merchantAdminIds.map((x) => Number(x)).filter((n) => n > 0) },
+      },
+    );
+    return data?.merchantAdminIds || [];
+  },
+  listDutyCompletions: async (storeId: string, date: string) => {
+    const data = await apiRequest<{ date?: string; items?: DutyCompletionApi[] }>(
+      appendEndpointPath("/api/v1/merchant/stores", storeId, "duties", "completions"),
+      { storeId, query: { date } },
+    );
+    return data?.items || [];
+  },
+
   uploadEmployeeContract: (file: File) =>
     uploadMerchantFile("/api/v1/merchant/uploads/employee-contract", file),
   uploadEmployeeAvatar: (file: File) =>

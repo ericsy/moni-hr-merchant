@@ -24,7 +24,8 @@ export type KnownPageKey =
   | "billing"
   | "attendanceRequests"
   | "clockPunches"
-  | "fieldJobs";
+  | "fieldJobs"
+  | "duties";
 
 export type PageKey = KnownPageKey | (string & {});
 
@@ -61,6 +62,7 @@ const pageModules = import.meta.glob<PageModule>([
   "../pages/AttendanceRequests.tsx",
   "../pages/ClockPunches.tsx",
   "../pages/FieldJobs.tsx",
+  "../pages/Duties.tsx",
 ]);
 const lazyPageComponents = new Map<string, React.LazyExoticComponent<React.ComponentType<Record<string, unknown>>>>();
 
@@ -223,6 +225,20 @@ const merchantRouteTemplates: MerchantRouteTemplate[] = [
       "/api/v1/merchant/field-jobs",
     ],
   },
+  {
+    pageKey: "duties",
+    path: "/duties",
+    componentPath: "../pages/Duties.tsx",
+    requestPath: "/api/v1/merchant/stores",
+    endpointKey: "duties",
+    aliases: [
+      "/duties",
+      "/duty",
+      "/duty-templates",
+      "/store-duties",
+      "/api/v1/merchant/duty-templates",
+    ],
+  },
 ];
 
 export const merchantRoutes = merchantRouteTemplates;
@@ -240,6 +256,7 @@ const routeTemplateByEndpointKey: Partial<Record<MerchantEndpointKey, MerchantRo
   attendance: routeTemplateByPageKey.get("attendanceRequests"),
   clock: routeTemplateByPageKey.get("clockPunches"),
   fieldJobs: routeTemplateByPageKey.get("fieldJobs"),
+  duties: routeTemplateByPageKey.get("duties"),
 };
 
 const pageKeyAliases: Record<string, KnownPageKey> = {
