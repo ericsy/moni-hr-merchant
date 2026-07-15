@@ -255,15 +255,28 @@ export default function SimpleHomeLauncher() {
             height: 44,
             display: "inline-flex",
             alignItems: "center",
-            justifyContent: "flex-start",
-            gap: 8,
-            paddingInline: 14,
-            textAlign: "left",
+            justifyContent: "center",
+            gap: 6,
+            paddingInline: 12,
+            textAlign: "center",
             background: "var(--primary)",
             borderColor: "var(--primary)",
             color: "var(--primary-foreground, #fff)",
             boxShadow: "0 1px 2px rgba(15, 23, 42, 0.12)",
           };
+
+          const labelContent = (
+            <span
+              className="inline-flex items-center justify-center gap-1.5 truncate"
+              style={{ maxWidth: "100%" }}
+            >
+              {item.icon}
+              <span className="truncate">{item.label}</span>
+              {item.children?.length ? (
+                <ChevronDown size={14} style={{ opacity: 0.9, flexShrink: 0 }} />
+              ) : null}
+            </span>
+          );
 
           if (item.children?.length) {
             const menuItems: MenuProps["items"] = item.children.map((child) => ({
@@ -280,9 +293,8 @@ export default function SimpleHomeLauncher() {
                   onClick: ({ key }) => goTo(String(key)),
                 }}
               >
-                <Button type="primary" icon={item.icon} style={buttonStyle}>
-                  <span className="flex-1 truncate">{item.label}</span>
-                  <ChevronDown size={14} style={{ color: "inherit", opacity: 0.9, flexShrink: 0 }} />
+                <Button type="primary" style={buttonStyle}>
+                  {labelContent}
                 </Button>
               </Dropdown>
             );
@@ -292,11 +304,10 @@ export default function SimpleHomeLauncher() {
             <Button
               key={item.key}
               type="primary"
-              icon={item.icon}
               onClick={() => item.path && goTo(item.path)}
               style={buttonStyle}
             >
-              <span className="flex-1 truncate text-left">{item.label}</span>
+              {labelContent}
             </Button>
           );
         })}
