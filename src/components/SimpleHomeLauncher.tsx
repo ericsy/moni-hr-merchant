@@ -259,6 +259,10 @@ export default function SimpleHomeLauncher() {
             gap: 8,
             paddingInline: 14,
             textAlign: "left",
+            background: "var(--primary)",
+            borderColor: "var(--primary)",
+            color: "var(--primary-foreground, #fff)",
+            boxShadow: "0 1px 2px rgba(15, 23, 42, 0.12)",
           };
 
           if (item.children?.length) {
@@ -276,9 +280,9 @@ export default function SimpleHomeLauncher() {
                   onClick: ({ key }) => goTo(String(key)),
                 }}
               >
-                <Button type="default" icon={item.icon} style={buttonStyle}>
+                <Button type="primary" icon={item.icon} style={buttonStyle}>
                   <span className="flex-1 truncate">{item.label}</span>
-                  <ChevronDown size={14} style={{ color: "var(--muted-foreground)", flexShrink: 0 }} />
+                  <ChevronDown size={14} style={{ color: "inherit", opacity: 0.9, flexShrink: 0 }} />
                 </Button>
               </Dropdown>
             );
@@ -287,7 +291,7 @@ export default function SimpleHomeLauncher() {
           return (
             <Button
               key={item.key}
-              type="default"
+              type="primary"
               icon={item.icon}
               onClick={() => item.path && goTo(item.path)}
               style={buttonStyle}
