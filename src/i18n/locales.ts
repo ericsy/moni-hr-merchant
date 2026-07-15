@@ -98,7 +98,7 @@ export const locales = {
       simple: {
         eyebrow: "简易版",
         title: "常用功能",
-        hint: "点击下方入口快速进入，也可在右上角切换到标准版",
+        hint: "点击入口进入；有二级菜单时先选择子权限。也可在右上角切换标准版",
         selectStoreFirst: "请先选择门店",
         backToHome: "返回控制台",
         modeSimple: "简易版",
@@ -782,7 +782,7 @@ export const locales = {
       simple: {
         eyebrow: "Simple",
         title: "Quick Access",
-        hint: "Tap an entry below, or switch to Standard in the top-right",
+        hint: "Tap to open. Entries with a submenu show permissions first. Switch to Standard in the top-right anytime.",
         selectStoreFirst: "Select a store first",
         backToHome: "Back to Home",
         modeSimple: "Simple",
