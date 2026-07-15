@@ -9,7 +9,7 @@ import {
   Store,
   Users,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getFeatureDisplayName,
@@ -247,8 +247,20 @@ export default function SimpleHomeLauncher() {
         </div>
       </div>
 
-      <div className="flex max-w-md flex-col gap-2">
+      <div className="flex flex-wrap items-stretch gap-2">
         {shortcuts.map((item) => {
+          const buttonStyle: CSSProperties = {
+            width: 168,
+            minWidth: 168,
+            height: 44,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "flex-start",
+            gap: 8,
+            paddingInline: 14,
+            textAlign: "left",
+          };
+
           if (item.children?.length) {
             const menuItems: MenuProps["items"] = item.children.map((child) => ({
               key: child.path,
@@ -264,21 +276,9 @@ export default function SimpleHomeLauncher() {
                   onClick: ({ key }) => goTo(String(key)),
                 }}
               >
-                <Button
-                  block
-                  type="default"
-                  icon={item.icon}
-                  style={{
-                    height: 40,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "flex-start",
-                    gap: 8,
-                    textAlign: "left",
-                  }}
-                >
+                <Button type="default" icon={item.icon} style={buttonStyle}>
                   <span className="flex-1 truncate">{item.label}</span>
-                  <ChevronDown size={14} style={{ color: "var(--muted-foreground)" }} />
+                  <ChevronDown size={14} style={{ color: "var(--muted-foreground)", flexShrink: 0 }} />
                 </Button>
               </Dropdown>
             );
@@ -287,18 +287,10 @@ export default function SimpleHomeLauncher() {
           return (
             <Button
               key={item.key}
-              block
               type="default"
               icon={item.icon}
               onClick={() => item.path && goTo(item.path)}
-              style={{
-                height: 40,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                gap: 8,
-                textAlign: "left",
-              }}
+              style={buttonStyle}
             >
               <span className="flex-1 truncate text-left">{item.label}</span>
             </Button>
