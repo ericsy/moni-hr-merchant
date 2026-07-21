@@ -9,10 +9,12 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import SimpleHomeLauncher from "../components/SimpleHomeLauncher";
+import TodayAttendancePanel from "../components/TodayAttendancePanel";
 import { useData } from "../context/DataContext";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
-import TodayAttendancePanel from "../components/TodayAttendancePanel";
+import { useUiMode } from "../context/UiModeContext";
 import {
   merchantApi,
   type MerchantDashboardStatistics,
@@ -100,6 +102,7 @@ export default function Home() {
   const { locale, t } = useLocale();
   const { stores, storesLoaded } = useData();
   const { selectedStoreId } = useStore();
+  const { isSimpleUi } = useUiMode();
   const [statistics, setStatistics] =
     useState<MerchantDashboardStatistics>(emptyStats);
   const [todayAttendance, setTodayAttendance] =
@@ -173,8 +176,13 @@ export default function Home() {
   }, [selectedStoreId, t.home.dashboardLoadFailed, t.home.todayAttendance.loadFailed]);
 
   useEffect(() => {
-    loadStatistics();
-  }, [loadStatistics]);
+    if (isSimpleUi) return;
+    void loadStatistics();
+  }, [isSimpleUi, loadStatistics]);
+
+  if (isSimpleUi) {
+    return <SimpleHomeLauncher />;
+  }
 
   const stats = mergeStats(statistics);
   const metrics: DashboardMetric[] = [
