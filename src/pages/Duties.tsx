@@ -62,9 +62,13 @@ export default function Duties() {
   const [editing, setEditing] = useState<DutyTemplateApi | null>(null);
   const [form] = Form.useForm();
   const [assigneeForm] = Form.useForm();
-  const [dailyDate, setDailyDate] = useState<Dayjs>(() => dayjs());
+  const [assignmentRange, setAssignmentRange] = useState<[Dayjs, Dayjs]>(() => [
+    startOfWeekMonday(dayjs()),
+    startOfWeekMonday(dayjs()).add(6, "day"),
+  ]);
   const [assigneeModal, setAssigneeModal] = useState<DutyTemplateApi | null>(null);
-  // 按日委派：当日可委派员工（有排班且未请假）；null 表示未加载
+  const [assigneeLoading, setAssigneeLoading] = useState(false);
+  // 按日委派：区间内至少一天有排班且未请假的员工；null 表示未加载
   const [eligibleIds, setEligibleIds] = useState<number[] | null>(null);
 
   const storeEmployees = useMemo(
@@ -85,8 +89,8 @@ export default function Duties() {
   const byDateModal = (assigneeModal?.assignmentMode || "fixed") === "by_date";
   const selectedAssigneeIds: number[] = Form.useWatch("merchantAdminIds", assigneeForm) || [];
 
-  // 按日委派下拉仅显示当日有排班且未请假的员工；固定委派显示全店员工。
-  // 已选中但已不可委派的人（如事后批假）仍保留在选项中以便展示姓名与移除，保存时后端会拒绝。
+  // 范围委派下拉仅显示区间内至少一天有排班且未请假的员工；固定委派显示全店员工。
+  // 已选中但已不可委派的人仍保留在选项中，便于看见并移除。
   const assigneeOptions = useMemo(() => {
     if (!byDateModal || eligibleIds === null) return employeeOptions;
     const allow = new Set(eligibleIds.map(Number));
@@ -96,20 +100,32 @@ export default function Duties() {
       .map((o) =>
         allow.has(o.value)
           ? o
-          : { ...o, label: `${o.label}${zh ? "（当日不可委派）" : " (unavailable)"}` },
+          : { ...o, label: `${o.label}${zh ? "（区间内不可委派）" : " (unavailable in range)"}` },
       );
   }, [byDateModal, eligibleIds, employeeOptions, selectedAssigneeIds, zh]);
 
-  const loadEligible = async (date: Dayjs) => {
+  const loadRangeAssignees = async (
+    templateId: string,
+    range: [Dayjs, Dayjs],
+  ) => {
     if (!selectedStoreId || selectedStoreId === "all") return;
+    const from = range[0].format("YYYY-MM-DD");
+    const to = range[1].format("YYYY-MM-DD");
+    setAssigneeLoading(true);
     try {
-      const ids = await merchantApi.listDutyEligibleAssignees(
-        String(selectedStoreId),
-        date.format("YYYY-MM-DD"),
-      );
-      setEligibleIds(ids.map(Number));
-    } catch {
+      const [eligible, assigned] = await Promise.all([
+        merchantApi.listDutyEligibleAssigneesRange(String(selectedStoreId), from, to),
+        merchantApi.listDutyDailyAssigneesRange(templateId, from, to),
+      ]);
+      setEligibleIds((eligible?.merchantAdminIds || []).map(Number));
+      assigneeForm.setFieldsValue({
+        merchantAdminIds: (assigned?.merchantAdminIds || []).map(Number),
+      });
+    } catch (err) {
       setEligibleIds(null);
+      toast.error(err instanceof Error ? err.message : "Load failed");
+    } finally {
+      setAssigneeLoading(false);
     }
   };
 
@@ -260,14 +276,12 @@ export default function Duties() {
   const openAssignees = async (row: DutyTemplateApi, presetDate?: Dayjs) => {
     setAssigneeModal(row);
     if ((row.assignmentMode || "fixed") === "by_date") {
-      const date = presetDate || dailyDate;
-      setDailyDate(date);
+      const range: [Dayjs, Dayjs] = presetDate
+        ? [presetDate.startOf("day"), presetDate.startOf("day")]
+        : [weekStart, weekStart.add(6, "day")];
+      setAssignmentRange(range);
       setEligibleIds(null);
-      const [ids] = await Promise.all([
-        merchantApi.listDutyDailyAssignees(String(row.id), date.format("YYYY-MM-DD")),
-        loadEligible(date),
-      ]);
-      assigneeForm.setFieldsValue({ merchantAdminIds: ids });
+      await loadRangeAssignees(String(row.id), range);
     } else {
       assigneeForm.setFieldsValue({ merchantAdminIds: row.fixedAssigneeIds || [] });
     }
@@ -278,9 +292,10 @@ export default function Duties() {
     const values = await assigneeForm.validateFields();
     try {
       if ((assigneeModal.assignmentMode || "fixed") === "by_date") {
-        await merchantApi.replaceDutyDailyAssignees(
+        await merchantApi.replaceDutyDailyAssigneesRange(
           String(assigneeModal.id),
-          dailyDate.format("YYYY-MM-DD"),
+          assignmentRange[0].format("YYYY-MM-DD"),
+          assignmentRange[1].format("YYYY-MM-DD"),
           values.merchantAdminIds || [],
         );
       } else {
@@ -378,7 +393,7 @@ export default function Duties() {
                         <td className="p-2 border-b border-slate-100 sticky left-0 bg-white">
                           <div className="font-medium">{tpl.title}</div>
                           <div className="text-xs text-slate-400">
-                            {byDate ? (zh ? "按日" : "By date") : zh ? "固定" : "Fixed"}
+                            {byDate ? (zh ? "按时间段" : "By range") : zh ? "固定" : "Fixed"}
                             {tpl.status === 0 ? ` · ${zh ? "停用" : "off"}` : ""}
                           </div>
                         </td>
@@ -449,14 +464,14 @@ export default function Duties() {
               {
                 title: zh ? "委派" : "Assign",
                 dataIndex: "assignmentMode",
-                render: (v: string) => (v === "by_date" ? (zh ? "按日" : "By date") : zh ? "固定" : "Fixed"),
+                render: (v: string) => (v === "by_date" ? (zh ? "按时间段" : "By range") : zh ? "固定" : "Fixed"),
               },
               {
                 title: zh ? "固定委派人" : "Fixed assignees",
                 dataIndex: "fixedAssigneeIds",
                 render: (_: unknown, row: DutyTemplateApi) => {
                   if ((row.assignmentMode || "fixed") === "by_date") {
-                    return <span className="text-slate-400">{zh ? "按日分派" : "By date"}</span>;
+                    return <span className="text-slate-400">{zh ? "按时间段分派" : "By range"}</span>;
                   }
                   const ids = row.fixedAssigneeIds || [];
                   if (ids.length === 0) return <span className="text-slate-400">—</span>;
@@ -552,7 +567,7 @@ export default function Duties() {
             <Select
               options={[
                 { value: "fixed", label: zh ? "固定人员" : "Fixed" },
-                { value: "by_date", label: zh ? "按日分派" : "By date" },
+                { value: "by_date", label: zh ? "按时间段分派" : "By date range" },
               ]}
             />
           </Form.Item>
@@ -577,29 +592,31 @@ export default function Duties() {
         title={zh ? "委派员工" : "Assign employees"}
         onCancel={() => setAssigneeModal(null)}
         onOk={() => void saveAssignees()}
+        okButtonProps={{ disabled: assigneeLoading }}
         maskClosable={false}
         destroyOnClose
       >
         {(assigneeModal?.assignmentMode || "fixed") === "by_date" ? (
           <div className="mb-3">
-            <span className="mr-2">{zh ? "日期" : "Date"}</span>
-            <DatePicker
-              value={dailyDate}
-              onChange={async (d) => {
-                if (!d || !assigneeModal?.id) return;
-                setDailyDate(d);
+            <div className="mb-2">{zh ? "委派时间段" : "Assignment range"}</div>
+            <DatePicker.RangePicker
+              value={assignmentRange}
+              allowClear={false}
+              onChange={async (dates) => {
+                if (!dates?.[0] || !dates?.[1] || !assigneeModal?.id) return;
+                const range: [Dayjs, Dayjs] = [
+                  dates[0].startOf("day"),
+                  dates[1].startOf("day"),
+                ];
+                setAssignmentRange(range);
                 setEligibleIds(null);
-                const [ids] = await Promise.all([
-                  merchantApi.listDutyDailyAssignees(String(assigneeModal.id), d.format("YYYY-MM-DD")),
-                  loadEligible(d),
-                ]);
-                assigneeForm.setFieldsValue({ merchantAdminIds: ids });
+                await loadRangeAssignees(String(assigneeModal.id), range);
               }}
             />
             <p className="text-slate-500 text-xs mt-2 mb-0">
               {zh
-                ? "仅当日有已发布排班且无已批准请假的员工可选。"
-                : "Only employees scheduled on this day without approved leave can be assigned."}
+                ? "只要员工在区间内至少有一天已发布排班且未请假，即可选择；保存后仅委派到该员工实际有班且未请假的日期，并覆盖区间内原有委派。"
+                : "Employees with at least one eligible scheduled day in the range can be selected. Saving replaces existing assignments in the range and assigns each employee only on their eligible days."}
             </p>
           </div>
         ) : (
@@ -615,9 +632,11 @@ export default function Duties() {
               mode="multiple"
               options={assigneeOptions}
               optionFilterProp="label"
+              loading={assigneeLoading}
+              disabled={assigneeLoading}
               notFoundContent={
                 byDateModal && eligibleIds !== null && eligibleIds.length === 0
-                  ? (zh ? "当日无可委派员工（无排班或均已请假）" : "No eligible employees on this day")
+                  ? (zh ? "该时间段无可委派员工（无排班或排班日均已请假）" : "No eligible employees in this range")
                   : undefined
               }
             />

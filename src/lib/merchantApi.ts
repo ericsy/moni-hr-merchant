@@ -323,6 +323,14 @@ export interface DutyCalendarApi {
   items?: DutyCalendarEntryApi[];
 }
 
+export interface DutyAssigneeRangeApi {
+  from?: string;
+  to?: string;
+  merchantAdminIds?: number[];
+  eligibleByDate?: Record<string, number[]>;
+  assignmentsByDate?: Record<string, number[]>;
+}
+
 export interface MerchantUploadResult {
   key?: string;
   downloadUrl?: string;
@@ -2874,6 +2882,29 @@ export const merchantApi = {
     );
     return data?.merchantAdminIds || [];
   },
+  listDutyEligibleAssigneesRange: async (storeId: string, from: string, to: string) =>
+    apiRequest<DutyAssigneeRangeApi>(
+      appendEndpointPath("/api/v1/merchant/stores", storeId, "duties", "eligible-assignees", "range"),
+      { storeId, query: { from, to } },
+    ),
+  listDutyDailyAssigneesRange: async (id: string, from: string, to: string) =>
+    apiRequest<DutyAssigneeRangeApi>(`/api/v1/merchant/duty-templates/${id}/daily-assignees/range`, {
+      query: { from, to },
+    }),
+  replaceDutyDailyAssigneesRange: async (
+    id: string,
+    from: string,
+    to: string,
+    merchantAdminIds: Array<number | string>,
+  ) =>
+    apiRequest<DutyAssigneeRangeApi>(`/api/v1/merchant/duty-templates/${id}/daily-assignees/range`, {
+      method: "PUT",
+      body: {
+        from,
+        to,
+        merchantAdminIds: merchantAdminIds.map((x) => Number(x)).filter((n) => n > 0),
+      },
+    }),
   listDutyCalendar: async (storeId: string, from: string, to: string) => {
     const data = await apiRequest<DutyCalendarApi>(
       appendEndpointPath("/api/v1/merchant/stores", storeId, "duties", "calendar"),
