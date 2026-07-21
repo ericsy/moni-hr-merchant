@@ -58,6 +58,7 @@ export const locales = {
       attendanceRequests: "申请管理",
       clockPunches: "打卡管理",
       fieldJobs: "外勤工单",
+      duties: "门店 Duties",
     },
 
     // Home
@@ -111,6 +112,7 @@ export const locales = {
           employees: "员工管理",
           stores: "店面管理",
           fieldJobs: "外勤工单",
+          duties: "门店 Duties",
         },
       },
     },
@@ -742,6 +744,7 @@ export const locales = {
       attendanceRequests: "Attendance Requests",
       clockPunches: "Clock Management",
       fieldJobs: "Field Jobs",
+      duties: "Duties",
     },
 
     home: {
@@ -795,6 +798,7 @@ export const locales = {
           employees: "Employees",
           stores: "Stores",
           fieldJobs: "Field Jobs",
+          duties: "Duties",
         },
       },
     },

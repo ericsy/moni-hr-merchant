@@ -1,6 +1,6 @@
-## 2026-07-14
+## 2026-07-21
 
-- **Duties 配置页**：新增 `/duties`（模板 CRUD、固定/按日委派、当日完成列表），对接后端 duty APIs。
+- **Duties 侧栏图标**：`Layout.tsx` 的 `iconMap` 补 `duties: ListChecks`（原先未登记导致菜单无 logo）；`SimpleHomeLauncher` 同步；`locales.nav` / 简易版 shortcuts 补中英文文案。
 
 ## 2026-07-11
 

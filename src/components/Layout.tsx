@@ -29,6 +29,7 @@ import {
   House,
   KeyRound,
   LayoutDashboard,
+  ListChecks,
   LogOut,
   MapPin,
   Route,
@@ -173,6 +174,7 @@ export default function AppLayout({
         attendanceRequests: <ClipboardList size={18} />,
         clockPunches: <Fingerprint size={18} />,
         fieldJobs: <Route size={18} />,
+        duties: <ListChecks size={18} />,
       };
 
       const getNodeLabel = (

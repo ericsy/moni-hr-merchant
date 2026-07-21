@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ClipboardList,
   Fingerprint,
+  ListChecks,
   Route,
   Store,
   Users,
@@ -41,6 +42,7 @@ const shortcutIcons: Record<string, React.ReactNode> = {
   employees: <Users size={16} />,
   stores: <Store size={16} />,
   fieldJobs: <Route size={16} />,
+  duties: <ListChecks size={16} />,
 };
 
 interface ShortcutLeaf {
