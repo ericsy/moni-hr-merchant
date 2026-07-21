@@ -64,6 +64,8 @@ export default function Duties() {
   const [assigneeForm] = Form.useForm();
   const [dailyDate, setDailyDate] = useState<Dayjs>(() => dayjs());
   const [assigneeModal, setAssigneeModal] = useState<DutyTemplateApi | null>(null);
+  // 按日委派：当日可委派员工（有排班且未请假）；null 表示未加载
+  const [eligibleIds, setEligibleIds] = useState<number[] | null>(null);
 
   const storeEmployees = useMemo(
     () =>
@@ -79,6 +81,37 @@ export default function Duties() {
     value: Number(e.id),
     label: [e.firstName, e.lastName].filter(Boolean).join(" ") || e.email || String(e.id),
   }));
+
+  const byDateModal = (assigneeModal?.assignmentMode || "fixed") === "by_date";
+  const selectedAssigneeIds: number[] = Form.useWatch("merchantAdminIds", assigneeForm) || [];
+
+  // 按日委派下拉仅显示当日有排班且未请假的员工；固定委派显示全店员工。
+  // 已选中但已不可委派的人（如事后批假）仍保留在选项中以便展示姓名与移除，保存时后端会拒绝。
+  const assigneeOptions = useMemo(() => {
+    if (!byDateModal || eligibleIds === null) return employeeOptions;
+    const allow = new Set(eligibleIds.map(Number));
+    const selected = new Set((selectedAssigneeIds || []).map(Number));
+    return employeeOptions
+      .filter((o) => allow.has(o.value) || selected.has(o.value))
+      .map((o) =>
+        allow.has(o.value)
+          ? o
+          : { ...o, label: `${o.label}${zh ? "（当日不可委派）" : " (unavailable)"}` },
+      );
+  }, [byDateModal, eligibleIds, employeeOptions, selectedAssigneeIds, zh]);
+
+  const loadEligible = async (date: Dayjs) => {
+    if (!selectedStoreId || selectedStoreId === "all") return;
+    try {
+      const ids = await merchantApi.listDutyEligibleAssignees(
+        String(selectedStoreId),
+        date.format("YYYY-MM-DD"),
+      );
+      setEligibleIds(ids.map(Number));
+    } catch {
+      setEligibleIds(null);
+    }
+  };
 
   const employeeNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -229,7 +262,11 @@ export default function Duties() {
     if ((row.assignmentMode || "fixed") === "by_date") {
       const date = presetDate || dailyDate;
       setDailyDate(date);
-      const ids = await merchantApi.listDutyDailyAssignees(String(row.id), date.format("YYYY-MM-DD"));
+      setEligibleIds(null);
+      const [ids] = await Promise.all([
+        merchantApi.listDutyDailyAssignees(String(row.id), date.format("YYYY-MM-DD")),
+        loadEligible(date),
+      ]);
       assigneeForm.setFieldsValue({ merchantAdminIds: ids });
     } else {
       assigneeForm.setFieldsValue({ merchantAdminIds: row.fixedAssigneeIds || [] });
@@ -549,10 +586,19 @@ export default function Duties() {
               onChange={async (d) => {
                 if (!d || !assigneeModal?.id) return;
                 setDailyDate(d);
-                const ids = await merchantApi.listDutyDailyAssignees(String(assigneeModal.id), d.format("YYYY-MM-DD"));
+                setEligibleIds(null);
+                const [ids] = await Promise.all([
+                  merchantApi.listDutyDailyAssignees(String(assigneeModal.id), d.format("YYYY-MM-DD")),
+                  loadEligible(d),
+                ]);
                 assigneeForm.setFieldsValue({ merchantAdminIds: ids });
               }}
             />
+            <p className="text-slate-500 text-xs mt-2 mb-0">
+              {zh
+                ? "仅当日有已发布排班且无已批准请假的员工可选。"
+                : "Only employees scheduled on this day without approved leave can be assigned."}
+            </p>
           </div>
         ) : (
           <p className="text-slate-500 text-sm mb-3">
@@ -563,7 +609,16 @@ export default function Duties() {
         )}
         <Form form={assigneeForm} layout="vertical">
           <Form.Item name="merchantAdminIds" label={zh ? "员工" : "Employees"}>
-            <Select mode="multiple" options={employeeOptions} optionFilterProp="label" />
+            <Select
+              mode="multiple"
+              options={assigneeOptions}
+              optionFilterProp="label"
+              notFoundContent={
+                byDateModal && eligibleIds !== null && eligibleIds.length === 0
+                  ? (zh ? "当日无可委派员工（无排班或均已请假）" : "No eligible employees on this day")
+                  : undefined
+              }
+            />
           </Form.Item>
         </Form>
       </Modal>

@@ -2867,6 +2867,13 @@ export const merchantApi = {
     );
     return data?.items || [];
   },
+  listDutyEligibleAssignees: async (storeId: string, date: string) => {
+    const data = await apiRequest<{ date?: string; merchantAdminIds?: number[] }>(
+      appendEndpointPath("/api/v1/merchant/stores", storeId, "duties", "eligible-assignees"),
+      { storeId, query: { date } },
+    );
+    return data?.merchantAdminIds || [];
+  },
   listDutyCalendar: async (storeId: string, from: string, to: string) => {
     const data = await apiRequest<DutyCalendarApi>(
       appendEndpointPath("/api/v1/merchant/stores", storeId, "duties", "calendar"),
