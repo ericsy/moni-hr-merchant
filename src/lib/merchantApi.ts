@@ -274,6 +274,7 @@ export interface DutyTemplateApi {
   triggerType?: string;
   intervalMinutes?: number | null;
   required?: boolean;
+  requirePhoto?: boolean;
   assignmentMode?: string;
   sortOrder?: number;
   status?: number;
@@ -294,6 +295,10 @@ export interface DutyCompletionApi {
   windowEnd?: string | null;
   dueAt?: string | null;
   completedAt?: string | null;
+  requirePhoto?: boolean;
+  /** 完成照片预签名 URL 列表（最多 5 张） */
+  photoUrls?: string[];
+  note?: string | null;
 }
 
 export type DutyCalendarStatus =
@@ -2829,6 +2834,7 @@ export const merchantApi = {
       triggerType: string;
       intervalMinutes?: number;
       required?: boolean;
+      requirePhoto?: boolean;
       assignmentMode?: string;
       sortOrder?: number;
     },

@@ -1,5 +1,6 @@
 ## 2026-07-21
 
+- **Duty 模板支持「完成需拍照」**：新建/编辑模板 Modal 新增 `requirePhoto` 开关（含说明：员工完成时必须现场拍照上传、仅可调起相机）；创建/更新请求携带 `requirePhoto`；模板表格「必做」列追加橙色「拍照」标签。`DutyTemplateApi` 补 `requirePhoto`；`DutyCompletionApi` 补 `requirePhoto` / `photoUrls`（多张，最多 5）/ `note`。
 - **按日 Duty 改为时间段批量委派**：委派 Modal 的单日 `DatePicker` 改为 `RangePicker`，默认当前日历周；并行加载区间可委派人员与已有委派并集。员工在区间内至少一天有已发布排班且未请假即可选择；保存调用 `PUT daily-assignees/range`，后端仅落到各员工实际可委派日期，并覆盖区间原委派。日历单格点击仍以单日范围快速编辑；页面文案由「按日」调整为「按时间段」并明确覆盖规则。
 - **Duties 弹窗禁用遮罩关闭**：新建/编辑模板与委派员工两个 Modal 加 `maskClosable={false}`，点击弹窗外不再误关。
 - **按日委派下拉按当日可委派过滤**：接入 `GET /stores/{storeId}/duties/eligible-assignees?date=`（`merchantApi.listDutyEligibleAssignees`）。按日委派 Modal 员工下拉仅显示当日有已发布排班且无已批准请假的员工；切换日期同步刷新；已选中但当日不可委派的人保留选项并标注「当日不可委派」便于移除（保存时后端 400 兜底）；无可委派员工时下拉提示。

@@ -219,6 +219,7 @@ export default function Duties() {
       triggerType: "clock_in",
       assignmentMode: "fixed",
       required: true,
+      requirePhoto: false,
       intervalMinutes: 30,
     });
     setModalOpen(true);
@@ -232,6 +233,7 @@ export default function Duties() {
       triggerType: row.triggerType,
       assignmentMode: row.assignmentMode || "fixed",
       required: row.required !== false,
+      requirePhoto: row.requirePhoto === true,
       intervalMinutes: row.intervalMinutes ?? 30,
       status: row.status === 0 ? 0 : 1,
     });
@@ -252,6 +254,7 @@ export default function Duties() {
           triggerType: values.triggerType,
           assignmentMode: values.assignmentMode,
           required: values.required,
+          requirePhoto: values.requirePhoto,
           intervalMinutes: values.triggerType === "recurring" ? values.intervalMinutes : null,
           status: values.status,
         });
@@ -262,6 +265,7 @@ export default function Duties() {
           triggerType: values.triggerType,
           assignmentMode: values.assignmentMode,
           required: values.required,
+          requirePhoto: values.requirePhoto,
           intervalMinutes: values.triggerType === "recurring" ? values.intervalMinutes : undefined,
         });
       }
@@ -489,7 +493,12 @@ export default function Duties() {
               {
                 title: zh ? "必做" : "Required",
                 dataIndex: "required",
-                render: (v: boolean) => (v === false ? <Tag>optional</Tag> : <Tag color="blue">required</Tag>),
+                render: (v: boolean, row: DutyTemplateApi) => (
+                  <span className="inline-flex gap-1">
+                    {v === false ? <Tag>optional</Tag> : <Tag color="blue">required</Tag>}
+                    {row.requirePhoto ? <Tag color="orange">{zh ? "拍照" : "photo"}</Tag> : null}
+                  </span>
+                ),
               },
               {
                 title: zh ? "状态" : "Status",
@@ -572,6 +581,18 @@ export default function Duties() {
             />
           </Form.Item>
           <Form.Item name="required" label={zh ? "必做" : "Required"} valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name="requirePhoto"
+            label={zh ? "完成需拍照" : "Photo required on completion"}
+            valuePropName="checked"
+            extra={
+              zh
+                ? "开启后员工完成该任务时必须现场拍照上传（仅可调起相机，不可选相册）"
+                : "Employees must take a live photo (camera only) to complete this duty"
+            }
+          >
             <Switch />
           </Form.Item>
           {editing ? (
