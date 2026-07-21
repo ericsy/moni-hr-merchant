@@ -1,5 +1,6 @@
 ## 2026-07-21
 
+- **Duties 弹窗禁用遮罩关闭**：新建/编辑模板与委派员工两个 Modal 加 `maskClosable={false}`，点击弹窗外不再误关。
 - **按日委派下拉按当日可委派过滤**：接入 `GET /stores/{storeId}/duties/eligible-assignees?date=`（`merchantApi.listDutyEligibleAssignees`）。按日委派 Modal 员工下拉仅显示当日有已发布排班且无已批准请假的员工；切换日期同步刷新；已选中但当日不可委派的人保留选项并标注「当日不可委派」便于移除（保存时后端 400 兜底）；无可委派员工时下拉提示。
 - **Duties 页面重建为周日历视图**：`Duties.tsx` 接入既有但从未使用的 `GET /stores/{storeId}/duties/calendar?from&to`（`merchantApi.listDutyCalendar`）。新增「委派日历」周网格（行=模板、列=7 天），按后端排班投影显示每天实际负责人姓名 + 完成状态色（scheduled/pending/completed/expired/skipped/partial 图例）；固定委派也只落在员工当天有排班的日子（后端 `projectAssignments` 已实现）。支持上一周/本周/下一周切换。模板管理表格补「固定委派人」姓名列（原先配了人看不到）。按日委派可直接点日历格子编辑当天委派；固定委派 Modal 增加说明文案。
 - **Duties 侧栏图标**：`Layout.tsx` 的 `iconMap` 补 `duties: ListChecks`（原先未登记导致菜单无 logo）；`SimpleHomeLauncher` 同步；`locales.nav` / 简易版 shortcuts 补中英文文案。

@@ -520,6 +520,7 @@ export default function Duties() {
         title={editing ? (zh ? "编辑模板" : "Edit template") : zh ? "新建模板" : "New template"}
         onCancel={() => setModalOpen(false)}
         onOk={() => void saveTemplate()}
+        maskClosable={false}
         destroyOnClose
       >
         <Form form={form} layout="vertical">
@@ -576,6 +577,7 @@ export default function Duties() {
         title={zh ? "委派员工" : "Assign employees"}
         onCancel={() => setAssigneeModal(null)}
         onOk={() => void saveAssignees()}
+        maskClosable={false}
         destroyOnClose
       >
         {(assigneeModal?.assignmentMode || "fixed") === "by_date" ? (
