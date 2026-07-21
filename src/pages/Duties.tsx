@@ -10,16 +10,17 @@ import {
   Switch,
   Table,
   Tag,
+  Tooltip,
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { Plus, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "../context/LocaleContext";
 import { useStore } from "../context/StoreContext";
 import { useData } from "../context/DataContext";
 import {
   merchantApi,
-  type DutyCompletionApi,
+  type DutyCalendarEntryApi,
   type DutyTemplateApi,
 } from "../lib/merchantApi";
 
@@ -29,6 +30,23 @@ const TRIGGER_OPTIONS = [
   { value: "recurring", zh: "分钟重复", en: "Recurring" },
 ];
 
+type CalStatus = "scheduled" | "pending" | "completed" | "expired" | "skipped" | "partial";
+
+const STATUS_META: Record<CalStatus, { color: string; zh: string; en: string }> = {
+  scheduled: { color: "default", zh: "已排未生成", en: "Scheduled" },
+  pending: { color: "gold", zh: "待完成", en: "Pending" },
+  completed: { color: "green", zh: "已完成", en: "Completed" },
+  expired: { color: "red", zh: "已过期", en: "Expired" },
+  skipped: { color: "default", zh: "已跳过", en: "Skipped" },
+  partial: { color: "orange", zh: "部分完成", en: "Partial" },
+};
+
+function startOfWeekMonday(d: Dayjs): Dayjs {
+  // dayjs day(): 0=Sun..6=Sat; shift so Monday=0
+  const offset = (d.day() + 6) % 7;
+  return d.subtract(offset, "day").startOf("day");
+}
+
 export default function Duties() {
   const { locale } = useLocale();
   const { selectedStoreId } = useStore();
@@ -36,9 +54,10 @@ export default function Duties() {
   const zh = locale === "zh";
 
   const [templates, setTemplates] = useState<DutyTemplateApi[]>([]);
-  const [completions, setCompletions] = useState<DutyCompletionApi[]>([]);
+  const [calendarEntries, setCalendarEntries] = useState<DutyCalendarEntryApi[]>([]);
   const [loading, setLoading] = useState(false);
-  const [completionDate, setCompletionDate] = useState<Dayjs>(() => dayjs());
+  const [calLoading, setCalLoading] = useState(false);
+  const [weekStart, setWeekStart] = useState<Dayjs>(() => startOfWeekMonday(dayjs()));
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<DutyTemplateApi | null>(null);
   const [form] = Form.useForm();
@@ -61,20 +80,50 @@ export default function Duties() {
     label: [e.firstName, e.lastName].filter(Boolean).join(" ") || e.email || String(e.id),
   }));
 
-  const reload = async () => {
-    if (!selectedStoreId || selectedStoreId === "all") {
+  const employeeNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (employees || []).forEach((e) => {
+      const name = [e.firstName, e.lastName].filter(Boolean).join(" ") || e.email || String(e.id);
+      map.set(String(e.id), name);
+    });
+    return map;
+  }, [employees]);
+
+  const nameOf = (adminId: number | string | undefined) => {
+    const key = String(adminId ?? "");
+    return employeeNameById.get(key) || `#${key}`;
+  };
+
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => weekStart.add(i, "day")),
+    [weekStart],
+  );
+
+  // templateId -> dateStr -> entries[]
+  const calGrid = useMemo(() => {
+    const map = new Map<string, Map<string, DutyCalendarEntryApi[]>>();
+    calendarEntries.forEach((e) => {
+      const tid = String(e.templateId ?? "");
+      const dt = e.workDate || "";
+      if (!map.has(tid)) map.set(tid, new Map());
+      const inner = map.get(tid)!;
+      if (!inner.has(dt)) inner.set(dt, []);
+      inner.get(dt)!.push(e);
+    });
+    return map;
+  }, [calendarEntries]);
+
+  const hasConcreteStore = !!selectedStoreId && selectedStoreId !== "all";
+
+  const reloadTemplates = async () => {
+    if (!hasConcreteStore) {
       setTemplates([]);
-      setCompletions([]);
       return;
     }
     setLoading(true);
     try {
-      const [tpl, comps] = await Promise.all([
-        merchantApi.listDutyTemplates(String(selectedStoreId)),
-        merchantApi.listDutyCompletions(String(selectedStoreId), completionDate.format("YYYY-MM-DD")),
-      ]);
+      const tpl = await merchantApi.listDutyTemplates(String(selectedStoreId));
       setTemplates(tpl);
-      setCompletions(comps);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Load failed");
     } finally {
@@ -82,10 +131,37 @@ export default function Duties() {
     }
   };
 
+  const reloadCalendar = async () => {
+    if (!hasConcreteStore) {
+      setCalendarEntries([]);
+      return;
+    }
+    setCalLoading(true);
+    try {
+      const from = weekStart.format("YYYY-MM-DD");
+      const to = weekStart.add(6, "day").format("YYYY-MM-DD");
+      const items = await merchantApi.listDutyCalendar(String(selectedStoreId), from, to);
+      setCalendarEntries(items);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Load failed");
+    } finally {
+      setCalLoading(false);
+    }
+  };
+
   useEffect(() => {
-    void reload();
+    void reloadTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStoreId, completionDate]);
+  }, [selectedStoreId]);
+
+  useEffect(() => {
+    void reloadCalendar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStoreId, weekStart]);
+
+  const reloadAll = async () => {
+    await Promise.all([reloadTemplates(), reloadCalendar()]);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -114,7 +190,7 @@ export default function Duties() {
   };
 
   const saveTemplate = async () => {
-    if (!selectedStoreId || selectedStoreId === "all") {
+    if (!hasConcreteStore) {
       toast.error(zh ? "请先选择门店" : "Select a store first");
       return;
     }
@@ -142,19 +218,18 @@ export default function Duties() {
       }
       toast.success(zh ? "已保存" : "Saved");
       setModalOpen(false);
-      await reload();
+      await reloadAll();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
     }
   };
 
-  const openAssignees = async (row: DutyTemplateApi) => {
+  const openAssignees = async (row: DutyTemplateApi, presetDate?: Dayjs) => {
     setAssigneeModal(row);
     if ((row.assignmentMode || "fixed") === "by_date") {
-      const ids = await merchantApi.listDutyDailyAssignees(
-        String(row.id),
-        dailyDate.format("YYYY-MM-DD"),
-      );
+      const date = presetDate || dailyDate;
+      setDailyDate(date);
+      const ids = await merchantApi.listDutyDailyAssignees(String(row.id), date.format("YYYY-MM-DD"));
       assigneeForm.setFieldsValue({ merchantAdminIds: ids });
     } else {
       assigneeForm.setFieldsValue({ merchantAdminIds: row.fixedAssigneeIds || [] });
@@ -176,11 +251,13 @@ export default function Duties() {
       }
       toast.success(zh ? "委派已更新" : "Assignees updated");
       setAssigneeModal(null);
-      await reload();
+      await reloadAll();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Update failed");
     }
   };
+
+  const rangeLabel = `${weekStart.format("YYYY/MM/DD")} - ${weekStart.add(6, "day").format("MM/DD")}`;
 
   return (
     <div className="p-6 space-y-6">
@@ -189,12 +266,12 @@ export default function Duties() {
           <h1 className="text-xl font-semibold m-0">{zh ? "门店 Duties" : "Store Duties"}</h1>
           <p className="text-slate-500 text-sm m-0 mt-1">
             {zh
-              ? "配置上班/下班必做与分钟重复任务；固定委派或按日分派。打卡前须完成必做；免打卡按排班时间窗弹出。"
-              : "Configure clock-in/out required duties and recurring tasks. Fixed or daily assignees. Duties gate punch; punch-exempt stores use schedule windows."}
+              ? "配置上班/下班必做与分钟重复任务；固定委派或按日分派。固定委派仅在该员工当天有排班时生效并落到日历。"
+              : "Configure clock-in/out required duties and recurring tasks. Fixed assignees apply only on days the employee is scheduled, and are projected onto the calendar."}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button icon={<RefreshCw size={16} />} onClick={() => void reload()} loading={loading}>
+          <Button icon={<RefreshCw size={16} />} onClick={() => void reloadAll()} loading={loading || calLoading}>
             {zh ? "刷新" : "Refresh"}
           </Button>
           <Button type="primary" icon={<Plus size={16} />} onClick={openCreate}>
@@ -203,10 +280,115 @@ export default function Duties() {
         </div>
       </div>
 
-      {!selectedStoreId || selectedStoreId === "all" ? (
+      {!hasConcreteStore ? (
         <div className="text-slate-500">{zh ? "请选择具体门店后管理 Duties" : "Select a concrete store to manage duties"}</div>
       ) : (
         <>
+          {/* 周日历视图 */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-base font-semibold m-0">{zh ? "委派日历" : "Duty Calendar"}</h2>
+            <div className="flex items-center gap-1">
+              <Button size="small" icon={<ChevronLeft size={16} />} onClick={() => setWeekStart((w) => w.subtract(7, "day"))} />
+              <Button size="small" onClick={() => setWeekStart(startOfWeekMonday(dayjs()))}>
+                {zh ? "本周" : "This week"}
+              </Button>
+              <Button size="small" icon={<ChevronRight size={16} />} onClick={() => setWeekStart((w) => w.add(7, "day"))} />
+            </div>
+            <span className="text-slate-500 text-sm">{rangeLabel}</span>
+            <div className="flex items-center gap-2 ml-auto flex-wrap">
+              {(Object.keys(STATUS_META) as CalStatus[]).map((s) => (
+                <Tag key={s} color={STATUS_META[s].color}>
+                  {zh ? STATUS_META[s].zh : STATUS_META[s].en}
+                </Tag>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="text-left p-2 border-b border-slate-200 sticky left-0 bg-slate-50 min-w-[160px]">
+                    {zh ? "模板" : "Template"}
+                  </th>
+                  {weekDays.map((d) => {
+                    const isToday = d.isSame(dayjs(), "day");
+                    return (
+                      <th
+                        key={d.format("YYYY-MM-DD")}
+                        className={`p-2 border-b border-l border-slate-200 text-center min-w-[130px] ${isToday ? "bg-blue-50" : ""}`}
+                      >
+                        <div className="font-medium">{d.format(zh ? "MM/DD" : "ddd")}</div>
+                        <div className="text-xs text-slate-400">{d.format(zh ? "ddd" : "MM/DD")}</div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {templates.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-6 text-center text-slate-400">
+                      {zh ? "暂无模板，请先新建" : "No templates yet"}
+                    </td>
+                  </tr>
+                ) : (
+                  templates.map((tpl) => {
+                    const byDate = (tpl.assignmentMode || "fixed") === "by_date";
+                    const perDate = calGrid.get(String(tpl.id));
+                    return (
+                      <tr key={String(tpl.id)} className="align-top">
+                        <td className="p-2 border-b border-slate-100 sticky left-0 bg-white">
+                          <div className="font-medium">{tpl.title}</div>
+                          <div className="text-xs text-slate-400">
+                            {byDate ? (zh ? "按日" : "By date") : zh ? "固定" : "Fixed"}
+                            {tpl.status === 0 ? ` · ${zh ? "停用" : "off"}` : ""}
+                          </div>
+                        </td>
+                        {weekDays.map((d) => {
+                          const dateStr = d.format("YYYY-MM-DD");
+                          const entries = perDate?.get(dateStr) || [];
+                          const isToday = d.isSame(dayjs(), "day");
+                          return (
+                            <td
+                              key={dateStr}
+                              onClick={byDate ? () => void openAssignees(tpl, d) : undefined}
+                              className={`p-1.5 border-b border-l border-slate-100 align-top ${isToday ? "bg-blue-50/40" : ""} ${byDate ? "cursor-pointer hover:bg-slate-50" : ""}`}
+                            >
+                              <div className="flex flex-col gap-1">
+                                {entries.length === 0 ? (
+                                  <span className="text-slate-300 text-xs">
+                                    {byDate ? (zh ? "点击分派" : "assign") : "—"}
+                                  </span>
+                                ) : (
+                                  entries.map((en, i) => {
+                                    const meta = STATUS_META[(en.status as CalStatus) || "scheduled"] || STATUS_META.scheduled;
+                                    return (
+                                      <Tooltip
+                                        key={`${en.merchantAdminId}-${i}`}
+                                        title={zh ? meta.zh : meta.en}
+                                      >
+                                        <Tag color={meta.color} className="m-0 truncate max-w-[120px]">
+                                          {nameOf(en.merchantAdminId)}
+                                        </Tag>
+                                      </Tooltip>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 模板管理 */}
+          <h2 className="text-base font-semibold m-0 mt-8">{zh ? "模板管理" : "Templates"}</h2>
           <Table
             rowKey={(r) => String(r.id)}
             loading={loading}
@@ -231,6 +413,26 @@ export default function Duties() {
                 title: zh ? "委派" : "Assign",
                 dataIndex: "assignmentMode",
                 render: (v: string) => (v === "by_date" ? (zh ? "按日" : "By date") : zh ? "固定" : "Fixed"),
+              },
+              {
+                title: zh ? "固定委派人" : "Fixed assignees",
+                dataIndex: "fixedAssigneeIds",
+                render: (_: unknown, row: DutyTemplateApi) => {
+                  if ((row.assignmentMode || "fixed") === "by_date") {
+                    return <span className="text-slate-400">{zh ? "按日分派" : "By date"}</span>;
+                  }
+                  const ids = row.fixedAssigneeIds || [];
+                  if (ids.length === 0) return <span className="text-slate-400">—</span>;
+                  return (
+                    <div className="flex flex-wrap gap-1">
+                      {ids.map((id) => (
+                        <Tag key={String(id)} className="m-0">
+                          {nameOf(id)}
+                        </Tag>
+                      ))}
+                    </div>
+                  );
+                },
               },
               {
                 title: zh ? "必做" : "Required",
@@ -261,7 +463,7 @@ export default function Duties() {
                           onOk: async () => {
                             await merchantApi.deleteDutyTemplate(String(row.id));
                             toast.success(zh ? "已删除" : "Deleted");
-                            await reload();
+                            await reloadAll();
                           },
                         });
                       }}
@@ -271,28 +473,6 @@ export default function Duties() {
                   </div>
                 ),
               },
-            ]}
-          />
-
-          <div className="flex items-center gap-3 mt-8">
-            <h2 className="text-base font-semibold m-0">{zh ? "完成情况" : "Completions"}</h2>
-            <DatePicker value={completionDate} onChange={(d) => d && setCompletionDate(d)} />
-          </div>
-          <Table
-            rowKey={(r) => String(r.id)}
-            loading={loading}
-            dataSource={completions}
-            pagination={{ pageSize: 20 }}
-            columns={[
-              { title: zh ? "标题" : "Title", dataIndex: "title" },
-              { title: zh ? "员工" : "Employee", dataIndex: "merchantAdminId" },
-              { title: zh ? "触发" : "Trigger", dataIndex: "triggerType" },
-              {
-                title: zh ? "状态" : "Status",
-                dataIndex: "status",
-                render: (v: string) => <Tag color={v === "completed" ? "green" : v === "expired" ? "red" : "default"}>{v}</Tag>,
-              },
-              { title: zh ? "完成时间" : "Completed", dataIndex: "completedAt" },
             ]}
           />
         </>
@@ -374,7 +554,13 @@ export default function Duties() {
               }}
             />
           </div>
-        ) : null}
+        ) : (
+          <p className="text-slate-500 text-sm mb-3">
+            {zh
+              ? "固定委派：所选员工在其有排班的日子自动承担该 Duty。"
+              : "Fixed assignees automatically own this duty on days they are scheduled."}
+          </p>
+        )}
         <Form form={assigneeForm} layout="vertical">
           <Form.Item name="merchantAdminIds" label={zh ? "员工" : "Employees"}>
             <Select mode="multiple" options={employeeOptions} optionFilterProp="label" />

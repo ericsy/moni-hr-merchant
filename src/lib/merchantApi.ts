@@ -296,6 +296,33 @@ export interface DutyCompletionApi {
   completedAt?: string | null;
 }
 
+export type DutyCalendarStatus =
+  | "scheduled"
+  | "pending"
+  | "completed"
+  | "expired"
+  | "skipped"
+  | "partial";
+
+export interface DutyCalendarEntryApi {
+  workDate?: string;
+  templateId?: number | string;
+  title?: string | null;
+  triggerType?: string | null;
+  required?: boolean | null;
+  assignmentMode?: string | null;
+  merchantAdminId?: number | string;
+  status?: DutyCalendarStatus | string;
+  total?: number;
+  completed?: number;
+}
+
+export interface DutyCalendarApi {
+  from?: string;
+  to?: string;
+  items?: DutyCalendarEntryApi[];
+}
+
 export interface MerchantUploadResult {
   key?: string;
   downloadUrl?: string;
@@ -2837,6 +2864,13 @@ export const merchantApi = {
     const data = await apiRequest<{ date?: string; items?: DutyCompletionApi[] }>(
       appendEndpointPath("/api/v1/merchant/stores", storeId, "duties", "completions"),
       { storeId, query: { date } },
+    );
+    return data?.items || [];
+  },
+  listDutyCalendar: async (storeId: string, from: string, to: string) => {
+    const data = await apiRequest<DutyCalendarApi>(
+      appendEndpointPath("/api/v1/merchant/stores", storeId, "duties", "calendar"),
+      { storeId, query: { from, to } },
     );
     return data?.items || [];
   },
