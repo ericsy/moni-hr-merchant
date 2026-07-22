@@ -1,4 +1,8 @@
-import type { MerchantAttendanceFieldImpact, MerchantAttendanceRequest } from "./merchantApi";
+import type {
+  MerchantAttendanceDutyImpact,
+  MerchantAttendanceFieldImpact,
+  MerchantAttendanceRequest,
+} from "./merchantApi";
 
 export function isFieldLeaveRequest(
   request: Pick<MerchantAttendanceRequest, "requestType" | "leaveMode" | "fieldJobId">,
@@ -160,4 +164,60 @@ export function fieldMissedPunchSyncFlags(request: Pick<MerchantAttendanceReques
     syncIn: request.syncStoreClockIn === true,
     syncOut: request.syncStoreClockOut === true,
   };
+}
+
+export function dutyImpactKey(impact: MerchantAttendanceDutyImpact): string {
+  if ((impact.impactKey || "").trim()) return String(impact.impactKey).trim();
+  return `${impact.templateId ?? ""}:${impact.workDate ?? ""}:${impact.publishedCellId ?? 0}`;
+}
+
+export function isVisibleDutyImpact(impact: MerchantAttendanceDutyImpact): boolean {
+  const overlap = (impact.overlapType || "").trim().toLowerCase();
+  return overlap === "full" || overlap === "partial";
+}
+
+export function resolveDisplayDutyImpacts(
+  request: Pick<MerchantAttendanceRequest, "dutyImpacts">,
+): MerchantAttendanceDutyImpact[] {
+  return (request.dutyImpacts || []).filter(isVisibleDutyImpact);
+}
+
+export function resolveRequiredDutyImpactsForReview(
+  request: Pick<MerchantAttendanceRequest, "dutyImpacts">,
+): MerchantAttendanceDutyImpact[] {
+  return resolveDisplayDutyImpacts(request).filter((row) => row.requiredAction === "required");
+}
+
+/** 与外勤同店班格子关联的 Duty（可跟随外勤处置） */
+export function findParentFieldImpactForDuty(
+  duty: MerchantAttendanceDutyImpact,
+  fieldImpacts: MerchantAttendanceFieldImpact[] | undefined,
+): MerchantAttendanceFieldImpact | null {
+  const list = fieldImpacts || [];
+  if (list.length === 0) return null;
+  const cellId = duty.publishedCellId;
+  if (cellId != null && String(cellId).trim() !== "" && Number(cellId) > 0) {
+    const matches = list.filter(
+      (f) =>
+        f.linkedStoreShiftId != null &&
+        String(f.linkedStoreShiftId) === String(cellId) &&
+        isVisibleFieldImpact(f),
+    );
+    if (matches.length > 0) {
+      return matches.find((m) => m.requiredAction === "required") ?? matches[0] ?? null;
+    }
+  }
+  return null;
+}
+
+export function hmFromDutyWindow(iso?: string | null): string {
+  const raw = (iso || "").trim();
+  if (!raw) return "";
+  const m = raw.match(/T(\d{2}:\d{2})/);
+  if (m) return m[1];
+  if (/^\d{1,2}:\d{2}/.test(raw)) {
+    const [h, mm] = raw.split(":");
+    return `${h.padStart(2, "0")}:${mm.slice(0, 2)}`;
+  }
+  return "";
 }

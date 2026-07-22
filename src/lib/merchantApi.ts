@@ -548,6 +548,36 @@ export interface MerchantAttendanceRequest {
   leaveItems?: MerchantAttendanceLeaveItem[];
   fieldImpacts?: MerchantAttendanceFieldImpact[];
   fieldDispositions?: MerchantAttendanceFieldDisposition[];
+  dutyImpacts?: MerchantAttendanceDutyImpact[];
+  dutyDispositions?: MerchantAttendanceDutyDisposition[];
+}
+
+export interface MerchantAttendanceDutyImpact {
+  id?: number | string | null;
+  leaveItemId?: number | string | null;
+  templateId?: number | string | null;
+  publishedCellId?: number | string | null;
+  workDate?: string | null;
+  triggerType?: string | null;
+  overlapType?: string | null;
+  requiredAction?: string | null;
+  title?: string | null;
+  description?: string | null;
+  windowStart?: string | null;
+  windowEnd?: string | null;
+  assignmentMode?: string | null;
+  impactKey?: string | null;
+}
+
+export interface MerchantAttendanceDutyDisposition {
+  id?: number | string | null;
+  impactKey?: string | null;
+  templateId?: number | string | null;
+  workDate?: string | null;
+  publishedCellId?: number | string | null;
+  action?: string | null;
+  assigneeMerchantAdminId?: number | string | null;
+  source?: string | null;
 }
 
 export interface MerchantAttendanceRequestSummary {
@@ -977,6 +1007,40 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
     } satisfies MerchantAttendanceFieldDisposition;
   });
 
+  const dutyImpacts = asArray(raw.dutyImpacts).map((row) => {
+    const it = asRecord(row);
+    return {
+      id: (it.id as number | string | null | undefined) ?? null,
+      leaveItemId: (it.leaveItemId as number | string | null | undefined) ?? null,
+      templateId: (it.templateId as number | string | null | undefined) ?? null,
+      publishedCellId: (it.publishedCellId as number | string | null | undefined) ?? null,
+      workDate: normalizeApiLocalDate(it.workDate) || asString(it.workDate) || null,
+      triggerType: asString(it.triggerType) || null,
+      overlapType: asString(it.overlapType) || null,
+      requiredAction: asString(it.requiredAction) || null,
+      title: asString(it.title) || null,
+      description: asString(it.description) || null,
+      windowStart: asString(it.windowStart) || null,
+      windowEnd: asString(it.windowEnd) || null,
+      assignmentMode: asString(it.assignmentMode) || null,
+      impactKey: asString(it.impactKey) || null,
+    } satisfies MerchantAttendanceDutyImpact;
+  });
+
+  const dutyDispositions = asArray(raw.dutyDispositions).map((row) => {
+    const it = asRecord(row);
+    return {
+      id: (it.id as number | string | null | undefined) ?? null,
+      impactKey: asString(it.impactKey) || null,
+      templateId: (it.templateId as number | string | null | undefined) ?? null,
+      workDate: normalizeApiLocalDate(it.workDate) || asString(it.workDate) || null,
+      publishedCellId: (it.publishedCellId as number | string | null | undefined) ?? null,
+      action: asString(it.action) || null,
+      assigneeMerchantAdminId: (it.assigneeMerchantAdminId as number | string | null | undefined) ?? null,
+      source: asString(it.source) || null,
+    } satisfies MerchantAttendanceDutyDisposition;
+  });
+
   return compactDeep({
     id: raw.id as number | string | null | undefined,
     storeId: raw.storeId as number | string | null | undefined,
@@ -1014,6 +1078,8 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
     leaveItems: asArray(raw.leaveItems).map(mapAttendanceLeaveItem),
     fieldImpacts,
     fieldDispositions,
+    dutyImpacts,
+    dutyDispositions,
   });
 }
 
@@ -2695,6 +2761,14 @@ export const merchantApi = {
         action: "cancel" | "reassign";
         assigneeMerchantAdminId?: number | string | null;
       }>;
+      dutyDispositions?: Array<{
+        impactKey?: string | null;
+        templateId: number | string;
+        workDate: string;
+        publishedCellId?: number | string | null;
+        action: "skip" | "reassign";
+        assigneeMerchantAdminId?: number | string | null;
+      }>;
     },
   ) => {
     const substitutions = (payload.substitutions || [])
@@ -2713,6 +2787,7 @@ export const merchantApi = {
         reviewComment: payload.reviewComment || null,
         substitutions: substitutions.length > 0 ? substitutions : undefined,
         fieldDispositions: (payload.fieldDispositions || []).length > 0 ? payload.fieldDispositions : undefined,
+        dutyDispositions: (payload.dutyDispositions || []).length > 0 ? payload.dutyDispositions : undefined,
       }),
     });
     return mapAttendanceRequest(data);
