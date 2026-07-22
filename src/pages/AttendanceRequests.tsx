@@ -41,7 +41,6 @@ import {
   type MerchantAttendanceRequestStatus,
   type MerchantAttendanceRequestSummary,
   type MerchantAttendanceRequestType,
-  type MerchantAttendanceDutyImpact,
   type MerchantEmployeeBrief,
   type LeaveSubstitutionReviewItem,
   type MerchantEmployeeIdName,
@@ -53,7 +52,6 @@ import {
   fieldMissedPunchCustomerName,
   fieldMissedPunchSyncFlags,
   formatMissedPunchShiftRange,
-  hmFromDutyWindow,
   isFieldLeaveRequest,
   isFieldMissedPunchRequest,
   resolveDisplayDutyImpacts,
@@ -262,83 +260,6 @@ function buildFieldDispositionsForReview(
     .filter(Boolean) as Array<{ fieldJobId: number; action: "cancel" | "reassign"; assigneeMerchantAdminId?: number | string | null }>;
 }
 
-function buildDutyDispositionsForReview(
-  impacts: MerchantAttendanceDutyImpact[],
-  request: MerchantAttendanceRequest,
-  actionByKey: Record<string, "skip" | "reassign" | "">,
-  assigneeByKey: Record<string, string>,
-  fieldActionByJobId: Record<string, "cancel" | "reassign" | "">,
-  fieldAssigneeByJobId: Record<string, string>,
-  substitutionDrafts: Record<string, SubstitutionDraft>,
-): Array<{
-  impactKey?: string | null;
-  templateId: number | string;
-  workDate: string;
-  publishedCellId?: number | string | null;
-  action: "skip" | "reassign";
-  assigneeMerchantAdminId?: number | string | null;
-}> {
-  const out: Array<{
-    impactKey?: string | null;
-    templateId: number | string;
-    workDate: string;
-    publishedCellId?: number | string | null;
-    action: "skip" | "reassign";
-    assigneeMerchantAdminId?: number | string | null;
-  }> = [];
-  for (const impact of impacts) {
-    if (impact.templateId == null || !(impact.workDate || "").trim()) continue;
-    const key = dutyImpactKey(impact);
-    const parent = findParentFieldImpactForDuty(impact, request.fieldImpacts);
-    let action: "skip" | "reassign" | "" = actionByKey[key] || "";
-    let assignee = (assigneeByKey[key] || "").trim();
-    if (parent && parent.requiredAction === "required") {
-      const fieldAction = fieldActionByJobId[String(parent.fieldJobId)];
-      if (fieldAction === "cancel") {
-        action = "skip";
-        assignee = "";
-      } else if (fieldAction === "reassign") {
-        action = "reassign";
-        assignee = (fieldAssigneeByJobId[String(parent.fieldJobId)] || "").trim();
-      } else {
-        continue;
-      }
-    } else {
-      let leaveItemId =
-        impact.leaveItemId != null && Number(impact.leaveItemId) > 0
-          ? String(impact.leaveItemId)
-          : "";
-      if (!leaveItemId && impact.publishedCellId != null) {
-        const matched = (request.leaveItems || []).find(
-          (item) =>
-            item.publishedCellId != null &&
-            String(item.publishedCellId) === String(impact.publishedCellId),
-        );
-        if (matched?.id != null) leaveItemId = String(matched.id);
-      }
-      const draft = leaveItemId ? substitutionDrafts[leaveItemId] : undefined;
-      if (draft?.enabled && (draft.substituteId || "").trim()) {
-        action = "reassign";
-        assignee = draft.substituteId.trim();
-      }
-    }
-    if (action !== "skip" && action !== "reassign") continue;
-    out.push({
-      impactKey: key,
-      templateId: impact.templateId,
-      workDate: String(impact.workDate),
-      publishedCellId: impact.publishedCellId ?? null,
-      action,
-      ...(action === "reassign"
-        ? {
-            assigneeMerchantAdminId: /^\d+$/.test(assignee) ? Number(assignee) : assignee || null,
-          }
-        : {}),
-    });
-  }
-  return out;
-}
-
 function dutyTriggerLabel(
   trigger: string | null | undefined,
   labels: ReturnType<typeof useLocale>["t"]["attendanceRequest"],
@@ -384,16 +305,6 @@ export default function AttendanceRequestPage() {
     Record<string, MerchantEmployeeIdName[]>
   >({});
   const [fieldAssigneeOptionsLoadingByJobId, setFieldAssigneeOptionsLoadingByJobId] = useState<
-    Record<string, boolean>
-  >({});
-  const [dutyDispositionByKey, setDutyDispositionByKey] = useState<
-    Record<string, "skip" | "reassign" | "">
-  >({});
-  const [dutyAssigneeByKey, setDutyAssigneeByKey] = useState<Record<string, string>>({});
-  const [dutyAssigneeOptionsByKey, setDutyAssigneeOptionsByKey] = useState<
-    Record<string, MerchantEmployeeIdName[]>
-  >({});
-  const [dutyAssigneeOptionsLoadingByKey, setDutyAssigneeOptionsLoadingByKey] = useState<
     Record<string, boolean>
   >({});
   const [substituteOptionsByLeaveItem, setSubstituteOptionsByLeaveItem] = useState<
@@ -539,25 +450,6 @@ export default function AttendanceRequestPage() {
           setFieldAssigneeOptionsByJobId({});
           setFieldAssigneeOptionsLoadingByJobId({});
         }
-        const requiredDuties = resolveRequiredDutyImpactsForReview(detail);
-        if (requiredDuties.length > 0) {
-          const actions: Record<string, "skip" | "reassign" | ""> = {};
-          const assignees: Record<string, string> = {};
-          for (const impact of requiredDuties) {
-            const key = dutyImpactKey(impact);
-            actions[key] = "";
-            assignees[key] = "";
-          }
-          setDutyDispositionByKey(actions);
-          setDutyAssigneeByKey(assignees);
-          setDutyAssigneeOptionsByKey({});
-          setDutyAssigneeOptionsLoadingByKey({});
-        } else {
-          setDutyDispositionByKey({});
-          setDutyAssigneeByKey({});
-          setDutyAssigneeOptionsByKey({});
-          setDutyAssigneeOptionsLoadingByKey({});
-        }
       } else {
         setSubstitutionDrafts({});
         setSubstituteOptionsByLeaveItem({});
@@ -566,10 +458,6 @@ export default function AttendanceRequestPage() {
         setFieldAssigneeByJobId({});
         setFieldAssigneeOptionsByJobId({});
         setFieldAssigneeOptionsLoadingByJobId({});
-        setDutyDispositionByKey({});
-        setDutyAssigneeByKey({});
-        setDutyAssigneeOptionsByKey({});
-        setDutyAssigneeOptionsLoadingByKey({});
       }
     } catch (detailError) {
       console.log("[AttendanceRequestPage] failed to load detail:", detailError);
@@ -634,36 +522,6 @@ export default function AttendanceRequestPage() {
     [],
   );
 
-  const loadDutyAssigneeOptionsForImpact = useCallback(
-    async (storeId: string, request: MerchantAttendanceRequest, impact: MerchantAttendanceDutyImpact) => {
-      const key = dutyImpactKey(impact);
-      if (!storeId || !key) return;
-      setDutyAssigneeOptionsLoadingByKey((previous) => ({ ...previous, [key]: true }));
-      try {
-        const startTime = hmFromDutyWindow(impact.windowStart);
-        const endTime = hmFromDutyWindow(impact.windowEnd);
-        const scheduleDate = (impact.workDate || "").trim();
-        if (!scheduleDate || !startTime || !endTime) {
-          setDutyAssigneeOptionsByKey((previous) => ({ ...previous, [key]: [] }));
-          return;
-        }
-        const items = await merchantApi.listSubstituteCandidates(storeId, {
-          scheduleDate,
-          startTime,
-          endTime,
-          excludeMerchantAdminId: request.applicant?.merchantAdminId ?? request.applicant?.id,
-        });
-        setDutyAssigneeOptionsByKey((previous) => ({ ...previous, [key]: items }));
-      } catch (loadError) {
-        console.log("[AttendanceRequestPage] failed to load duty assignee candidates:", loadError);
-        setDutyAssigneeOptionsByKey((previous) => ({ ...previous, [key]: [] }));
-      } finally {
-        setDutyAssigneeOptionsLoadingByKey((previous) => ({ ...previous, [key]: false }));
-      }
-    },
-    [],
-  );
-
   const closeDetail = () => {
     if (reviewing) return;
     setSelectedRequest(null);
@@ -675,10 +533,6 @@ export default function AttendanceRequestPage() {
     setFieldAssigneeByJobId({});
     setFieldAssigneeOptionsByJobId({});
     setFieldAssigneeOptionsLoadingByJobId({});
-    setDutyDispositionByKey({});
-    setDutyAssigneeByKey({});
-    setDutyAssigneeOptionsByKey({});
-    setDutyAssigneeOptionsLoadingByKey({});
   };
 
   const submitReview = async (status: "approved" | "rejected") => {
@@ -705,43 +559,6 @@ export default function AttendanceRequestPage() {
           }
           if (action === "reassign" && !(fieldAssigneeByJobId[key] || "").trim()) {
             toast.error(labels.fieldDispositionAssigneeRequired);
-            setReviewing(null);
-            return;
-          }
-        }
-      }
-      const requiredDuties = resolveRequiredDutyImpactsForReview(selectedRequest);
-      if (status === "approved" && selectedRequest.requestType === "leave" && requiredDuties.length > 0) {
-        for (const impact of requiredDuties) {
-          const key = dutyImpactKey(impact);
-          const parent = findParentFieldImpactForDuty(impact, selectedRequest.fieldImpacts);
-          if (parent && parent.requiredAction === "required") {
-            continue;
-          }
-          let leaveItemId =
-            impact.leaveItemId != null && Number(impact.leaveItemId) > 0
-              ? String(impact.leaveItemId)
-              : "";
-          if (!leaveItemId && impact.publishedCellId != null) {
-            const matched = (selectedRequest.leaveItems || []).find(
-              (item) =>
-                item.publishedCellId != null &&
-                String(item.publishedCellId) === String(impact.publishedCellId),
-            );
-            if (matched?.id != null) leaveItemId = String(matched.id);
-          }
-          const draft = leaveItemId ? substitutionDrafts[leaveItemId] : undefined;
-          if (draft?.enabled && (draft.substituteId || "").trim()) {
-            continue;
-          }
-          const action = dutyDispositionByKey[key];
-          if (action !== "skip" && action !== "reassign") {
-            toast.error(labels.dutyDispositionRequired);
-            setReviewing(null);
-            return;
-          }
-          if (action === "reassign" && !(dutyAssigneeByKey[key] || "").trim()) {
-            toast.error(labels.dutyDispositionAssigneeRequired);
             setReviewing(null);
             return;
           }
@@ -776,18 +593,6 @@ export default function AttendanceRequestPage() {
                   requiredImpacts,
                   fieldDispositionByJobId,
                   fieldAssigneeByJobId,
-                )
-              : undefined,
-          dutyDispositions:
-            status === "approved" && selectedRequest.requestType === "leave"
-              ? buildDutyDispositionsForReview(
-                  requiredDuties,
-                  selectedRequest,
-                  dutyDispositionByKey,
-                  dutyAssigneeByKey,
-                  fieldDispositionByJobId,
-                  fieldAssigneeByJobId,
-                  substitutionDrafts,
                 )
               : undefined,
         },
@@ -967,25 +772,6 @@ export default function AttendanceRequestPage() {
           const storeId = String(selectedRequest?.storeId || activeStoreId || "");
           if (storeId && selectedRequest) {
             void loadFieldAssigneeOptionsForJob(storeId, selectedRequest, fieldJobId);
-          }
-        }}
-        dutyDispositionByKey={dutyDispositionByKey}
-        dutyAssigneeByKey={dutyAssigneeByKey}
-        onDutyDispositionChange={(impactKey, value) => {
-          setDutyDispositionByKey((prev) => ({ ...prev, [impactKey]: value }));
-          if (value !== "reassign") {
-            setDutyAssigneeByKey((prev) => ({ ...prev, [impactKey]: "" }));
-          }
-        }}
-        onDutyAssigneeChange={(impactKey, value) => {
-          setDutyAssigneeByKey((prev) => ({ ...prev, [impactKey]: value }));
-        }}
-        dutyAssigneeOptionsByKey={dutyAssigneeOptionsByKey}
-        dutyAssigneeOptionsLoadingByKey={dutyAssigneeOptionsLoadingByKey}
-        onLoadDutyAssigneeOptions={(impact) => {
-          const storeId = String(selectedRequest?.storeId || activeStoreId || "");
-          if (storeId && selectedRequest) {
-            void loadDutyAssigneeOptionsForImpact(storeId, selectedRequest, impact);
           }
         }}
         substitutionDrafts={substitutionDrafts}
@@ -1293,13 +1079,6 @@ function AttendanceDetailModal({
   fieldAssigneeOptionsByJobId,
   fieldAssigneeOptionsLoadingByJobId,
   onLoadFieldAssigneeOptions,
-  dutyDispositionByKey,
-  dutyAssigneeByKey,
-  onDutyDispositionChange,
-  onDutyAssigneeChange,
-  dutyAssigneeOptionsByKey,
-  dutyAssigneeOptionsLoadingByKey,
-  onLoadDutyAssigneeOptions,
   substitutionDrafts,
   substituteOptionsByLeaveItem,
   substituteOptionsLoadingByLeaveItem,
@@ -1324,13 +1103,6 @@ function AttendanceDetailModal({
   fieldAssigneeOptionsByJobId: Record<string, MerchantEmployeeIdName[]>;
   fieldAssigneeOptionsLoadingByJobId: Record<string, boolean>;
   onLoadFieldAssigneeOptions: (fieldJobId: string) => void;
-  dutyDispositionByKey: Record<string, "skip" | "reassign" | "">;
-  dutyAssigneeByKey: Record<string, string>;
-  onDutyDispositionChange: (impactKey: string, value: "skip" | "reassign" | "") => void;
-  onDutyAssigneeChange: (impactKey: string, value: string) => void;
-  dutyAssigneeOptionsByKey: Record<string, MerchantEmployeeIdName[]>;
-  dutyAssigneeOptionsLoadingByKey: Record<string, boolean>;
-  onLoadDutyAssigneeOptions: (impact: MerchantAttendanceDutyImpact) => void;
   substitutionDrafts: Record<string, SubstitutionDraft>;
   substituteOptionsByLeaveItem: Record<string, MerchantEmployeeIdName[]>;
   substituteOptionsLoadingByLeaveItem: Record<string, boolean>;
@@ -1384,7 +1156,7 @@ function AttendanceDetailModal({
     () => (request ? resolveRequiredDutyImpactsForReview(request) : []),
     [request],
   );
-  const showDutyDispositionEditor =
+  const showDutyFollowInfo =
     isPending && request?.requestType === "leave" && requiredDutyImpacts.length > 0;
   const showDutyImpactSection = displayDutyImpacts.length > 0;
 
@@ -1707,11 +1479,11 @@ function AttendanceDetailModal({
             {showDutyImpactSection && (
               <div className="rounded-lg border p-4 text-sm" style={{ borderColor: "var(--border)" }}>
                 <div className="font-semibold">
-                  {showDutyDispositionEditor
+                  {showDutyFollowInfo
                     ? labels.dutyImpactDispositionSection
                     : labels.dutyImpactSection}
                 </div>
-                {showDutyDispositionEditor ? (
+                {showDutyFollowInfo ? (
                   <div className="mt-1 text-xs text-muted-foreground">{labels.dutyDispositionHint}</div>
                 ) : null}
                 <div className="mt-3 flex flex-col gap-3">
@@ -1738,13 +1510,7 @@ function AttendanceDetailModal({
                       subDraft?.enabled &&
                       (subDraft.substituteId || "").trim()
                     );
-                    const action = dutyDispositionByKey[key] || "";
-                    const assignee = dutyAssigneeByKey[key] || "";
-                    const assigneeOptions = dutyAssigneeOptionsByKey[key] || [];
-                    const assigneeOptionsLoading = !!dutyAssigneeOptionsLoadingByKey[key];
                     const saved = (request.dutyDispositions || []).find((row) => row.impactKey === key);
-                    const showDispositionControls =
-                      showDutyDispositionEditor && required && !followField && !followSubstitute;
                     const substituteName =
                       followSubstitute && leaveItemId
                         ? (substituteOptionsByLeaveItem[leaveItemId] || []).find(
@@ -1790,62 +1556,15 @@ function AttendanceDetailModal({
                           ) : null}
                           {impact.description ? <div className="sm:col-span-2">{impact.description}</div> : null}
                         </div>
-                        {followField && showDutyDispositionEditor ? (
+                        {showDutyFollowInfo && required ? (
                           <div className="mt-2 text-xs text-muted-foreground">
-                            {labels.dutyDispositionFollowField}
-                          </div>
-                        ) : null}
-                        {followSubstitute && showDutyDispositionEditor ? (
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            {labels.dutyDispositionFollowSubstitute}
-                            {substituteName ? `（${substituteName}）` : ""}
-                          </div>
-                        ) : null}
-                        {showDispositionControls ? (
-                          <div
-                            className="mt-3 flex flex-col gap-2 border-t pt-3"
-                            style={{ borderColor: "var(--border)" }}
-                          >
-                            <div className="text-xs font-semibold text-foreground/80">
-                              {labels.dutyDispositionTitle}
-                            </div>
-                            <Radio.Group
-                              value={action}
-                              onChange={(e) => {
-                                const next = e.target.value as "skip" | "reassign";
-                                onDutyDispositionChange(key, next);
-                                if (next === "reassign") {
-                                  onLoadDutyAssigneeOptions(impact);
-                                }
-                              }}
-                            >
-                              <Radio value="skip">{labels.dutyDispositionSkip}</Radio>
-                              <Radio value="reassign">{labels.dutyDispositionReassign}</Radio>
-                            </Radio.Group>
-                            {action === "reassign" ? (
-                              <Select
-                                allowClear
-                                showSearch
-                                optionFilterProp="label"
-                                loading={assigneeOptionsLoading}
-                                placeholder={labels.selectSubstitute}
-                                style={{ minWidth: 220, maxWidth: 360 }}
-                                value={assignee || undefined}
-                                notFoundContent={
-                                  assigneeOptionsLoading ? undefined : labels.dutyAssigneeNoCandidates
-                                }
-                                options={assigneeOptions.map((row) => ({
-                                  value: String(row.id),
-                                  label: row.name,
-                                }))}
-                                onDropdownVisibleChange={(openSelect) => {
-                                  if (openSelect) onLoadDutyAssigneeOptions(impact);
-                                }}
-                                onChange={(value) =>
-                                  onDutyAssigneeChange(key, value ? String(value) : "")
-                                }
-                              />
-                            ) : null}
+                            {followField
+                              ? labels.dutyDispositionFollowField
+                              : followSubstitute
+                                ? `${labels.dutyDispositionFollowSubstitute}${
+                                    substituteName ? `（${substituteName}）` : ""
+                                  }`
+                                : labels.dutyDispositionAutoSkip}
                           </div>
                         ) : null}
                         {!isPending && saved?.action ? (
