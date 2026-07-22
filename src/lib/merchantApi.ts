@@ -17,6 +17,7 @@ import type {
   FieldJobAssignPayload,
   FieldJobAssignmentsSyncPayload,
   FieldJobAssignPreview,
+  FieldJobDutyTemplateBrief,
   FieldJobListParams,
   FieldJobUpsertPayload,
   FieldServiceJob,
@@ -269,6 +270,8 @@ export interface MerchantInvoiceList {
 export interface DutyTemplateApi {
   id?: number | string;
   storeId?: number | string;
+  /** store_shift（店班）/ field_job（外勤）；创建后不可改 */
+  applicationType?: string;
   title?: string;
   description?: string | null;
   triggerType?: string;
@@ -286,6 +289,10 @@ export interface DutyCompletionApi {
   templateId?: number | string;
   title?: string;
   triggerType?: string;
+  /** store_shift / field_job */
+  applicationType?: string;
+  /** 外勤 Duty 关联的工单 ID */
+  fieldJobId?: number | string | null;
   merchantAdminId?: number | string;
   publishedCellId?: number | string;
   sequenceNo?: number;
@@ -2138,6 +2145,19 @@ function mapApiFieldJobAssignment(input: unknown): FieldServiceJobAssignment | n
   };
 }
 
+function mapApiFieldJobDutyTemplate(input: unknown): FieldJobDutyTemplateBrief | null {
+  const raw = asRecord(input);
+  const id = asString(raw.id);
+  if (!id) return null;
+  return {
+    id,
+    title: asString(raw.title),
+    triggerType: asString(raw.triggerType || raw.trigger_type) || undefined,
+    required: raw.required !== false,
+    requirePhoto: raw.requirePhoto === true || raw.require_photo === true,
+  };
+}
+
 function mapApiFieldJob(input: unknown): FieldServiceJob {
   const raw = asRecord(input);
   const assignments = Array.isArray(raw.assignments)
@@ -2146,6 +2166,9 @@ function mapApiFieldJob(input: unknown): FieldServiceJob {
       ? [mapApiFieldJobAssignment(raw.assignment) as FieldServiceJobAssignment]
       : [];
   const assignment = assignments[0] ?? null;
+  const dutyTemplates = Array.isArray(raw.dutyTemplates)
+    ? raw.dutyTemplates.map(mapApiFieldJobDutyTemplate).filter(Boolean) as FieldJobDutyTemplateBrief[]
+    : [];
 
   return {
     id: asString(raw.id),
@@ -2165,6 +2188,7 @@ function mapApiFieldJob(input: unknown): FieldServiceJob {
     notes: asString(raw.notes) || undefined,
     assignment,
     assignments,
+    dutyTemplates,
     createdAt: asString(raw.createdAt || raw.created_at) || undefined,
     updatedAt: asString(raw.updatedAt || raw.updated_at) || undefined,
   };
@@ -2202,7 +2226,7 @@ function mapApiFieldJobAssignPreview(input: unknown): FieldJobAssignPreview {
 function fieldJobToApiPayload(payload: Partial<FieldJobUpsertPayload>) {
   const scheduledStart = payload.scheduledStart;
   const scheduledEnd = payload.scheduledEnd;
-  return compactDeep({
+  const body: Record<string, unknown> = compactDeep({
     storeId: payload.storeId,
     customerName: payload.customerName,
     customerPhone: payload.customerPhone,
@@ -2218,6 +2242,13 @@ function fieldJobToApiPayload(payload: Partial<FieldJobUpsertPayload>) {
     service_type: payload.serviceType,
     notes: payload.notes,
   });
+  // dutyTemplateIds 为整单替换语义：空数组表示清空勾选，不能被 compactDeep 丢弃
+  if (payload.dutyTemplateIds !== undefined) {
+    body.dutyTemplateIds = payload.dutyTemplateIds
+      .map((x) => Number(x))
+      .filter((n) => Number.isFinite(n) && n > 0);
+  }
+  return body;
 }
 
 export const merchantApi = {
@@ -2829,6 +2860,7 @@ export const merchantApi = {
   createDutyTemplate: async (
     storeId: string,
     payload: {
+      applicationType?: string;
       title: string;
       description?: string;
       triggerType: string;

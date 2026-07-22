@@ -1,4 +1,4 @@
-import { Button, Input, Segmented, Select, Table, Tag } from "antd";
+import { Button, Input, Segmented, Select, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import { CalendarDays, LayoutList, MapPin, Plus, RefreshCw, Search, UserPlus } from "lucide-react";
@@ -23,7 +23,13 @@ import { filterJobsInWeek, getWeekStart } from "../lib/fieldJobSchedule";
 import { isFieldJobEditableByMerchant, canAssignFieldJobByMerchant } from "../lib/fieldJobEditability";
 import { ApiError } from "../lib/apiClient";
 import { merchantApi } from "../lib/merchantApi";
-import type { FieldJobFormSubmitPayload, FieldJobAssignPayload, FieldJobStatus, FieldServiceJob } from "../types/fieldService";
+import type {
+  FieldJobDutyTemplateBrief,
+  FieldJobFormSubmitPayload,
+  FieldJobAssignPayload,
+  FieldJobStatus,
+  FieldServiceJob,
+} from "../types/fieldService";
 
 type FieldJobViewMode = "list" | "calendar";
 
@@ -69,6 +75,7 @@ export default function FieldJobs() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<FieldServiceJob | null>(null);
   const [assigningJob, setAssigningJob] = useState<FieldServiceJob | null>(null);
+  const [dutyTemplateOptions, setDutyTemplateOptions] = useState<FieldJobDutyTemplateBrief[]>([]);
   const saveInFlightRef = useRef(false);
 
   const employees = useMemo(
@@ -162,6 +169,38 @@ export default function FieldJobs() {
   useEffect(() => {
     void loadJobs();
   }, [loadJobs]);
+
+  // 本店启用的外勤 Duty 模板，供工单创建/编辑勾选
+  useEffect(() => {
+    if (!selectedStoreId || selectedStoreId === "all") {
+      setDutyTemplateOptions([]);
+      return;
+    }
+    let cancelled = false;
+    void merchantApi
+      .listDutyTemplates(selectedStoreId)
+      .then((items) => {
+        if (cancelled) return;
+        setDutyTemplateOptions(
+          items
+            .filter((tpl) => tpl.applicationType === "field_job" && tpl.status !== 0)
+            .map((tpl) => ({
+              id: String(tpl.id),
+              title: tpl.title || "",
+              triggerType: tpl.triggerType,
+              required: tpl.required !== false,
+              requirePhoto: tpl.requirePhoto === true,
+            })),
+        );
+      })
+      .catch((error) => {
+        console.log("[FieldJobs] load duty templates failed:", error);
+        if (!cancelled) setDutyTemplateOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedStoreId]);
 
   const handleSelectedDateChange = useCallback((date: Dayjs) => {
     const nextDate = date.startOf("day");
@@ -438,6 +477,20 @@ export default function FieldJobs() {
       render: (_, record) => getFieldJobEmployeeNamesLabel(record, "—", employees),
     },
     {
+      title: labels.dutyTemplates,
+      key: "dutyTemplates",
+      width: 100,
+      render: (_, record) => {
+        const items = record.dutyTemplates || [];
+        if (items.length === 0) return <span style={{ color: "var(--muted-foreground)" }}>—</span>;
+        return (
+          <Tooltip title={items.map((tpl) => tpl.title).join("、")}>
+            <Tag className="m-0">{String(labels.dutyChecklistCount).replace("{count}", String(items.length))}</Tag>
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: t.status,
       dataIndex: "status",
       key: "status",
@@ -567,6 +620,7 @@ export default function FieldJobs() {
         storeNameById={storeNameById}
         scheduleShifts={scheduleShifts.filter((shift) => shift.storeId === selectedStoreId)}
         employees={formEmployeeOptions}
+        dutyTemplateOptions={dutyTemplateOptions}
         dateLeaves={dateLeavesForStore}
         shiftLeaves={shiftLeavesForStore}
         existingJobs={allJobs}

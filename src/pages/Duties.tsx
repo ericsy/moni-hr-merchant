@@ -9,6 +9,7 @@ import {
   Select,
   Switch,
   Table,
+  Tabs,
   Tag,
   Tooltip,
 } from "antd";
@@ -29,6 +30,15 @@ const TRIGGER_OPTIONS = [
   { value: "clock_out", zh: "下班必做", en: "Clock-out" },
   { value: "recurring", zh: "分钟重复", en: "Recurring" },
 ];
+
+const APPLICATION_TYPE_META: Record<string, { color: string; zh: string; en: string }> = {
+  store_shift: { color: "blue", zh: "店班", en: "Store Shift" },
+  field_job: { color: "purple", zh: "外勤", en: "Field Job" },
+};
+
+function normalizeApplicationType(v?: string | null) {
+  return v === "field_job" ? "field_job" : "store_shift";
+}
 
 type CalStatus = "scheduled" | "pending" | "completed" | "expired" | "skipped" | "partial";
 
@@ -54,6 +64,7 @@ export default function Duties() {
   const zh = locale === "zh";
 
   const [templates, setTemplates] = useState<DutyTemplateApi[]>([]);
+  const [activeTab, setActiveTab] = useState<"store_shift" | "field_job">("store_shift");
   const [calendarEntries, setCalendarEntries] = useState<DutyCalendarEntryApi[]>([]);
   const [loading, setLoading] = useState(false);
   const [calLoading, setCalLoading] = useState(false);
@@ -164,6 +175,13 @@ export default function Duties() {
 
   const hasConcreteStore = !!selectedStoreId && selectedStoreId !== "all";
 
+  // 当前页签下的模板：店班 / 外勤分开管理
+  const tabTemplates = useMemo(
+    () => templates.filter((t) => normalizeApplicationType(t.applicationType) === activeTab),
+    [templates, activeTab],
+  );
+  const isFieldTab = activeTab === "field_job";
+
   const reloadTemplates = async () => {
     if (!hasConcreteStore) {
       setTemplates([]);
@@ -216,6 +234,7 @@ export default function Duties() {
     setEditing(null);
     form.resetFields();
     form.setFieldsValue({
+      applicationType: activeTab,
       triggerType: "clock_in",
       assignmentMode: "fixed",
       required: true,
@@ -228,6 +247,7 @@ export default function Duties() {
   const openEdit = (row: DutyTemplateApi) => {
     setEditing(row);
     form.setFieldsValue({
+      applicationType: normalizeApplicationType(row.applicationType),
       title: row.title,
       description: row.description,
       triggerType: row.triggerType,
@@ -246,13 +266,15 @@ export default function Duties() {
       return;
     }
     const values = await form.validateFields();
+    const isFieldJob = values.applicationType === "field_job";
     try {
       if (editing?.id) {
+        // applicationType 创建后不可改，不随 PATCH 提交
         await merchantApi.patchDutyTemplate(String(editing.id), {
           title: values.title,
           description: values.description,
           triggerType: values.triggerType,
-          assignmentMode: values.assignmentMode,
+          ...(isFieldJob ? {} : { assignmentMode: values.assignmentMode }),
           required: values.required,
           requirePhoto: values.requirePhoto,
           intervalMinutes: values.triggerType === "recurring" ? values.intervalMinutes : null,
@@ -260,10 +282,11 @@ export default function Duties() {
         });
       } else {
         await merchantApi.createDutyTemplate(String(selectedStoreId), {
+          applicationType: values.applicationType || "store_shift",
           title: values.title,
           description: values.description,
           triggerType: values.triggerType,
-          assignmentMode: values.assignmentMode,
+          ...(isFieldJob ? {} : { assignmentMode: values.assignmentMode }),
           required: values.required,
           requirePhoto: values.requirePhoto,
           intervalMinutes: values.triggerType === "recurring" ? values.intervalMinutes : undefined,
@@ -321,9 +344,13 @@ export default function Duties() {
         <div>
           <h1 className="text-xl font-semibold m-0">{zh ? "门店 Duties" : "Store Duties"}</h1>
           <p className="text-slate-500 text-sm m-0 mt-1">
-            {zh
-              ? "配置上班/下班必做与分钟重复任务；固定委派或按日分派。固定委派仅在该员工当天有排班时生效并落到日历。"
-              : "Configure clock-in/out required duties and recurring tasks. Fixed assignees apply only on days the employee is scheduled, and are projected onto the calendar."}
+            {isFieldTab
+              ? zh
+                ? "此处仅维护外勤检查项模板。具体使用哪些检查项，请在创建/编辑外勤任务时勾选；人员自动跟随工单接单人，改派随之转移。"
+                : "Maintain field-job checklist templates here. Pick templates when creating a field job; assignees always follow the job's workers."
+              : zh
+                ? "配置上班/下班必做与分钟重复任务；固定委派或按日分派。固定委派仅在该员工当天有排班时生效并落到日历。"
+                : "Configure clock-in/out required duties and recurring tasks. Fixed assignees apply only on days the employee is scheduled, and are projected onto the calendar."}
           </p>
         </div>
         <div className="flex gap-2">
@@ -331,10 +358,21 @@ export default function Duties() {
             {zh ? "刷新" : "Refresh"}
           </Button>
           <Button type="primary" icon={<Plus size={16} />} onClick={openCreate}>
-            {zh ? "新建模板" : "New template"}
+            {isFieldTab
+              ? zh ? "新建外勤模板" : "New field template"
+              : zh ? "新建模板" : "New template"}
           </Button>
         </div>
       </div>
+
+      <Tabs
+        activeKey={activeTab}
+        onChange={(k) => setActiveTab(k === "field_job" ? "field_job" : "store_shift")}
+        items={[
+          { key: "store_shift", label: zh ? "店班 Duties" : "Store Shift Duties" },
+          { key: "field_job", label: zh ? "外勤 Duty 模板" : "Field Job Templates" },
+        ]}
+      />
 
       {!hasConcreteStore ? (
         <div className="text-slate-500">{zh ? "请选择具体门店后管理 Duties" : "Select a concrete store to manage duties"}</div>
@@ -382,22 +420,25 @@ export default function Duties() {
                 </tr>
               </thead>
               <tbody>
-                {templates.length === 0 ? (
+                {tabTemplates.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-slate-400">
                       {zh ? "暂无模板，请先新建" : "No templates yet"}
                     </td>
                   </tr>
                 ) : (
-                  templates.map((tpl) => {
-                    const byDate = (tpl.assignmentMode || "fixed") === "by_date";
+                  tabTemplates.map((tpl) => {
+                    const isFieldJob = normalizeApplicationType(tpl.applicationType) === "field_job";
+                    const byDate = !isFieldJob && (tpl.assignmentMode || "fixed") === "by_date";
                     const perDate = calGrid.get(String(tpl.id));
                     return (
                       <tr key={String(tpl.id)} className="align-top">
                         <td className="p-2 border-b border-slate-100 sticky left-0 bg-white">
                           <div className="font-medium">{tpl.title}</div>
                           <div className="text-xs text-slate-400">
-                            {byDate ? (zh ? "按时间段" : "By range") : zh ? "固定" : "Fixed"}
+                            {isFieldJob
+                              ? zh ? "随外勤任务" : "Via field jobs"
+                              : byDate ? (zh ? "按时间段" : "By range") : zh ? "固定" : "Fixed"}
                             {tpl.status === 0 ? ` · ${zh ? "停用" : "off"}` : ""}
                           </div>
                         </td>
@@ -445,17 +486,27 @@ export default function Duties() {
 
           {/* 模板管理 */}
           <h2 className="text-base font-semibold m-0 mt-8">{zh ? "模板管理" : "Templates"}</h2>
+          {isFieldTab ? (
+            <p className="text-slate-500 text-sm m-0">
+              {zh
+                ? "外勤模板不在此指定人员和日期：在「外勤管理」创建/编辑工单时勾选检查清单，任务自动落到该工单的接单人身上。"
+                : "Field templates are not assigned here. Check them as the checklist when creating/editing a field job; duties follow the job's assignees automatically."}
+            </p>
+          ) : null}
           <Table
             rowKey={(r) => String(r.id)}
             loading={loading}
-            dataSource={templates}
+            dataSource={tabTemplates}
             pagination={false}
             columns={[
-              { title: zh ? "标题" : "Title", dataIndex: "title" },
+              {
+                title: zh ? "标题" : "Title",
+                dataIndex: "title",
+              },
               {
                 title: zh ? "触发" : "Trigger",
                 dataIndex: "triggerType",
-                render: (v: string, row) => {
+                render: (v: string, row: DutyTemplateApi) => {
                   const opt = TRIGGER_OPTIONS.find((o) => o.value === v);
                   return (
                     <span>
@@ -465,31 +516,36 @@ export default function Duties() {
                   );
                 },
               },
-              {
-                title: zh ? "委派" : "Assign",
-                dataIndex: "assignmentMode",
-                render: (v: string) => (v === "by_date" ? (zh ? "按时间段" : "By range") : zh ? "固定" : "Fixed"),
-              },
-              {
-                title: zh ? "固定委派人" : "Fixed assignees",
-                dataIndex: "fixedAssigneeIds",
-                render: (_: unknown, row: DutyTemplateApi) => {
-                  if ((row.assignmentMode || "fixed") === "by_date") {
-                    return <span className="text-slate-400">{zh ? "按时间段分派" : "By range"}</span>;
-                  }
-                  const ids = row.fixedAssigneeIds || [];
-                  if (ids.length === 0) return <span className="text-slate-400">—</span>;
-                  return (
-                    <div className="flex flex-wrap gap-1">
-                      {ids.map((id) => (
-                        <Tag key={String(id)} className="m-0">
-                          {nameOf(id)}
-                        </Tag>
-                      ))}
-                    </div>
-                  );
-                },
-              },
+              ...(isFieldTab
+                ? []
+                : [
+                    {
+                      title: zh ? "委派" : "Assign",
+                      dataIndex: "assignmentMode",
+                      render: (v: string) =>
+                        v === "by_date" ? (zh ? "按时间段" : "By range") : zh ? "固定" : "Fixed",
+                    },
+                    {
+                      title: zh ? "固定委派人" : "Fixed assignees",
+                      dataIndex: "fixedAssigneeIds",
+                      render: (_: unknown, row: DutyTemplateApi) => {
+                        if ((row.assignmentMode || "fixed") === "by_date") {
+                          return <span className="text-slate-400">{zh ? "按时间段分派" : "By range"}</span>;
+                        }
+                        const ids = row.fixedAssigneeIds || [];
+                        if (ids.length === 0) return <span className="text-slate-400">—</span>;
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {ids.map((id) => (
+                              <Tag key={String(id)} className="m-0">
+                                {nameOf(id)}
+                              </Tag>
+                            ))}
+                          </div>
+                        );
+                      },
+                    },
+                  ]),
               {
                 title: zh ? "必做" : "Required",
                 dataIndex: "required",
@@ -512,9 +568,11 @@ export default function Duties() {
                     <Button size="small" onClick={() => openEdit(row)}>
                       {zh ? "编辑" : "Edit"}
                     </Button>
-                    <Button size="small" onClick={() => void openAssignees(row)}>
-                      {zh ? "委派" : "Assign"}
-                    </Button>
+                    {normalizeApplicationType(row.applicationType) !== "field_job" ? (
+                      <Button size="small" onClick={() => void openAssignees(row)}>
+                        {zh ? "委派" : "Assign"}
+                      </Button>
+                    ) : null}
                     <Button
                       size="small"
                       danger
@@ -548,6 +606,33 @@ export default function Duties() {
         destroyOnClose
       >
         <Form form={form} layout="vertical">
+          <Form.Item name="applicationType" hidden>
+            <Input />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(p, c) => p.applicationType !== c.applicationType}>
+            {() => {
+              const at = normalizeApplicationType(form.getFieldValue("applicationType"));
+              const meta = APPLICATION_TYPE_META[at];
+              return (
+                <Form.Item label={zh ? "应用类型" : "Application type"}>
+                  <div className="flex items-center gap-2">
+                    <Tag color={meta.color} className="m-0">
+                      {zh ? meta.zh : meta.en}
+                    </Tag>
+                    <span className="text-slate-400 text-xs">
+                      {at === "field_job"
+                        ? zh
+                          ? "由「外勤 Duty 模板」页签创建，创建后不可更改"
+                          : "Created from the Field Job Templates tab; cannot be changed"
+                        : zh
+                          ? "由「店班 Duties」页签创建，创建后不可更改"
+                          : "Created from the Store Shift Duties tab; cannot be changed"}
+                    </span>
+                  </div>
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
           <Form.Item name="title" label={zh ? "标题" : "Title"} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
@@ -572,13 +657,19 @@ export default function Duties() {
               ) : null
             }
           </Form.Item>
-          <Form.Item name="assignmentMode" label={zh ? "委派模式" : "Assignment mode"}>
-            <Select
-              options={[
-                { value: "fixed", label: zh ? "固定人员" : "Fixed" },
-                { value: "by_date", label: zh ? "按时间段分派" : "By date range" },
-              ]}
-            />
+          <Form.Item noStyle shouldUpdate={(p, c) => p.applicationType !== c.applicationType}>
+            {() =>
+              form.getFieldValue("applicationType") === "field_job" ? null : (
+                <Form.Item name="assignmentMode" label={zh ? "委派模式" : "Assignment mode"}>
+                  <Select
+                    options={[
+                      { value: "fixed", label: zh ? "固定人员" : "Fixed" },
+                      { value: "by_date", label: zh ? "按时间段分派" : "By date range" },
+                    ]}
+                  />
+                </Form.Item>
+              )
+            }
           </Form.Item>
           <Form.Item name="required" label={zh ? "必做" : "Required"} valuePropName="checked">
             <Switch />

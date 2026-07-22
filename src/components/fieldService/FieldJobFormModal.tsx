@@ -10,7 +10,11 @@ import {
 } from "../../lib/employeeLeave";
 import type { EmployeeDateLeave, EmployeeShiftLeave } from "../../lib/merchantApi";
 import type { GooglePlaceSummary } from "../../lib/googleMaps";
-import type { FieldJobFormSubmitPayload, FieldServiceJob } from "../../types/fieldService";
+import type {
+  FieldJobDutyTemplateBrief,
+  FieldJobFormSubmitPayload,
+  FieldServiceJob,
+} from "../../types/fieldService";
 import { getFieldJobAssignmentEmployeeIds, getFieldJobAssignments, isFieldJobAssigned, normalizeEmployeeAdminIds } from "../../lib/fieldJobEmployees";
 import type { ScheduleShift } from "../../context/DataContext";
 import {
@@ -35,6 +39,7 @@ export interface FieldJobFormValues {
   serviceType: string;
   serviceDate: Dayjs;
   merchantAdminIds?: string[];
+  dutyTemplateIds?: string[];
   latitude: number;
   longitude: number;
   geofenceRadius: number;
@@ -49,6 +54,8 @@ interface FieldJobFormModalProps {
   storeNameById: Record<string, string>;
   scheduleShifts: ScheduleShift[];
   employees: Array<{ id: string; name: string }>;
+  /** 本店启用的外勤 Duty 模板 */
+  dutyTemplateOptions?: FieldJobDutyTemplateBrief[];
   dateLeaves: EmployeeDateLeave[];
   shiftLeaves: EmployeeShiftLeave[];
   existingJobs: FieldServiceJob[];
@@ -176,6 +183,7 @@ export default function FieldJobFormModal({
   storeNameById,
   scheduleShifts,
   employees,
+  dutyTemplateOptions = [],
   dateLeaves,
   shiftLeaves,
   existingJobs,
@@ -278,6 +286,19 @@ export default function FieldJobFormModal({
     setSyncErrors(syncValidation.errors);
   }, [syncValidation.errors]);
 
+  // 编辑回显时保留已勾选但当前已停用/删除的模板选项
+  const dutySelectOptions = useMemo(() => {
+    const merged = new Map<string, FieldJobDutyTemplateBrief>();
+    dutyTemplateOptions.forEach((tpl) => merged.set(String(tpl.id), tpl));
+    (job?.dutyTemplates || []).forEach((tpl) => {
+      if (!merged.has(String(tpl.id))) merged.set(String(tpl.id), tpl);
+    });
+    return Array.from(merged.values()).map((tpl) => ({
+      value: String(tpl.id),
+      label: tpl.title,
+    }));
+  }, [dutyTemplateOptions, job?.dutyTemplates]);
+
   const availableEmployees = useMemo(() => {
     if (!scheduledWindow) return employees;
     return filterEmployeesAvailableForFieldJob(
@@ -369,6 +390,7 @@ export default function FieldJobFormModal({
         geofenceRadius: job.geofenceRadius,
         notes: job.notes,
         merchantAdminIds: normalizeEmployeeAdminIds(getFieldJobAssignmentEmployeeIds(job)),
+        dutyTemplateIds: (job.dutyTemplates || []).map((tpl) => String(tpl.id)),
       });
       setStartTime(toTimeString(start));
       setEndTime(toTimeString(end, 11, 0));
@@ -391,6 +413,7 @@ export default function FieldJobFormModal({
       serviceDate: today,
       geofenceRadius: 100,
       merchantAdminIds: [],
+      dutyTemplateIds: [],
     });
     setStartTime(defaultStartTime);
     setEndTime(defaultEndTime);
@@ -487,6 +510,7 @@ export default function FieldJobFormModal({
         scheduledEnd: toLocalDateTimeString(scheduledEnd),
         serviceType: values.serviceType.trim(),
         notes: values.notes?.trim() || undefined,
+        dutyTemplateIds: values.dutyTemplateIds ?? [],
         merchantAdminIds: selectedIds,
         syncStoreClockIn: selectedIds.length === 1 ? appliedSync.syncStoreClockIn : false,
         syncStoreClockOut: selectedIds.length === 1 ? appliedSync.syncStoreClockOut : false,
@@ -676,6 +700,27 @@ export default function FieldJobFormModal({
         ) : selectedEmployeeIds.length > 1 ? (
           <Alert type="info" showIcon message={String(labels.multiEmployeeAssignHint)} />
         ) : null}
+
+        <Form.Item
+          name="dutyTemplateIds"
+          label={String(labels.dutyTemplates)}
+          help={
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              {String(labels.dutyTemplatesHint)}
+            </span>
+          }
+        >
+          <Select
+            mode="multiple"
+            allowClear={!readOnly}
+            disabled={readOnly}
+            className="w-full"
+            placeholder={String(labels.dutyTemplatesPlaceholder)}
+            options={dutySelectOptions}
+            optionFilterProp="label"
+            notFoundContent={String(labels.dutyTemplatesEmpty)}
+          />
+        </Form.Item>
 
         <Form.Item label={String(labels.geofenceRadius)}>
           <GeoFenceMapPicker

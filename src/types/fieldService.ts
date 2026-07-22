@@ -19,6 +19,15 @@ export type PunchActionType =
 
 export type DayWorkStatus = "not_started" | "in_progress" | "done";
 
+/** 外勤工单勾选的 Duty 模板摘要 */
+export interface FieldJobDutyTemplateBrief {
+  id: string;
+  title: string;
+  triggerType?: string;
+  required?: boolean;
+  requirePhoto?: boolean;
+}
+
 export interface FieldServiceJob {
   id: string;
   merchantId?: string;
@@ -38,6 +47,8 @@ export interface FieldServiceJob {
   /** @deprecated 兼容旧接口，取 assignments 首条 */
   assignment?: FieldServiceJobAssignment | null;
   assignments?: FieldServiceJobAssignment[];
+  /** 工单勾选的外勤 Duty 模板 */
+  dutyTemplates?: FieldJobDutyTemplateBrief[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -106,6 +117,8 @@ export interface FieldJobUpsertPayload {
   scheduledEnd: string;
   serviceType: string;
   notes?: string;
+  /** 勾选的外勤 Duty 模板 ID；整单替换，传空数组表示清空 */
+  dutyTemplateIds?: Array<number | string>;
 }
 
 export interface FieldJobFormSubmitPayload extends FieldJobUpsertPayload {

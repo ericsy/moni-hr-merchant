@@ -1,3 +1,18 @@
+## 2026-07-22
+
+- **Duties 页拆 Tab + 外勤「检查清单」文案（消除店班/外勤管理入口歧义）**：
+  - **`Duties.tsx`**：页面拆为「店班 Duties」/「外勤 Duty 模板」两个 Tab，模板列表与委派日历按 Tab 过滤；新建模板的应用类型由当前 Tab 决定（隐藏 Radio，弹窗内静态展示类型并提示创建后不可改）；外勤 Tab 隐藏「委派/固定委派人」列并加提示文案「外勤模板不在此指定人员和日期，在外勤管理勾选检查清单，任务自动落到接单人身上」；页首描述按 Tab 切换。
+  - **`FieldJobs.tsx`**：工单列表新增「检查清单」列，显示已勾选模板数量（Tooltip 展示模板标题）。
+  - **`locales.ts`**：外勤工单表单字段「外勤 Duty」改叫「检查清单 / Checklist」，hint 指向「门店 Duties → 外勤 Duty 模板」；新增 `dutyChecklistCount`（"{count} 项" / "{count} items"）。
+
+- **Duty 应用类型（店班/外勤）**：模板新增 `applicationType`（`store_shift` / `field_job`，默认店班，创建后不可改）。
+  - **`merchantApi.ts`**：`DutyTemplateApi` / `createDutyTemplate` 补 `applicationType`；`DutyCompletionApi` 补 `applicationType` / `fieldJobId`；`mapApiFieldJob` 解析工单 `dutyTemplates`（id/title/triggerType/required/requirePhoto）；`fieldJobToApiPayload` 支持 `dutyTemplateIds`（整单替换语义，空数组显式提交不被 compactDeep 丢弃）。
+  - **`Duties.tsx`**：新建模板增加「应用类型」Radio（店班/外勤），编辑时禁用并提示不可改；外勤类型隐藏委派模式选择与「委派」按钮，改为说明「随外勤任务勾选生效」，保存不提交 `assignmentMode`；模板表格标题列与日历模板行加 店班（蓝）/ 外勤（紫）Tag，外勤行副标题显示「随外勤任务」。
+  - **`FieldJobs.tsx`**：按门店加载启用的外勤 Duty 模板（`listDutyTemplates` 过滤 `applicationType=field_job && status!=0`）传入表单弹窗。
+  - **`FieldJobFormModal.tsx`**：工单创建/编辑新增「外勤 Duty」多选（编辑回显 `dutyTemplates`，已停用模板仍保留选项）；提交 create/patch 携带 `dutyTemplateIds`。
+  - **`fieldService.ts`**：新增 `FieldJobDutyTemplateBrief`；`FieldServiceJob` 补 `dutyTemplates`；`FieldJobUpsertPayload` 补 `dutyTemplateIds`。
+  - **`locales.ts`**：`fieldJobs` 补 `dutyTemplates` / `dutyTemplatesPlaceholder` / `dutyTemplatesHint` / `dutyTemplatesEmpty` 中英文案。
+
 ## 2026-07-21
 
 - **Duty 模板支持「完成需拍照」**：新建/编辑模板 Modal 新增 `requirePhoto` 开关（含说明：员工完成时必须现场拍照上传、仅可调起相机）；创建/更新请求携带 `requirePhoto`；模板表格「必做」列追加橙色「拍照」标签。`DutyTemplateApi` 补 `requirePhoto`；`DutyCompletionApi` 补 `requirePhoto` / `photoUrls`（多张，最多 5）/ `note`。
