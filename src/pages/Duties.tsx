@@ -84,13 +84,14 @@ export default function Duties() {
   // 按日委派：区间内至少一天有排班且未请假的员工；null 表示未加载
   const [eligibleIds, setEligibleIds] = useState<number[] | null>(null);
 
-  // 完成明细 Tab（含照片）
-  const [completionDate, setCompletionDate] = useState<Dayjs>(() => dayjs());
+  // 完成明细 Tab（按周日历 + 照片）
+  const [completionWeekStart, setCompletionWeekStart] = useState<Dayjs>(() => startOfWeekMonday(dayjs()));
   const [completionItems, setCompletionItems] = useState<DutyCompletionApi[]>([]);
   const [completionLoading, setCompletionLoading] = useState(false);
   const [completionAppType, setCompletionAppType] = useState<"all" | "store_shift" | "field_job">("all");
   const [completionStatus, setCompletionStatus] = useState<string>("all");
   const [completionEmployeeId, setCompletionEmployeeId] = useState<number | null>(null);
+  const [completionDetail, setCompletionDetail] = useState<DutyCompletionApi | null>(null);
 
   const storeEmployees = useMemo(
     () =>
@@ -240,29 +241,28 @@ export default function Duties() {
 
   useEffect(() => {
     if (!isCompletionsTab || !hasConcreteStore) return;
-    void loadCompletions(completionDate);
+    void loadCompletionsWeek(completionWeekStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedStoreId, completionDate]);
+  }, [activeTab, selectedStoreId, completionWeekStart]);
 
   const reloadAll = async () => {
     const tasks: Promise<unknown>[] = [reloadTemplates(), reloadCalendar()];
     if (isCompletionsTab) {
-      tasks.push(loadCompletions(completionDate));
+      tasks.push(loadCompletionsWeek(completionWeekStart));
     }
     await Promise.all(tasks);
   };
 
-  const loadCompletions = async (date: Dayjs) => {
+  const loadCompletionsWeek = async (weekStartDay: Dayjs) => {
     if (!hasConcreteStore) {
       setCompletionItems([]);
       return;
     }
     setCompletionLoading(true);
     try {
-      const items = await merchantApi.listDutyCompletions(
-        String(selectedStoreId),
-        date.format("YYYY-MM-DD"),
-      );
+      const from = weekStartDay.format("YYYY-MM-DD");
+      const to = weekStartDay.add(6, "day").format("YYYY-MM-DD");
+      const items = await merchantApi.listDutyCompletionsRange(String(selectedStoreId), from, to);
       setCompletionItems(items);
     } catch (err) {
       setCompletionItems([]);
@@ -272,12 +272,12 @@ export default function Duties() {
     }
   };
 
-  /** 切到「完成明细」Tab；可从日历带入日期/员工筛选 */
+  /** 切到「完成明细」Tab；可从委派日历带入日期/员工筛选 */
   const openCompletionsTab = (
     date: Dayjs,
     opts?: { merchantAdminId?: string; appType?: "store_shift" | "field_job" },
   ) => {
-    setCompletionDate(date);
+    setCompletionWeekStart(startOfWeekMonday(date));
     setCompletionEmployeeId(
       opts?.merchantAdminId ? Number(opts.merchantAdminId) || null : null,
     );
@@ -297,6 +297,13 @@ export default function Duties() {
     return d.format(zh ? "MM/DD HH:mm" : "MMM D HH:mm");
   };
 
+  const formatTime = (v?: string | null) => {
+    if (!v) return "";
+    const d = dayjs(v);
+    if (!d.isValid()) return "";
+    return d.format("HH:mm");
+  };
+
   const filteredCompletionItems = useMemo(() => {
     let items = completionItems;
     if (completionAppType !== "all") {
@@ -312,6 +319,27 @@ export default function Duties() {
     }
     return items;
   }, [completionItems, completionAppType, completionStatus, completionEmployeeId]);
+
+  const completionWeekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => completionWeekStart.add(i, "day")),
+    [completionWeekStart],
+  );
+
+  const completionRangeLabel = `${completionWeekStart.format("YYYY/MM/DD")} - ${completionWeekStart.add(6, "day").format("MM/DD")}`;
+
+  // dateStr -> items
+  const completionsByDate = useMemo(() => {
+    const map = new Map<string, DutyCompletionApi[]>();
+    filteredCompletionItems.forEach((item) => {
+      const dt =
+        item.workDate ||
+        (item.windowStart ? dayjs(item.windowStart).format("YYYY-MM-DD") : "");
+      if (!dt) return;
+      if (!map.has(dt)) map.set(dt, []);
+      map.get(dt)!.push(item);
+    });
+    return map;
+  }, [filteredCompletionItems]);
 
   const openCreate = () => {
     setEditing(null);
@@ -423,8 +451,8 @@ export default function Duties() {
 
   const pageHint = isCompletionsTab
     ? zh
-      ? "按日查看 Duty 完成情况与现场照片。"
-      : "Review daily duty completion status and photos."
+      ? "按周查看 Duty 完成情况与现场照片；点击卡片可看详情。"
+      : "Review weekly duty completions and photos; click a card for details."
     : isFieldTab
       ? zh
         ? "此处仅维护外勤检查项模板。具体使用哪些检查项，请在创建/编辑外勤任务时勾选；人员自动跟随工单接单人，改派随之转移。"
@@ -476,172 +504,232 @@ export default function Duties() {
         <div className="text-slate-500">{zh ? "请选择具体门店后管理 Duties" : "Select a concrete store to manage duties"}</div>
       ) : isCompletionsTab ? (
         <>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-slate-600 text-sm">{zh ? "日期" : "Date"}</span>
-            <DatePicker
-              value={completionDate}
-              allowClear={false}
-              onChange={(d) => {
-                if (d) setCompletionDate(d);
-              }}
-            />
-            <Select
-              className="min-w-[120px]"
-              value={completionAppType}
-              onChange={(v) => setCompletionAppType(v)}
-              options={[
-                { value: "all", label: zh ? "全部类型" : "All types" },
-                { value: "store_shift", label: zh ? "店班" : "Store shift" },
-                { value: "field_job", label: zh ? "外勤" : "Field job" },
-              ]}
-            />
-            <Select
-              className="min-w-[120px]"
-              value={completionStatus}
-              onChange={(v) => setCompletionStatus(v)}
-              options={[
-                { value: "all", label: zh ? "全部状态" : "All status" },
-                { value: "pending", label: zh ? "待完成" : "Pending" },
-                { value: "completed", label: zh ? "已完成" : "Completed" },
-                { value: "expired", label: zh ? "已过期" : "Expired" },
-                { value: "skipped", label: zh ? "已跳过" : "Skipped" },
-              ]}
-            />
-            <Select
-              className="min-w-[160px]"
-              allowClear
-              placeholder={zh ? "全部员工" : "All employees"}
-              value={completionEmployeeId ?? undefined}
-              onChange={(v) => setCompletionEmployeeId(v ?? null)}
-              options={employeeOptions}
-              optionFilterProp="label"
-              showSearch
-            />
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-base font-semibold m-0">{zh ? "完成日历" : "Completion calendar"}</h2>
+            <div className="flex items-center gap-1">
+              <Button
+                size="small"
+                icon={<ChevronLeft size={16} />}
+                onClick={() => setCompletionWeekStart((w) => w.subtract(7, "day"))}
+              />
+              <Button size="small" onClick={() => setCompletionWeekStart(startOfWeekMonday(dayjs()))}>
+                {zh ? "本周" : "This week"}
+              </Button>
+              <Button
+                size="small"
+                icon={<ChevronRight size={16} />}
+                onClick={() => setCompletionWeekStart((w) => w.add(7, "day"))}
+              />
+            </div>
+            <span className="text-slate-500 text-sm">{completionRangeLabel}</span>
+            <div className="flex flex-wrap items-center gap-2 ml-auto">
+              <Select
+                className="min-w-[110px]"
+                size="small"
+                value={completionAppType}
+                onChange={(v) => setCompletionAppType(v)}
+                options={[
+                  { value: "all", label: zh ? "全部类型" : "All types" },
+                  { value: "store_shift", label: zh ? "店班" : "Store shift" },
+                  { value: "field_job", label: zh ? "外勤" : "Field job" },
+                ]}
+              />
+              <Select
+                className="min-w-[110px]"
+                size="small"
+                value={completionStatus}
+                onChange={(v) => setCompletionStatus(v)}
+                options={[
+                  { value: "all", label: zh ? "全部状态" : "All status" },
+                  { value: "pending", label: zh ? "待完成" : "Pending" },
+                  { value: "completed", label: zh ? "已完成" : "Completed" },
+                  { value: "expired", label: zh ? "已过期" : "Expired" },
+                  { value: "skipped", label: zh ? "已跳过" : "Skipped" },
+                ]}
+              />
+              <Select
+                className="min-w-[140px]"
+                size="small"
+                allowClear
+                placeholder={zh ? "全部员工" : "All employees"}
+                value={completionEmployeeId ?? undefined}
+                onChange={(v) => setCompletionEmployeeId(v ?? null)}
+                options={employeeOptions}
+                optionFilterProp="label"
+                showSearch
+              />
+            </div>
           </div>
 
-          <Table
-            rowKey={(r) => String(r.id)}
-            loading={completionLoading}
-            dataSource={filteredCompletionItems}
-            pagination={{ pageSize: 15, hideOnSinglePage: true }}
-            size="middle"
-            locale={{
-              emptyText: zh ? "当日暂无 Duty 实例" : "No duty instances for this day",
-            }}
-            columns={[
-              {
-                title: zh ? "员工" : "Employee",
-                dataIndex: "merchantAdminId",
-                width: 120,
-                render: (v: number | string) => nameOf(v),
-              },
-              {
-                title: zh ? "类型" : "Type",
-                dataIndex: "applicationType",
-                width: 90,
-                render: (v: string) => {
-                  const t = normalizeApplicationType(v);
-                  const meta = APPLICATION_TYPE_META[t];
-                  return <Tag color={meta.color}>{zh ? meta.zh : meta.en}</Tag>;
-                },
-              },
-              {
-                title: zh ? "任务" : "Duty",
-                dataIndex: "title",
-                ellipsis: true,
-                render: (v: string, row: DutyCompletionApi) => {
-                  const opt = TRIGGER_OPTIONS.find((o) => o.value === row.triggerType);
-                  const seq =
-                    row.triggerType === "recurring" && row.sequenceNo
-                      ? ` #${row.sequenceNo}`
-                      : "";
-                  return (
-                    <div>
-                      <div className="font-medium">{v || "—"}</div>
+          <div className={`overflow-x-auto border border-slate-200 rounded-lg ${completionLoading ? "opacity-60" : ""}`}>
+            <div className="grid grid-cols-7 min-w-[980px]">
+              {completionWeekDays.map((d) => {
+                const dateStr = d.format("YYYY-MM-DD");
+                const isToday = d.isSame(dayjs(), "day");
+                const dayItems = completionsByDate.get(dateStr) || [];
+                const doneCount = dayItems.filter((i) => i.status === "completed").length;
+                return (
+                  <div
+                    key={dateStr}
+                    className={`border-r border-slate-200 last:border-r-0 min-h-[320px] flex flex-col ${isToday ? "bg-blue-50/40" : "bg-white"}`}
+                  >
+                    <div className={`px-2 py-2 border-b border-slate-200 text-center ${isToday ? "bg-blue-50" : "bg-slate-50"}`}>
+                      <div className="font-medium text-sm">{d.format(zh ? "MM/DD" : "ddd")}</div>
                       <div className="text-xs text-slate-400">
-                        {(zh ? opt?.zh : opt?.en) || row.triggerType}
-                        {seq}
-                        {row.fieldJobId ? ` · job#${row.fieldJobId}` : ""}
+                        {d.format(zh ? "ddd" : "MM/DD")}
+                        {dayItems.length > 0 ? ` · ${doneCount}/${dayItems.length}` : ""}
                       </div>
                     </div>
-                  );
-                },
-              },
-              {
-                title: zh ? "状态" : "Status",
-                dataIndex: "status",
-                width: 100,
-                render: (v: string) => {
-                  const key = (v as CalStatus) in STATUS_META ? (v as CalStatus) : null;
-                  const meta = key ? STATUS_META[key] : null;
-                  return (
-                    <Tag color={meta?.color || "default"}>
-                      {meta ? (zh ? meta.zh : meta.en) : v || "—"}
-                    </Tag>
-                  );
-                },
-              },
-              {
-                title: zh ? "时间窗" : "Window",
-                width: 150,
-                render: (_: unknown, row: DutyCompletionApi) => (
-                  <span className="text-xs text-slate-600">
-                    {formatDt(row.windowStart)}
-                    <br />
-                    {formatDt(row.windowEnd)}
-                  </span>
-                ),
-              },
-              {
-                title: zh ? "完成于" : "Completed",
-                dataIndex: "completedAt",
-                width: 120,
-                render: (v: string | null | undefined) => (
-                  <span className="text-xs">{formatDt(v)}</span>
-                ),
-              },
-              {
-                title: zh ? "备注" : "Note",
-                dataIndex: "note",
-                ellipsis: true,
-                width: 140,
-                render: (v: string | null | undefined) =>
-                  v ? <span className="text-xs">{v}</span> : <span className="text-slate-300">—</span>,
-              },
-              {
-                title: zh ? "照片" : "Photos",
-                width: 200,
-                render: (_: unknown, row: DutyCompletionApi) => {
-                  const urls = (row.photoUrls || []).filter(Boolean);
-                  if (urls.length === 0) {
-                    return row.requirePhoto ? (
-                      <span className="text-xs text-slate-400">
-                        {zh ? "需拍照·无图" : "Required·none"}
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
+                    <div className="p-1.5 flex flex-col gap-1.5 flex-1">
+                      {dayItems.length === 0 ? (
+                        <span className="text-slate-300 text-xs text-center mt-4">—</span>
+                      ) : (
+                        dayItems.map((item) => {
+                          const meta =
+                            STATUS_META[(item.status as CalStatus) || "pending"] || STATUS_META.pending;
+                          const urls = (item.photoUrls || []).filter(Boolean);
+                          const opt = TRIGGER_OPTIONS.find((o) => o.value === item.triggerType);
+                          return (
+                            <button
+                              key={String(item.id)}
+                              type="button"
+                              onClick={() => setCompletionDetail(item)}
+                              className="text-left w-full rounded border border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm p-1.5 transition-colors"
+                            >
+                              <div className="flex items-center gap-1 mb-0.5">
+                                <Tag color={meta.color} className="m-0 text-[10px] leading-4 px-1">
+                                  {zh ? meta.zh : meta.en}
+                                </Tag>
+                                {normalizeApplicationType(item.applicationType) === "field_job" ? (
+                                  <Tag color="purple" className="m-0 text-[10px] leading-4 px-1">
+                                    {zh ? "外勤" : "Field"}
+                                  </Tag>
+                                ) : null}
+                              </div>
+                              <div className="text-xs font-medium truncate" title={item.title || ""}>
+                                {item.title || "—"}
+                              </div>
+                              <div className="text-[11px] text-slate-500 truncate">
+                                {nameOf(item.merchantAdminId)}
+                                {formatTime(item.windowStart) ? ` · ${formatTime(item.windowStart)}` : ""}
+                              </div>
+                              <div className="text-[10px] text-slate-400 truncate">
+                                {(zh ? opt?.zh : opt?.en) || item.triggerType}
+                                {item.triggerType === "recurring" && item.sequenceNo
+                                  ? ` #${item.sequenceNo}`
+                                  : ""}
+                              </div>
+                              {urls.length > 0 ? (
+                                <div className="flex gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
+                                  <Image.PreviewGroup items={urls}>
+                                    {urls.slice(0, 3).map((url) => (
+                                      <Image
+                                        key={url}
+                                        src={url}
+                                        width={28}
+                                        height={28}
+                                        className="rounded object-cover"
+                                        style={{ objectFit: "cover" }}
+                                      />
+                                    ))}
+                                  </Image.PreviewGroup>
+                                  {urls.length > 3 ? (
+                                    <span className="text-[10px] text-slate-400 self-center">
+                                      +{urls.length - 3}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <Modal
+            open={!!completionDetail}
+            title={completionDetail?.title || (zh ? "Duty 详情" : "Duty detail")}
+            onCancel={() => setCompletionDetail(null)}
+            footer={null}
+            width={560}
+            destroyOnClose
+          >
+            {completionDetail ? (
+              <div className="space-y-3 text-sm">
+                <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const meta =
+                      STATUS_META[(completionDetail.status as CalStatus) || "pending"] ||
+                      STATUS_META.pending;
+                    return (
+                      <Tag color={meta.color}>{zh ? meta.zh : meta.en}</Tag>
                     );
-                  }
-                  return (
-                    <Image.PreviewGroup items={urls}>
-                      <div className="flex gap-1 flex-wrap">
-                        {urls.map((url) => (
+                  })()}
+                  <Tag color={APPLICATION_TYPE_META[normalizeApplicationType(completionDetail.applicationType)].color}>
+                    {zh
+                      ? APPLICATION_TYPE_META[normalizeApplicationType(completionDetail.applicationType)].zh
+                      : APPLICATION_TYPE_META[normalizeApplicationType(completionDetail.applicationType)].en}
+                  </Tag>
+                </div>
+                <div>
+                  <div className="text-slate-400 text-xs">{zh ? "员工" : "Employee"}</div>
+                  <div>{nameOf(completionDetail.merchantAdminId)}</div>
+                </div>
+                <div>
+                  <div className="text-slate-400 text-xs">{zh ? "日期" : "Date"}</div>
+                  <div>{completionDetail.workDate || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-slate-400 text-xs">{zh ? "时间窗" : "Window"}</div>
+                  <div>
+                    {formatDt(completionDetail.windowStart)} — {formatDt(completionDetail.windowEnd)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400 text-xs">{zh ? "完成于" : "Completed at"}</div>
+                  <div>{formatDt(completionDetail.completedAt)}</div>
+                </div>
+                {completionDetail.note ? (
+                  <div>
+                    <div className="text-slate-400 text-xs">{zh ? "备注" : "Note"}</div>
+                    <div>{completionDetail.note}</div>
+                  </div>
+                ) : null}
+                <div>
+                  <div className="text-slate-400 text-xs mb-1">{zh ? "照片" : "Photos"}</div>
+                  {(completionDetail.photoUrls || []).filter(Boolean).length === 0 ? (
+                    <span className="text-slate-300">
+                      {completionDetail.requirePhoto
+                        ? zh
+                          ? "需拍照·无图"
+                          : "Required·none"
+                        : "—"}
+                    </span>
+                  ) : (
+                    <Image.PreviewGroup items={(completionDetail.photoUrls || []).filter(Boolean)}>
+                      <div className="flex gap-2 flex-wrap">
+                        {(completionDetail.photoUrls || []).filter(Boolean).map((url) => (
                           <Image
                             key={url}
                             src={url}
-                            width={48}
-                            height={48}
+                            width={96}
+                            height={96}
                             className="rounded object-cover"
                             style={{ objectFit: "cover" }}
                           />
                         ))}
                       </div>
                     </Image.PreviewGroup>
-                  );
-                },
-              },
-            ]}
-          />
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </Modal>
         </>
       ) : (
         <>

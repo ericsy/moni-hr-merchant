@@ -1,6 +1,6 @@
 ## 2026-07-23
 
-- **Duties「完成明细」独立 Tab**：页签为「店班 Duties / 外勤 Duty 模板 / 完成明细」。完成明细按日加载，可筛类型/状态/员工，表格含时间窗、备注与照片预览（`Image.PreviewGroup`）。日历点日期表头或员工 Tag 可跳转该 Tab 并带入筛选。接口：`GET .../duties/completions`。
+- **Duties「完成明细」改为周日历**：独立 Tab 按周 7 列展示实例卡片（状态/员工/时间/缩略图），点卡片看详情与大图；支持类型/状态/员工筛选与上周/本周/下周。后端 `GET .../duties/completions` 支持 `from`/`to`（或单日 `date`），返回项含 `workDate`。
 
 ## 2026-07-22
 

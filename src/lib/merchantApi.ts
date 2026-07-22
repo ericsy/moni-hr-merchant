@@ -286,6 +286,7 @@ export interface DutyTemplateApi {
 
 export interface DutyCompletionApi {
   id?: number | string;
+  workDate?: string;
   templateId?: number | string;
   title?: string;
   triggerType?: string;
@@ -2910,6 +2911,13 @@ export const merchantApi = {
     const data = await apiRequest<{ date?: string; items?: DutyCompletionApi[] }>(
       appendEndpointPath("/api/v1/merchant/stores", storeId, "duties", "completions"),
       { storeId, query: { date } },
+    );
+    return data?.items || [];
+  },
+  listDutyCompletionsRange: async (storeId: string, from: string, to: string) => {
+    const data = await apiRequest<{ from?: string; to?: string; items?: DutyCompletionApi[] }>(
+      appendEndpointPath("/api/v1/merchant/stores", storeId, "duties", "completions"),
+      { storeId, query: { from, to } },
     );
     return data?.items || [];
   },
