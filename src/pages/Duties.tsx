@@ -828,9 +828,9 @@ export default function Duties() {
                                   ? () => void openAssignees(tpl, byDate ? d : undefined)
                                   : undefined
                               }
-                              className={`p-1.5 border-b border-l border-slate-100 align-top ${isToday ? "bg-blue-50/40" : ""} ${!isFieldJob ? "cursor-pointer hover:bg-slate-50" : ""}`}
+                              className={`p-1.5 border-b border-l border-slate-100 align-middle text-center ${isToday ? "bg-blue-50/40" : ""} ${!isFieldJob ? "cursor-pointer hover:bg-slate-50" : ""}`}
                             >
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1 items-center justify-center min-h-[52px]">
                                 {entries.length === 0 ? (
                                   <span className="text-slate-300 text-xs">
                                     {!isFieldJob ? (zh ? "点击分派" : "assign") : "—"}
