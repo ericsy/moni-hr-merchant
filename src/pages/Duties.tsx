@@ -460,13 +460,21 @@ export default function Duties() {
                                 ) : (
                                   entries.map((en, i) => {
                                     const meta = STATUS_META[(en.status as CalStatus) || "scheduled"] || STATUS_META.scheduled;
+                                    const total = Number(en.total || 0);
+                                    const done = Number(en.completed || 0);
+                                    const countHint =
+                                      total > 1 ? ` ${done}/${total}` : done === 1 && total === 1 ? "" : total > 0 ? ` ${done}/${total}` : "";
+                                    const tip =
+                                      total > 0
+                                        ? `${zh ? meta.zh : meta.en} (${done}/${total})`
+                                        : zh
+                                          ? meta.zh
+                                          : meta.en;
                                     return (
-                                      <Tooltip
-                                        key={`${en.merchantAdminId}-${i}`}
-                                        title={zh ? meta.zh : meta.en}
-                                      >
+                                      <Tooltip key={`${en.merchantAdminId}-${i}`} title={tip}>
                                         <Tag color={meta.color} className="m-0 truncate max-w-[120px]">
                                           {nameOf(en.merchantAdminId)}
+                                          {countHint}
                                         </Tag>
                                       </Tooltip>
                                     );
