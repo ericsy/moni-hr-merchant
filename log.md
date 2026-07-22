@@ -1,6 +1,6 @@
 ## 2026-07-23
 
-- **考勤审批展示 Duty 影响**：详情映射 `dutyImpacts`/`dutyDispositions`；审批弹窗新增 Duty 区块（跳过/改派，可跟随外勤）；通过时提交 `dutyDispositions`。配合后端待审批重算 impacts，历史漏算的下班 Duty 也能显示。
+- **考勤审批展示 Duty 影响**：详情映射 `dutyImpacts`/`dutyDispositions`；审批弹窗新增 Duty 区块（跳过/改派，可跟随外勤/替班）；通过时提交 `dutyDispositions`。配合后端待审批重算 impacts，历史漏算的下班 Duty 也能显示。
 
 - **委派日历格子内容居中**：员工 Tag 与「点击分派」在格子内水平垂直居中。
 

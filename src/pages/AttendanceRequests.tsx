@@ -269,6 +269,7 @@ function buildDutyDispositionsForReview(
   assigneeByKey: Record<string, string>,
   fieldActionByJobId: Record<string, "cancel" | "reassign" | "">,
   fieldAssigneeByJobId: Record<string, string>,
+  substitutionDrafts: Record<string, SubstitutionDraft>,
 ): Array<{
   impactKey?: string | null;
   templateId: number | string;
@@ -301,6 +302,24 @@ function buildDutyDispositionsForReview(
         assignee = (fieldAssigneeByJobId[String(parent.fieldJobId)] || "").trim();
       } else {
         continue;
+      }
+    } else {
+      let leaveItemId =
+        impact.leaveItemId != null && Number(impact.leaveItemId) > 0
+          ? String(impact.leaveItemId)
+          : "";
+      if (!leaveItemId && impact.publishedCellId != null) {
+        const matched = (request.leaveItems || []).find(
+          (item) =>
+            item.publishedCellId != null &&
+            String(item.publishedCellId) === String(impact.publishedCellId),
+        );
+        if (matched?.id != null) leaveItemId = String(matched.id);
+      }
+      const draft = leaveItemId ? substitutionDrafts[leaveItemId] : undefined;
+      if (draft?.enabled && (draft.substituteId || "").trim()) {
+        action = "reassign";
+        assignee = draft.substituteId.trim();
       }
     }
     if (action !== "skip" && action !== "reassign") continue;
@@ -699,6 +718,22 @@ export default function AttendanceRequestPage() {
           if (parent && parent.requiredAction === "required") {
             continue;
           }
+          let leaveItemId =
+            impact.leaveItemId != null && Number(impact.leaveItemId) > 0
+              ? String(impact.leaveItemId)
+              : "";
+          if (!leaveItemId && impact.publishedCellId != null) {
+            const matched = (selectedRequest.leaveItems || []).find(
+              (item) =>
+                item.publishedCellId != null &&
+                String(item.publishedCellId) === String(impact.publishedCellId),
+            );
+            if (matched?.id != null) leaveItemId = String(matched.id);
+          }
+          const draft = leaveItemId ? substitutionDrafts[leaveItemId] : undefined;
+          if (draft?.enabled && (draft.substituteId || "").trim()) {
+            continue;
+          }
           const action = dutyDispositionByKey[key];
           if (action !== "skip" && action !== "reassign") {
             toast.error(labels.dutyDispositionRequired);
@@ -752,6 +787,7 @@ export default function AttendanceRequestPage() {
                   dutyAssigneeByKey,
                   fieldDispositionByJobId,
                   fieldAssigneeByJobId,
+                  substitutionDrafts,
                 )
               : undefined,
         },
@@ -1684,13 +1720,37 @@ function AttendanceDetailModal({
                     const required = impact.requiredAction === "required";
                     const parent = findParentFieldImpactForDuty(impact, request.fieldImpacts);
                     const followField = !!(parent && parent.requiredAction === "required");
+                    let leaveItemId =
+                      impact.leaveItemId != null && Number(impact.leaveItemId) > 0
+                        ? String(impact.leaveItemId)
+                        : "";
+                    if (!leaveItemId && impact.publishedCellId != null) {
+                      const matched = (request.leaveItems || []).find(
+                        (item) =>
+                          item.publishedCellId != null &&
+                          String(item.publishedCellId) === String(impact.publishedCellId),
+                      );
+                      if (matched?.id != null) leaveItemId = String(matched.id);
+                    }
+                    const subDraft = leaveItemId ? substitutionDrafts[leaveItemId] : undefined;
+                    const followSubstitute = !!(
+                      !followField &&
+                      subDraft?.enabled &&
+                      (subDraft.substituteId || "").trim()
+                    );
                     const action = dutyDispositionByKey[key] || "";
                     const assignee = dutyAssigneeByKey[key] || "";
                     const assigneeOptions = dutyAssigneeOptionsByKey[key] || [];
                     const assigneeOptionsLoading = !!dutyAssigneeOptionsLoadingByKey[key];
                     const saved = (request.dutyDispositions || []).find((row) => row.impactKey === key);
                     const showDispositionControls =
-                      showDutyDispositionEditor && required && !followField;
+                      showDutyDispositionEditor && required && !followField && !followSubstitute;
+                    const substituteName =
+                      followSubstitute && leaveItemId
+                        ? (substituteOptionsByLeaveItem[leaveItemId] || []).find(
+                            (row) => String(row.id) === String(subDraft?.substituteId),
+                          )?.name || String(subDraft?.substituteId)
+                        : "";
                     return (
                       <div key={key} className="rounded-md bg-muted/40 px-3 py-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1733,6 +1793,12 @@ function AttendanceDetailModal({
                         {followField && showDutyDispositionEditor ? (
                           <div className="mt-2 text-xs text-muted-foreground">
                             {labels.dutyDispositionFollowField}
+                          </div>
+                        ) : null}
+                        {followSubstitute && showDutyDispositionEditor ? (
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {labels.dutyDispositionFollowSubstitute}
+                            {substituteName ? `（${substituteName}）` : ""}
                           </div>
                         ) : null}
                         {showDispositionControls ? (
