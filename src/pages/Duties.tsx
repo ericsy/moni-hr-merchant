@@ -3,6 +3,7 @@ import {
   Button,
   DatePicker,
   Form,
+  Image,
   Input,
   InputNumber,
   Modal,
@@ -22,6 +23,7 @@ import { useData } from "../context/DataContext";
 import {
   merchantApi,
   type DutyCalendarEntryApi,
+  type DutyCompletionApi,
   type DutyTemplateApi,
 } from "../lib/merchantApi";
 
@@ -64,7 +66,7 @@ export default function Duties() {
   const zh = locale === "zh";
 
   const [templates, setTemplates] = useState<DutyTemplateApi[]>([]);
-  const [activeTab, setActiveTab] = useState<"store_shift" | "field_job">("store_shift");
+  const [activeTab, setActiveTab] = useState<"store_shift" | "field_job" | "completions">("store_shift");
   const [calendarEntries, setCalendarEntries] = useState<DutyCalendarEntryApi[]>([]);
   const [loading, setLoading] = useState(false);
   const [calLoading, setCalLoading] = useState(false);
@@ -81,6 +83,14 @@ export default function Duties() {
   const [assigneeLoading, setAssigneeLoading] = useState(false);
   // 按日委派：区间内至少一天有排班且未请假的员工；null 表示未加载
   const [eligibleIds, setEligibleIds] = useState<number[] | null>(null);
+
+  // 完成明细 Tab（含照片）
+  const [completionDate, setCompletionDate] = useState<Dayjs>(() => dayjs());
+  const [completionItems, setCompletionItems] = useState<DutyCompletionApi[]>([]);
+  const [completionLoading, setCompletionLoading] = useState(false);
+  const [completionAppType, setCompletionAppType] = useState<"all" | "store_shift" | "field_job">("all");
+  const [completionStatus, setCompletionStatus] = useState<string>("all");
+  const [completionEmployeeId, setCompletionEmployeeId] = useState<number | null>(null);
 
   const storeEmployees = useMemo(
     () =>
@@ -181,6 +191,8 @@ export default function Duties() {
     [templates, activeTab],
   );
   const isFieldTab = activeTab === "field_job";
+  const isCompletionsTab = activeTab === "completions";
+  const isTemplateTab = activeTab === "store_shift" || activeTab === "field_job";
 
   const reloadTemplates = async () => {
     if (!hasConcreteStore) {
@@ -226,15 +238,86 @@ export default function Duties() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStoreId, weekStart]);
 
+  useEffect(() => {
+    if (!isCompletionsTab || !hasConcreteStore) return;
+    void loadCompletions(completionDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, selectedStoreId, completionDate]);
+
   const reloadAll = async () => {
-    await Promise.all([reloadTemplates(), reloadCalendar()]);
+    const tasks: Promise<unknown>[] = [reloadTemplates(), reloadCalendar()];
+    if (isCompletionsTab) {
+      tasks.push(loadCompletions(completionDate));
+    }
+    await Promise.all(tasks);
   };
+
+  const loadCompletions = async (date: Dayjs) => {
+    if (!hasConcreteStore) {
+      setCompletionItems([]);
+      return;
+    }
+    setCompletionLoading(true);
+    try {
+      const items = await merchantApi.listDutyCompletions(
+        String(selectedStoreId),
+        date.format("YYYY-MM-DD"),
+      );
+      setCompletionItems(items);
+    } catch (err) {
+      setCompletionItems([]);
+      toast.error(err instanceof Error ? err.message : "Load failed");
+    } finally {
+      setCompletionLoading(false);
+    }
+  };
+
+  /** 切到「完成明细」Tab；可从日历带入日期/员工筛选 */
+  const openCompletionsTab = (
+    date: Dayjs,
+    opts?: { merchantAdminId?: string; appType?: "store_shift" | "field_job" },
+  ) => {
+    setCompletionDate(date);
+    setCompletionEmployeeId(
+      opts?.merchantAdminId ? Number(opts.merchantAdminId) || null : null,
+    );
+    if (opts?.appType) {
+      setCompletionAppType(opts.appType);
+    } else {
+      setCompletionAppType("all");
+    }
+    setCompletionStatus("all");
+    setActiveTab("completions");
+  };
+
+  const formatDt = (v?: string | null) => {
+    if (!v) return "—";
+    const d = dayjs(v);
+    if (!d.isValid()) return v;
+    return d.format(zh ? "MM/DD HH:mm" : "MMM D HH:mm");
+  };
+
+  const filteredCompletionItems = useMemo(() => {
+    let items = completionItems;
+    if (completionAppType !== "all") {
+      items = items.filter(
+        (i) => normalizeApplicationType(i.applicationType) === completionAppType,
+      );
+    }
+    if (completionStatus !== "all") {
+      items = items.filter((i) => (i.status || "") === completionStatus);
+    }
+    if (completionEmployeeId != null && completionEmployeeId > 0) {
+      items = items.filter((i) => Number(i.merchantAdminId) === completionEmployeeId);
+    }
+    return items;
+  }, [completionItems, completionAppType, completionStatus, completionEmployeeId]);
 
   const openCreate = () => {
     setEditing(null);
     form.resetFields();
     form.setFieldsValue({
-      applicationType: activeTab,
+      applicationType: activeTab === "field_job" ? "field_job" : "store_shift",
       triggerType: "clock_in",
       assignmentMode: "fixed",
       required: true,
@@ -338,44 +421,228 @@ export default function Duties() {
 
   const rangeLabel = `${weekStart.format("YYYY/MM/DD")} - ${weekStart.add(6, "day").format("MM/DD")}`;
 
+  const pageHint = isCompletionsTab
+    ? zh
+      ? "按日查看 Duty 完成情况与现场照片。"
+      : "Review daily duty completion status and photos."
+    : isFieldTab
+      ? zh
+        ? "此处仅维护外勤检查项模板。具体使用哪些检查项，请在创建/编辑外勤任务时勾选；人员自动跟随工单接单人，改派随之转移。"
+        : "Maintain field-job checklist templates here. Pick templates when creating a field job; assignees always follow the job's workers."
+      : zh
+        ? "配置上班/下班必做与分钟重复任务；固定委派或按日分派。固定委派仅在该员工当天有排班时生效并落到日历。"
+        : "Configure clock-in/out required duties and recurring tasks. Fixed assignees apply only on days the employee is scheduled, and are projected onto the calendar.";
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold m-0">{zh ? "门店 Duties" : "Store Duties"}</h1>
-          <p className="text-slate-500 text-sm m-0 mt-1">
-            {isFieldTab
-              ? zh
-                ? "此处仅维护外勤检查项模板。具体使用哪些检查项，请在创建/编辑外勤任务时勾选；人员自动跟随工单接单人，改派随之转移。"
-                : "Maintain field-job checklist templates here. Pick templates when creating a field job; assignees always follow the job's workers."
-              : zh
-                ? "配置上班/下班必做与分钟重复任务；固定委派或按日分派。固定委派仅在该员工当天有排班时生效并落到日历。"
-                : "Configure clock-in/out required duties and recurring tasks. Fixed assignees apply only on days the employee is scheduled, and are projected onto the calendar."}
-          </p>
+          <p className="text-slate-500 text-sm m-0 mt-1">{pageHint}</p>
         </div>
         <div className="flex gap-2">
-          <Button icon={<RefreshCw size={16} />} onClick={() => void reloadAll()} loading={loading || calLoading}>
+          <Button
+            icon={<RefreshCw size={16} />}
+            onClick={() => void reloadAll()}
+            loading={loading || calLoading || (isCompletionsTab && completionLoading)}
+          >
             {zh ? "刷新" : "Refresh"}
           </Button>
-          <Button type="primary" icon={<Plus size={16} />} onClick={openCreate}>
-            {isFieldTab
-              ? zh ? "新建外勤模板" : "New field template"
-              : zh ? "新建模板" : "New template"}
-          </Button>
+          {isTemplateTab ? (
+            <Button type="primary" icon={<Plus size={16} />} onClick={openCreate}>
+              {isFieldTab
+                ? zh ? "新建外勤模板" : "New field template"
+                : zh ? "新建模板" : "New template"}
+            </Button>
+          ) : null}
         </div>
       </div>
 
       <Tabs
         activeKey={activeTab}
-        onChange={(k) => setActiveTab(k === "field_job" ? "field_job" : "store_shift")}
+        onChange={(k) => {
+          if (k === "field_job" || k === "completions" || k === "store_shift") {
+            setActiveTab(k);
+          }
+        }}
         items={[
           { key: "store_shift", label: zh ? "店班 Duties" : "Store Shift Duties" },
           { key: "field_job", label: zh ? "外勤 Duty 模板" : "Field Job Templates" },
+          { key: "completions", label: zh ? "完成明细" : "Completions" },
         ]}
       />
 
       {!hasConcreteStore ? (
         <div className="text-slate-500">{zh ? "请选择具体门店后管理 Duties" : "Select a concrete store to manage duties"}</div>
+      ) : isCompletionsTab ? (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-slate-600 text-sm">{zh ? "日期" : "Date"}</span>
+            <DatePicker
+              value={completionDate}
+              allowClear={false}
+              onChange={(d) => {
+                if (d) setCompletionDate(d);
+              }}
+            />
+            <Select
+              className="min-w-[120px]"
+              value={completionAppType}
+              onChange={(v) => setCompletionAppType(v)}
+              options={[
+                { value: "all", label: zh ? "全部类型" : "All types" },
+                { value: "store_shift", label: zh ? "店班" : "Store shift" },
+                { value: "field_job", label: zh ? "外勤" : "Field job" },
+              ]}
+            />
+            <Select
+              className="min-w-[120px]"
+              value={completionStatus}
+              onChange={(v) => setCompletionStatus(v)}
+              options={[
+                { value: "all", label: zh ? "全部状态" : "All status" },
+                { value: "pending", label: zh ? "待完成" : "Pending" },
+                { value: "completed", label: zh ? "已完成" : "Completed" },
+                { value: "expired", label: zh ? "已过期" : "Expired" },
+                { value: "skipped", label: zh ? "已跳过" : "Skipped" },
+              ]}
+            />
+            <Select
+              className="min-w-[160px]"
+              allowClear
+              placeholder={zh ? "全部员工" : "All employees"}
+              value={completionEmployeeId ?? undefined}
+              onChange={(v) => setCompletionEmployeeId(v ?? null)}
+              options={employeeOptions}
+              optionFilterProp="label"
+              showSearch
+            />
+          </div>
+
+          <Table
+            rowKey={(r) => String(r.id)}
+            loading={completionLoading}
+            dataSource={filteredCompletionItems}
+            pagination={{ pageSize: 15, hideOnSinglePage: true }}
+            size="middle"
+            locale={{
+              emptyText: zh ? "当日暂无 Duty 实例" : "No duty instances for this day",
+            }}
+            columns={[
+              {
+                title: zh ? "员工" : "Employee",
+                dataIndex: "merchantAdminId",
+                width: 120,
+                render: (v: number | string) => nameOf(v),
+              },
+              {
+                title: zh ? "类型" : "Type",
+                dataIndex: "applicationType",
+                width: 90,
+                render: (v: string) => {
+                  const t = normalizeApplicationType(v);
+                  const meta = APPLICATION_TYPE_META[t];
+                  return <Tag color={meta.color}>{zh ? meta.zh : meta.en}</Tag>;
+                },
+              },
+              {
+                title: zh ? "任务" : "Duty",
+                dataIndex: "title",
+                ellipsis: true,
+                render: (v: string, row: DutyCompletionApi) => {
+                  const opt = TRIGGER_OPTIONS.find((o) => o.value === row.triggerType);
+                  const seq =
+                    row.triggerType === "recurring" && row.sequenceNo
+                      ? ` #${row.sequenceNo}`
+                      : "";
+                  return (
+                    <div>
+                      <div className="font-medium">{v || "—"}</div>
+                      <div className="text-xs text-slate-400">
+                        {(zh ? opt?.zh : opt?.en) || row.triggerType}
+                        {seq}
+                        {row.fieldJobId ? ` · job#${row.fieldJobId}` : ""}
+                      </div>
+                    </div>
+                  );
+                },
+              },
+              {
+                title: zh ? "状态" : "Status",
+                dataIndex: "status",
+                width: 100,
+                render: (v: string) => {
+                  const key = (v as CalStatus) in STATUS_META ? (v as CalStatus) : null;
+                  const meta = key ? STATUS_META[key] : null;
+                  return (
+                    <Tag color={meta?.color || "default"}>
+                      {meta ? (zh ? meta.zh : meta.en) : v || "—"}
+                    </Tag>
+                  );
+                },
+              },
+              {
+                title: zh ? "时间窗" : "Window",
+                width: 150,
+                render: (_: unknown, row: DutyCompletionApi) => (
+                  <span className="text-xs text-slate-600">
+                    {formatDt(row.windowStart)}
+                    <br />
+                    {formatDt(row.windowEnd)}
+                  </span>
+                ),
+              },
+              {
+                title: zh ? "完成于" : "Completed",
+                dataIndex: "completedAt",
+                width: 120,
+                render: (v: string | null | undefined) => (
+                  <span className="text-xs">{formatDt(v)}</span>
+                ),
+              },
+              {
+                title: zh ? "备注" : "Note",
+                dataIndex: "note",
+                ellipsis: true,
+                width: 140,
+                render: (v: string | null | undefined) =>
+                  v ? <span className="text-xs">{v}</span> : <span className="text-slate-300">—</span>,
+              },
+              {
+                title: zh ? "照片" : "Photos",
+                width: 200,
+                render: (_: unknown, row: DutyCompletionApi) => {
+                  const urls = (row.photoUrls || []).filter(Boolean);
+                  if (urls.length === 0) {
+                    return row.requirePhoto ? (
+                      <span className="text-xs text-slate-400">
+                        {zh ? "需拍照·无图" : "Required·none"}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    );
+                  }
+                  return (
+                    <Image.PreviewGroup items={urls}>
+                      <div className="flex gap-1 flex-wrap">
+                        {urls.map((url) => (
+                          <Image
+                            key={url}
+                            src={url}
+                            width={48}
+                            height={48}
+                            className="rounded object-cover"
+                            style={{ objectFit: "cover" }}
+                          />
+                        ))}
+                      </div>
+                    </Image.PreviewGroup>
+                  );
+                },
+              },
+            ]}
+          />
+        </>
       ) : (
         <>
           {/* 周日历视图 */}
@@ -410,7 +677,13 @@ export default function Duties() {
                     return (
                       <th
                         key={d.format("YYYY-MM-DD")}
-                        className={`p-2 border-b border-l border-slate-200 text-center min-w-[130px] ${isToday ? "bg-blue-50" : ""}`}
+                        className={`p-2 border-b border-l border-slate-200 text-center min-w-[130px] cursor-pointer hover:bg-slate-100 ${isToday ? "bg-blue-50" : ""}`}
+                        title={zh ? "查看当日完成明细" : "View completions for this day"}
+                        onClick={() =>
+                          openCompletionsTab(d, {
+                            appType: isFieldTab ? "field_job" : "store_shift",
+                          })
+                        }
                       >
                         <div className="font-medium">{d.format(zh ? "MM/DD" : "ddd")}</div>
                         <div className="text-xs text-slate-400">{d.format(zh ? "ddd" : "MM/DD")}</div>
@@ -466,13 +739,23 @@ export default function Duties() {
                                       total > 1 ? ` ${done}/${total}` : done === 1 && total === 1 ? "" : total > 0 ? ` ${done}/${total}` : "";
                                     const tip =
                                       total > 0
-                                        ? `${zh ? meta.zh : meta.en} (${done}/${total})`
+                                        ? `${zh ? meta.zh : meta.en} (${done}/${total}) · ${zh ? "点击查看明细" : "Click for details"}`
                                         : zh
-                                          ? meta.zh
-                                          : meta.en;
+                                          ? `${meta.zh} · 点击查看明细`
+                                          : `${meta.en} · Click for details`;
                                     return (
                                       <Tooltip key={`${en.merchantAdminId}-${i}`} title={tip}>
-                                        <Tag color={meta.color} className="m-0 truncate max-w-[120px]">
+                                        <Tag
+                                          color={meta.color}
+                                          className="m-0 truncate max-w-[120px] cursor-pointer"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openCompletionsTab(d, {
+                                              merchantAdminId: String(en.merchantAdminId ?? ""),
+                                              appType: isFieldTab ? "field_job" : "store_shift",
+                                            });
+                                          }}
+                                        >
                                           {nameOf(en.merchantAdminId)}
                                           {countHint}
                                         </Tag>
