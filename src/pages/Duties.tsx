@@ -828,9 +828,13 @@ export default function Duties() {
                             >
                               <div className="flex flex-col gap-1">
                                 {entries.length === 0 ? (
-                                  <span className="text-slate-300 text-xs">
-                                    {byDate ? (zh ? "点击分派" : "assign") : "—"}
-                                  </span>
+                                  byDate ? (
+                                    <span className="text-blue-500 text-xs underline-offset-2 hover:underline">
+                                      {zh ? "点击分派" : "Assign"}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-300 text-xs">—</span>
+                                  )
                                 ) : (
                                   entries.map((en, i) => {
                                     const meta = STATUS_META[(en.status as CalStatus) || "scheduled"] || STATUS_META.scheduled;
@@ -838,13 +842,12 @@ export default function Duties() {
                                     const done = Number(en.completed || 0);
                                     const countHint =
                                       total > 1 ? ` ${done}/${total}` : done === 1 && total === 1 ? "" : total > 0 ? ` ${done}/${total}` : "";
-                                    // 按日委派：点击格子/Tag 继续打开委派，勿 stopPropagation 抢走二次分配
-                                    // 固定委派：点 Tag 可跳转完成明细
+                                    // 按日委派：点击格子/Tag 继续打开委派；固定委派 Tag 可跳转完成明细
                                     const statusText = zh ? meta.zh : meta.en;
                                     const tip = byDate
                                       ? (total > 0
-                                          ? `${statusText} (${done}/${total}) · ${zh ? "点击重新委派" : "Click to reassign"}`
-                                          : `${statusText} · ${zh ? "点击重新委派" : "Click to reassign"}`)
+                                          ? `${statusText} (${done}/${total})`
+                                          : statusText)
                                       : (total > 0
                                           ? `${statusText} (${done}/${total}) · ${zh ? "点击查看明细" : "Click for details"}`
                                           : `${statusText} · ${zh ? "点击查看明细" : "Click for details"}`);
@@ -872,6 +875,11 @@ export default function Duties() {
                                     );
                                   })
                                 )}
+                                {byDate && entries.length > 0 ? (
+                                  <span className="text-blue-500 text-xs underline-offset-2 hover:underline">
+                                    {zh ? "点击分派" : "Assign"}
+                                  </span>
+                                ) : null}
                               </div>
                             </td>
                           );
