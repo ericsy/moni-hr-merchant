@@ -838,24 +838,32 @@ export default function Duties() {
                                     const done = Number(en.completed || 0);
                                     const countHint =
                                       total > 1 ? ` ${done}/${total}` : done === 1 && total === 1 ? "" : total > 0 ? ` ${done}/${total}` : "";
-                                    const tip =
-                                      total > 0
-                                        ? `${zh ? meta.zh : meta.en} (${done}/${total}) · ${zh ? "点击查看明细" : "Click for details"}`
-                                        : zh
-                                          ? `${meta.zh} · 点击查看明细`
-                                          : `${meta.en} · Click for details`;
+                                    // 按日委派：点击格子/Tag 继续打开委派，勿 stopPropagation 抢走二次分配
+                                    // 固定委派：点 Tag 可跳转完成明细
+                                    const statusText = zh ? meta.zh : meta.en;
+                                    const tip = byDate
+                                      ? (total > 0
+                                          ? `${statusText} (${done}/${total}) · ${zh ? "点击重新委派" : "Click to reassign"}`
+                                          : `${statusText} · ${zh ? "点击重新委派" : "Click to reassign"}`)
+                                      : (total > 0
+                                          ? `${statusText} (${done}/${total}) · ${zh ? "点击查看明细" : "Click for details"}`
+                                          : `${statusText} · ${zh ? "点击查看明细" : "Click for details"}`);
                                     return (
                                       <Tooltip key={`${en.merchantAdminId}-${i}`} title={tip}>
                                         <Tag
                                           color={meta.color}
-                                          className="m-0 truncate max-w-[120px] cursor-pointer"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openCompletionsTab(d, {
-                                              merchantAdminId: String(en.merchantAdminId ?? ""),
-                                              appType: isFieldTab ? "field_job" : "store_shift",
-                                            });
-                                          }}
+                                          className={`m-0 truncate max-w-[120px] ${byDate ? "" : "cursor-pointer"}`}
+                                          onClick={
+                                            byDate
+                                              ? undefined
+                                              : (e) => {
+                                                  e.stopPropagation();
+                                                  openCompletionsTab(d, {
+                                                    merchantAdminId: String(en.merchantAdminId ?? ""),
+                                                    appType: isFieldTab ? "field_job" : "store_shift",
+                                                  });
+                                                }
+                                          }
                                         >
                                           {nameOf(en.merchantAdminId)}
                                           {countHint}
