@@ -826,60 +826,81 @@ export default function Duties() {
                               onClick={byDate ? () => void openAssignees(tpl, d) : undefined}
                               className={`p-1.5 border-b border-l border-slate-100 align-top ${isToday ? "bg-blue-50/40" : ""} ${byDate ? "cursor-pointer hover:bg-slate-50" : ""}`}
                             >
-                              <div className="flex flex-col gap-1">
+                              <div
+                                className={`flex flex-col gap-1 ${
+                                  byDate && entries.length === 0 ? "items-center justify-center min-h-[52px]" : ""
+                                }`}
+                              >
                                 {entries.length === 0 ? (
                                   byDate ? (
-                                    <span className="text-blue-500 text-xs underline-offset-2 hover:underline">
-                                      {zh ? "点击分派" : "Assign"}
-                                    </span>
+                                    <Button
+                                      type="dashed"
+                                      size="small"
+                                      className="!text-xs !px-2 !h-7"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void openAssignees(tpl, d);
+                                      }}
+                                    >
+                                      {zh ? "委派" : "Assign"}
+                                    </Button>
                                   ) : (
                                     <span className="text-slate-300 text-xs">—</span>
                                   )
                                 ) : (
-                                  entries.map((en, i) => {
-                                    const meta = STATUS_META[(en.status as CalStatus) || "scheduled"] || STATUS_META.scheduled;
-                                    const total = Number(en.total || 0);
-                                    const done = Number(en.completed || 0);
-                                    const countHint =
-                                      total > 1 ? ` ${done}/${total}` : done === 1 && total === 1 ? "" : total > 0 ? ` ${done}/${total}` : "";
-                                    // 按日委派：点击格子/Tag 继续打开委派；固定委派 Tag 可跳转完成明细
-                                    const statusText = zh ? meta.zh : meta.en;
-                                    const tip = byDate
-                                      ? (total > 0
-                                          ? `${statusText} (${done}/${total})`
-                                          : statusText)
-                                      : (total > 0
-                                          ? `${statusText} (${done}/${total}) · ${zh ? "点击查看明细" : "Click for details"}`
-                                          : `${statusText} · ${zh ? "点击查看明细" : "Click for details"}`);
-                                    return (
-                                      <Tooltip key={`${en.merchantAdminId}-${i}`} title={tip}>
-                                        <Tag
-                                          color={meta.color}
-                                          className={`m-0 truncate max-w-[120px] ${byDate ? "" : "cursor-pointer"}`}
-                                          onClick={
-                                            byDate
-                                              ? undefined
-                                              : (e) => {
-                                                  e.stopPropagation();
-                                                  openCompletionsTab(d, {
-                                                    merchantAdminId: String(en.merchantAdminId ?? ""),
-                                                    appType: isFieldTab ? "field_job" : "store_shift",
-                                                  });
-                                                }
-                                          }
+                                  <>
+                                    {entries.map((en, i) => {
+                                      const meta = STATUS_META[(en.status as CalStatus) || "scheduled"] || STATUS_META.scheduled;
+                                      const total = Number(en.total || 0);
+                                      const done = Number(en.completed || 0);
+                                      const countHint =
+                                        total > 1 ? ` ${done}/${total}` : done === 1 && total === 1 ? "" : total > 0 ? ` ${done}/${total}` : "";
+                                      const statusText = zh ? meta.zh : meta.en;
+                                      const tip = byDate
+                                        ? (total > 0 ? `${statusText} (${done}/${total})` : statusText)
+                                        : (total > 0
+                                            ? `${statusText} (${done}/${total}) · ${zh ? "点击查看明细" : "Click for details"}`
+                                            : `${statusText} · ${zh ? "点击查看明细" : "Click for details"}`);
+                                      return (
+                                        <Tooltip key={`${en.merchantAdminId}-${i}`} title={tip}>
+                                          <Tag
+                                            color={meta.color}
+                                            className={`m-0 truncate max-w-[120px] ${byDate ? "" : "cursor-pointer"}`}
+                                            onClick={
+                                              byDate
+                                                ? undefined
+                                                : (e) => {
+                                                    e.stopPropagation();
+                                                    openCompletionsTab(d, {
+                                                      merchantAdminId: String(en.merchantAdminId ?? ""),
+                                                      appType: isFieldTab ? "field_job" : "store_shift",
+                                                    });
+                                                  }
+                                            }
+                                          >
+                                            {nameOf(en.merchantAdminId)}
+                                            {countHint}
+                                          </Tag>
+                                        </Tooltip>
+                                      );
+                                    })}
+                                    {byDate ? (
+                                      <div className="flex justify-center pt-0.5">
+                                        <Button
+                                          type="dashed"
+                                          size="small"
+                                          className="!text-xs !px-2 !h-7"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            void openAssignees(tpl, d);
+                                          }}
                                         >
-                                          {nameOf(en.merchantAdminId)}
-                                          {countHint}
-                                        </Tag>
-                                      </Tooltip>
-                                    );
-                                  })
+                                          {zh ? "委派" : "Assign"}
+                                        </Button>
+                                      </div>
+                                    ) : null}
+                                  </>
                                 )}
-                                {byDate && entries.length > 0 ? (
-                                  <span className="text-blue-500 text-xs underline-offset-2 hover:underline">
-                                    {zh ? "点击分派" : "Assign"}
-                                  </span>
-                                ) : null}
                               </div>
                             </td>
                           );
