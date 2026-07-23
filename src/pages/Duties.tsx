@@ -42,14 +42,13 @@ function normalizeApplicationType(v?: string | null) {
   return v === "field_job" ? "field_job" : "store_shift";
 }
 
-type CalStatus = "scheduled" | "pending" | "completed" | "expired" | "skipped" | "partial";
+type CalStatus = "scheduled" | "pending" | "completed" | "expired" | "partial";
 
 const STATUS_META: Record<CalStatus, { color: string; zh: string; en: string }> = {
   scheduled: { color: "default", zh: "已排未生成", en: "Scheduled" },
   pending: { color: "gold", zh: "待完成", en: "Pending" },
   completed: { color: "green", zh: "已完成", en: "Completed" },
   expired: { color: "red", zh: "已过期", en: "Expired" },
-  skipped: { color: "default", zh: "已跳过", en: "Skipped" },
   partial: { color: "orange", zh: "部分完成", en: "Partial" },
 };
 
@@ -170,10 +169,11 @@ export default function Duties() {
     [weekStart],
   );
 
-  // templateId -> dateStr -> entries[]
+  // templateId -> dateStr -> entries[]（日历不展示已跳过）
   const calGrid = useMemo(() => {
     const map = new Map<string, Map<string, DutyCalendarEntryApi[]>>();
     calendarEntries.forEach((e) => {
+      if ((e.status || "") === "skipped") return;
       const tid = String(e.templateId ?? "");
       const dt = e.workDate || "";
       if (!map.has(tid)) map.set(tid, new Map());
@@ -480,10 +480,7 @@ export default function Duties() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold m-0">{zh ? "门店 Duties" : "Store Duties"}</h1>
-          <p className="text-slate-500 text-sm m-0 mt-1">{pageHint}</p>
-        </div>
+        <p className="text-slate-500 text-sm m-0">{pageHint}</p>
         <div className="flex gap-2">
           <Button
             icon={<RefreshCw size={16} />}
@@ -510,9 +507,9 @@ export default function Duties() {
           }
         }}
         items={[
-          { key: "store_shift", label: zh ? "店班 Duties" : "Store Shift Duties" },
-          { key: "field_job", label: zh ? "外勤 Duty 模板" : "Field Job Templates" },
-          { key: "completions", label: zh ? "完成明细" : "Completions" },
+          { key: "store_shift", label: zh ? "店班检查" : "Store checks" },
+          { key: "field_job", label: zh ? "外勤检查" : "Field checks" },
+          { key: "completions", label: zh ? "明细" : "Details" },
         ]}
       />
 
@@ -836,7 +833,10 @@ export default function Duties() {
                                   </span>
                                 ) : (
                                   entries.map((en, i) => {
-                                    const meta = STATUS_META[(en.status as CalStatus) || "scheduled"] || STATUS_META.scheduled;
+                                    const meta =
+                                      (en.status as CalStatus) in STATUS_META
+                                        ? STATUS_META[en.status as CalStatus]
+                                        : STATUS_META.scheduled;
                                     const total = Number(en.total || 0);
                                     const done = Number(en.completed || 0);
                                     const countHint =
@@ -1008,11 +1008,11 @@ export default function Duties() {
                     <span className="text-slate-400 text-xs">
                       {at === "field_job"
                         ? zh
-                          ? "由「外勤 Duty 模板」页签创建，创建后不可更改"
-                          : "Created from the Field Job Templates tab; cannot be changed"
-                        : zh
-                          ? "由「店班 Duties」页签创建，创建后不可更改"
-                          : "Created from the Store Shift Duties tab; cannot be changed"}
+                          ? "由「外勤检查」页签创建，创建后不可更改"
+                          : "Created from the Field checks tab; cannot be changed"
+                      : zh
+                          ? "由「店班检查」页签创建，创建后不可更改"
+                          : "Created from the Store checks tab; cannot be changed"}
                     </span>
                   </div>
                 </Form.Item>
