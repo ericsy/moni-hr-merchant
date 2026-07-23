@@ -316,13 +316,13 @@ export default function Duties() {
   };
 
   const filteredCompletionItems = useMemo(() => {
-    let items = completionItems;
+    let items = completionItems.filter((i) => (i.status || "") !== "skipped");
     if (completionAppType !== "all") {
       items = items.filter(
         (i) => normalizeApplicationType(i.applicationType) === completionAppType,
       );
     }
-    if (completionStatus !== "all") {
+    if (completionStatus !== "all" && completionStatus !== "skipped") {
       items = items.filter((i) => (i.status || "") === completionStatus);
     }
     if (completionEmployeeId != null && completionEmployeeId > 0) {
@@ -565,7 +565,6 @@ export default function Duties() {
                   { value: "pending", label: zh ? "待完成" : "Pending" },
                   { value: "completed", label: zh ? "已完成" : "Completed" },
                   { value: "expired", label: zh ? "已过期" : "Expired" },
-                  { value: "skipped", label: zh ? "已跳过" : "Skipped" },
                 ]}
               />
               <Select

@@ -1,5 +1,7 @@
 ## 2026-07-23
 
+- **完成明细不展示已跳过**：列表过滤 `skipped`，状态筛选项去掉「已跳过」（配合后端 completions 排除）。
+
 - **请假审核 Duty 完全跟随替班**：去掉 Duty 跳过/改派控件；有替班显示跟随，未选替班显示将跳过；通过时不再提交 `dutyDispositions`（服务端按替班/外勤自动推导）。
 
 - **考勤审批展示 Duty 影响**：详情映射 `dutyImpacts`/`dutyDispositions`；审批弹窗新增 Duty 区块（跳过/改派，可跟随外勤/替班）；通过时提交 `dutyDispositions`。配合后端待审批重算 impacts，历史漏算的下班 Duty 也能显示。
