@@ -508,6 +508,7 @@ export interface MerchantAttendanceFieldDisposition {
   fieldJobId: number;
   action?: string | null;
   assigneeMerchantAdminId?: number | string | null;
+  assigneeName?: string | null;
   source?: string | null;
 }
 
@@ -577,6 +578,7 @@ export interface MerchantAttendanceDutyDisposition {
   publishedCellId?: number | string | null;
   action?: string | null;
   assigneeMerchantAdminId?: number | string | null;
+  assigneeName?: string | null;
   source?: string | null;
 }
 
@@ -1003,6 +1005,7 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
       fieldJobId: asNumber(it.fieldJobId),
       action: asString(it.action) || null,
       assigneeMerchantAdminId: (it.assigneeMerchantAdminId as number | string | null | undefined) ?? null,
+      assigneeName: asString(it.assigneeName) || null,
       source: asString(it.source) || null,
     } satisfies MerchantAttendanceFieldDisposition;
   });
@@ -1037,6 +1040,7 @@ function mapAttendanceRequest(input: unknown): MerchantAttendanceRequest {
       publishedCellId: (it.publishedCellId as number | string | null | undefined) ?? null,
       action: asString(it.action) || null,
       assigneeMerchantAdminId: (it.assigneeMerchantAdminId as number | string | null | undefined) ?? null,
+      assigneeName: asString(it.assigneeName) || null,
       source: asString(it.source) || null,
     } satisfies MerchantAttendanceDutyDisposition;
   });

@@ -101,6 +101,22 @@ function employeeOptionLabel(employee: MerchantEmployeeIdName) {
   return employee.name || employeeOptionKey(employee);
 }
 
+function resolveDispositionAssigneeName(
+  disposition: {
+    assigneeName?: string | null;
+    assigneeMerchantAdminId?: number | string | null;
+  },
+  candidates: MerchantEmployeeIdName[] = [],
+): string {
+  const fromApi = (disposition.assigneeName ?? "").trim();
+  if (fromApi) return fromApi;
+  const id = String(disposition.assigneeMerchantAdminId ?? "").trim();
+  if (!id) return "—";
+  const found = candidates.find((row) => employeeOptionKey(row) === id);
+  if (found) return employeeOptionLabel(found);
+  return `#${id}`;
+}
+
 function asNumber(value: unknown) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
@@ -1349,11 +1365,14 @@ function AttendanceDetailModal({
                     {labels.fieldDispositionTitle}：
                   </span>
                   {fieldLeaveSavedDisposition.action === "reassign"
-                    ? labels.fieldDispositionReassign
+                    ? labels.fieldDispositionReassignTo.replace(
+                        "{{name}}",
+                        resolveDispositionAssigneeName(
+                          fieldLeaveSavedDisposition,
+                          fieldAssigneeOptionsByJobId[fieldLeaveDispositionKey] || [],
+                        ),
+                      )
                     : labels.fieldDispositionCancel}
-                  {fieldLeaveSavedDisposition.assigneeMerchantAdminId
-                    ? ` (#${fieldLeaveSavedDisposition.assigneeMerchantAdminId})`
-                    : ""}
                 </div>
               ) : null}
             </div>
@@ -1462,11 +1481,14 @@ function AttendanceDetailModal({
                               {labels.fieldDispositionTitle}：
                             </span>
                             {saved.action === "reassign"
-                              ? labels.fieldDispositionReassign
+                              ? labels.fieldDispositionReassignTo.replace(
+                                  "{{name}}",
+                                  resolveDispositionAssigneeName(
+                                    saved,
+                                    fieldAssigneeOptionsByJobId[key] || [],
+                                  ),
+                                )
                               : labels.fieldDispositionCancel}
-                            {saved.assigneeMerchantAdminId
-                              ? ` (#${saved.assigneeMerchantAdminId})`
-                              : ""}
                           </div>
                         ) : null}
                       </div>
@@ -1573,11 +1595,11 @@ function AttendanceDetailModal({
                               {labels.dutyDispositionTitle}：
                             </span>
                             {saved.action === "reassign"
-                              ? labels.dutyDispositionReassign
+                              ? labels.dutyDispositionReassignTo.replace(
+                                  "{{name}}",
+                                  resolveDispositionAssigneeName(saved),
+                                )
                               : labels.dutyDispositionSkip}
-                            {saved.assigneeMerchantAdminId
-                              ? ` (#${saved.assigneeMerchantAdminId})`
-                              : ""}
                           </div>
                         ) : null}
                       </div>
